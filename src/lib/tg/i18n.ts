@@ -147,12 +147,12 @@ Find her in "Characters" in the bottom menu — edit body settings, add more cha
   gen_kind_video_btn: { ru: "Видео 🍓", en: "Video 🍓" },
 
   gen_pick_template: {
-    ru: `Теперь выбери первую позу и сюжет, который хочешь увидеть на фотографии <u>(или на видео, если выбрал видео)</u>. Ты можешь кликнуть, посмотреть пример и принять решение. А ещё можешь перейти в раздел "Маркетплейс", чтобы наглядно пролистать ленту шаблонов и выбрать тот, что тебе понравится.`,
-    en: `Pick the first pose and scene you want on your photo <u>(or video, if you chose video)</u>. Tap to preview and decide. Or open the Marketplace to scroll the template feed and pick what you like.`,
+    ru: `Теперь выбери первую позу и сюжет, который хочешь увидеть на {kind}. Ты можешь кликнуть, посмотреть пример и принять решение. А ещё можешь перейти в раздел "Маркетплейс", чтобы наглядно пролистать ленту шаблонов и выбрать тот, что тебе понравится.`,
+    en: `Pick the first pose and scene you want to see on {kind}. Tap to preview and decide. Or open the Marketplace to scroll the template feed and pick what you like.`,
   },
 
-  gen_kind_photo_label: { ru: "фотографии", en: "the photo" },
-  gen_kind_video_label: { ru: "видео", en: "the video" },
+  gen_kind_photo_label: { ru: "фотографии", en: "your photo" },
+  gen_kind_video_label: { ru: "видео", en: "your video" },
 
   marketplace_btn: { ru: "🍑 Маркетплейс", en: "🍑 Marketplace" },
   gen_page_prev: { ru: "◀️", en: "◀️" },
