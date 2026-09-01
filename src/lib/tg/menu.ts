@@ -1,6 +1,6 @@
 import type { TgLocale } from "@/lib/tg/i18n";
 import { t, tFormat } from "@/lib/tg/i18n";
-import { tgSendMessage } from "@/lib/tg/telegram-api";
+import { tgSendMediaMessage } from "@/lib/tg/media-assets";
 import { getBalancePeaches } from "@/lib/tg/wallet";
 
 /** Bottom reply keyboard: 5 sections + hub. */
@@ -34,7 +34,12 @@ export async function sendMainMenuHub(
   locale: TgLocale,
 ) {
   const bal = await getBalancePeaches(userId);
-  await tgSendMessage(chatId, tFormat("hub_main", locale, { balance: bal }), {
-    ...mainMenuKeyboard(locale),
-  });
+  await tgSendMediaMessage(
+    chatId,
+    "welcome",
+    tFormat("hub_main", locale, { balance: bal }),
+    {
+      ...mainMenuKeyboard(locale),
+    },
+  );
 }
