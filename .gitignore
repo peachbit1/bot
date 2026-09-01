@@ -32,6 +32,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -39,3 +40,39 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/src/generated/prisma
+
+# local uploads
+/public/uploads/*
+!/public/uploads/.gitkeep
+
+# durable local lab data (gallery binaries + db backups)
+/data/**
+!/data/gallery/.gitkeep
+!/data/backups/.gitkeep
+!/data/characters/.gitkeep
+
+# prisma local db
+/prisma/*.db
+/prisma/*.db-journal
+
+# metalnode / infra secrets
+/infra/*.key
+/infra/metalnode.local.json
+/infra/metalnode.llm.json
+metalnode_id_ed25519
+
+# cursor / temp
+.cursor/
+tmp_*
+klein_fix_latest.png
+
+# large local datasets (not for git)
+/datasets/
+/samples/
+
+# optional local presets (re-create on server if needed)
+/presets/
+
+# keep workflows — needed for Comfy later

@@ -1,0 +1,9 @@
+{
+  "host": "77.94.203.13",
+  "sshPort": 22026,
+  "sshUser": "root",
+  "sshKeyPath": "C:\\Users\\Public\\metalnode.key",
+  "comfyUrl": "http://127.0.0.1:8188",
+  "tunnels": [8188],
+  "notes": "GPU node. Port 22026. Key: Downloads/metalnode_id_ed25519 → C:\\Users\\Public\\metalnode.key. Switched 2026-08-24."
+}

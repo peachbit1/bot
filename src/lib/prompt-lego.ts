@@ -1,0 +1,137 @@
+/**
+ * Server-side LEGO catalog load + Krea prompt compile (identity lock).
+ */
+import { readFileSync, statSync } from "fs";
+import path from "path";
+import { loadPromptTemplates } from "@/lib/prompt-templates";
+import {
+  assembleLockedStillPrompt,
+  characterIdentityLock,
+} from "@/lib/character-identity";
+import {
+  analyzeLegoTokens,
+  buildLegoCatalog,
+  buildVideoLegoCatalog,
+  parseLegoQuery,
+  type CompiledLegoKrea,
+  type LegoCatalogItem,
+  type LegoCharacterRef,
+  type VideoLegoFile,
+} from "@/lib/prompt-lego-core";
+
+type LegoFile = {
+  lighting: Array<Omit<LegoCatalogItem, "kind">>;
+  events: Array<Omit<LegoCatalogItem, "kind">>;
+  stylization: Array<Omit<LegoCatalogItem, "kind">>;
+  body?: Array<Omit<LegoCatalogItem, "kind">>;
+};
+
+let legoCache: LegoFile | null = null;
+let legoMtime = 0;
+let videoLegoCache: VideoLegoFile | null = null;
+let videoLegoMtime = 0;
+
+export function loadLegoFile(): LegoFile {
+  const p = path.join(process.cwd(), "presets", "prompt_lego.json");
+  let mtime = 0;
+  try {
+    mtime = statSync(p).mtimeMs;
+  } catch {
+    /* ignore */
+  }
+  if (legoCache && mtime && mtime === legoMtime) return legoCache;
+  const raw = JSON.parse(readFileSync(p, "utf8")) as LegoFile;
+  const keep = <T extends { enabled?: boolean }>(rows: T[] | undefined) =>
+    (rows || []).filter((row) => row.enabled !== false);
+  legoCache = {
+    lighting: keep(raw.lighting),
+    events: keep(raw.events),
+    stylization: keep(raw.stylization),
+    body: keep(raw.body),
+  };
+  legoMtime = mtime;
+  return legoCache;
+}
+
+export function loadVideoLegoFile(): VideoLegoFile {
+  const p = path.join(process.cwd(), "presets", "prompt_lego_video.json");
+  let mtime = 0;
+  try {
+    mtime = statSync(p).mtimeMs;
+  } catch {
+    /* ignore */
+  }
+  if (videoLegoCache && mtime && mtime === videoLegoMtime) return videoLegoCache;
+  const raw = JSON.parse(readFileSync(p, "utf8")) as VideoLegoFile;
+  videoLegoCache = {
+    poses: raw.poses || [],
+    actions: raw.actions || [],
+    voices: raw.voices || [],
+    cameras: raw.cameras || [],
+  };
+  videoLegoMtime = mtime;
+  return videoLegoCache;
+}
+
+export function listLegoCatalog(characters: LegoCharacterRef[] = []): LegoCatalogItem[] {
+  const file = loadLegoFile();
+  const templates = loadPromptTemplates();
+  return buildLegoCatalog({
+    poses: templates.poses,
+    lighting: file.lighting,
+    events: file.events,
+    stylization: file.stylization,
+    body: file.body || [],
+    characters,
+  });
+}
+
+export function listVideoLegoCatalog(
+  characters: LegoCharacterRef[] = [],
+): LegoCatalogItem[] {
+  return buildVideoLegoCatalog({
+    videoLego: loadVideoLegoFile(),
+    characters,
+  });
+}
+
+export async function compileLegoToKreaPrompt(opts: {
+  query: string;
+  characters: LegoCharacterRef[];
+  characterIds?: string[];
+}): Promise<{ prompt: string; meta: CompiledLegoKrea }> {
+  const catalog = listLegoCatalog(opts.characters);
+  const tokens = parseLegoQuery(opts.query, catalog);
+  const meta = analyzeLegoTokens(tokens, opts.characters, catalog);
+  const ids =
+    meta.characterIdsInOrder.length > 0
+      ? meta.characterIdsInOrder
+      : opts.characterIds || [];
+  const ordered = ids.filter((id) => opts.characters.some((c) => c.id === id));
+  const identity = await characterIdentityLock(ordered);
+  const prompt = assembleLockedStillPrompt({
+    identity,
+    scene: meta.scene || opts.query.trim() || "photorealistic adult scene",
+  });
+  return { prompt, meta };
+}
+
+export {
+  LEGO_PLUS_MENU,
+  LEGO_VIDEO_PLUS_MENU,
+  LEGO_VIDEO_SECTIONED_KINDS,
+  LEGO_VIDEO_EXTRAS,
+  analyzeLegoTokens,
+  buildVideoLegoCatalog,
+  formatLegoTab,
+  groupCatalogBySection,
+  parseLegoQuery,
+  suggestLegoTabs,
+  type CompiledLegoKrea,
+  type LegoCatalogItem,
+  type LegoCharacterRef,
+  type LegoKind,
+  type LegoToken,
+  type VideoLegoFile,
+  type VideoLegoStaticItem,
+} from "@/lib/prompt-lego-core";
