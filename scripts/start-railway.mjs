@@ -3,7 +3,7 @@
  */
 import { spawn } from "node:child_process";
 
-function run(label: string, cmd: string, args: string[]) {
+function run(label, cmd, args) {
   const child = spawn(cmd, args, {
     stdio: "inherit",
     shell: true,
@@ -20,7 +20,7 @@ console.log("[railway] starting web + bot…");
 const bot = run("bot", "npx", ["tsx", "scripts/tg-bot-dev.ts"]);
 const web = run("web", "npm", ["start"]);
 
-function shutdown(signal: string) {
+function shutdown(signal) {
   console.log(`[railway] ${signal}, stopping…`);
   bot.kill("SIGTERM");
   web.kill("SIGTERM");
