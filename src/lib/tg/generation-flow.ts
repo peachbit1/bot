@@ -146,14 +146,10 @@ export async function sendTemplatePicker(
   }
 
   const { keyboard, page: safePage } = templatePickerKeyboard(templates, page, locale);
-  const kindLabel =
-    kind === "photo" ? t("gen_kind_photo_label", locale) : t("gen_kind_video_label", locale);
 
-  await tgSendMessage(
-    chatId,
-    tFormat("gen_pick_template", locale, { kind: kindLabel }),
-    { reply_markup: { inline_keyboard: keyboard } },
-  );
+  await tgSendMessage(chatId, t("gen_pick_template", locale), {
+    reply_markup: { inline_keyboard: keyboard },
+  });
 
   return { templates, page: safePage };
 }

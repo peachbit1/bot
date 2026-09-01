@@ -25,7 +25,7 @@ const M: Dict = {
 
   /** Start pitch — always shown in Russian first (PDF). */
   start_pitch: {
-    ru: `🍑С Peachbitch ты воплотишь все свои фантазии. Без ограничений, без цензуры, с тотальной защитой конфиденциальности!
+    ru: `🍑<b>С Peachbitch ты воплотишь все свои фантазии</b>. Без ограничений, без цензуры, с тотальной защитой конфиденциальности!
 
 Просто загружаешь фотографию своего персонажа и творишь с ним всё, на что хватит фантазии и смелости 🤯💦
 
@@ -33,9 +33,9 @@ const M: Dict = {
 — Маркетплейс готовых шаблонов на любой вкус
 — Высочайшее качество, как будто сняли вживую
 
-Для начала, выбери язык 👇
-(Select a language)`,
-    en: `🍑 With Peachbitch you can bring every fantasy to life. No limits, no censorship, total privacy!
+<b>Для начала, выбери язык 👇</b>
+<b>(Select a language)</b>`,
+    en: `🍑<b>With Peachbitch you can bring every fantasy to life</b>. No limits, no censorship, total privacy!
 
 Just upload a photo of your character and create anything your imagination dares 🤯💦
 
@@ -43,17 +43,17 @@ Just upload a photo of your character and create anything your imagination dares
 — Marketplace of ready-made templates
 — Top quality, as if shot live
 
-Choose your language 👇
-(Select a language)`,
+<b>Choose your language 👇</b>
+<b>(Select a language)</b>`,
   },
 
   rules_step: {
-    ru: `⚠ Дальше ты можешь устраивать настоящую грязь!
+    ru: `<b>⚠️ Дальше ты можешь устраивать настоящую грязь!</b>
 
-А для этого нужно, чтобы ты принял правила пользования ботом и ознакомился с оффертой, а также подтвердил, что тебе исполнилось 18 лет. Просто нажми на кнопку ниже`,
-    en: `⚠ Things are about to get dirty!
+А для этого нужно, чтобы ты принял <a href="{rulesUrl}">правила пользования ботом</a> и ознакомился с оффертой, а также подтвердил, что тебе исполнилось 18 лет. Просто нажми на кнопку ниже`,
+    en: `<b>⚠️ Things are about to get dirty!</b>
 
-Please accept our Terms of Service and confirm you are 18+. Tap the button below.`,
+Please accept our <a href="{rulesUrl}">Terms of Service</a> and confirm you are 18+. Tap the button below`,
   },
 
   rules_agree_btn: {
@@ -62,30 +62,32 @@ Please accept our Terms of Service and confirm you are 18+. Tap the button below
   },
 
   welcome_after_rules: {
-    ru: `Добро пожаловать в PeachBitch — место, после которого ты забудешь адреса всех сайтов 🔞🍓⬛🟧 и будешь создавать творения из одной фотографии!
+    ru: `<b>Добро пожаловать в PeachBitch</b> - место, после которого ты забудешь адреса всех сайтов 🔞🍓⬛️🟧 и будешь создавать творения из одной фотографии!
 
 Что можно в этом боте?
-1. Создать реалистичную фотографию с твоим персонажем
-2. Оживить созданные фотографии
-3. Сделать видео с нуля с сюжетами, позами, диалогами
+
+<i>1. Создать реалистичную фотографию с твоим персонажем</i>
+<i>2. Оживить созданные фотографии</i>
+<i>3. Сделать видео с нуля с сюжетами, позами, диалогами</i>
 
 Тебе достаточно один раз загрузить фотографию своего персонажа, выбрать шаблон в нашем персиковом маркетплейсе и готово!
 
-Кстати, тебе доступна 1 пробная генерация фото с твоим персонажем и −20% скидка на генерацию первого видео.
+Кстати, тебе доступна 1 пробная генерация фото с твоим персонажем и -20% скидка на генерацию первого видео.
 
-Для начала, добавь своего персонажа девушку, чтобы она всегда была у тебя под рукой 👇`,
-    en: `Welcome to PeachBitch — the place that makes you forget every other site 🔞🍓⬛🟧 and create masterpieces from a single photo!
+<b>Для начала, добавь своего персонажа девушку, чтобы она всегда была у тебя под рукой 👇</b>`,
+    en: `<b>Welcome to PeachBitch</b> — the place that makes you forget every other site 🔞🍓⬛️🟧 and create masterpieces from a single photo!
 
 What can you do here?
-1. Create realistic photos with your character
-2. Animate your photos
-3. Make videos from scratch with plots, poses & dialogue
+
+<i>1. Create realistic photos with your character</i>
+<i>2. Animate your photos</i>
+<i>3. Make videos from scratch with plots, poses & dialogue</i>
 
 Upload your character once, pick a template in our peach marketplace — done!
 
 You get 1 free trial photo and −20% off your first video.
 
-First, add your girl character so she's always at hand 👇`,
+<b>First, add your girl character so she's always at hand 👇</b>`,
   },
 
   onboard_upload_char_btn: {
@@ -94,18 +96,18 @@ First, add your girl character so she's always at hand 👇`,
   },
 
   onboard_name_prompt: {
-    ru: "Как ты назовёшь своего персонажа?\nВведи имя, чтобы потом не путаться в списке",
-    en: "What will you name your character?\nEnter a name so you won't mix them up later",
+    ru: "<b>Как ты назовёшь своего персонажа?</b>\n\nВведи имя, чтобы потом не путаться в списке",
+    en: "<b>What will you name your character?</b>\n\nEnter a name so you won't mix them up later",
   },
 
   onboard_photo_prompt: {
-    ru: `Отлично! Отправь фотографии своего персонажа (минимум 3).
+    ru: `<b>Отлично! Отправь фотографии своего персонажа (минимум 3).</b>
 
 Рекомендации:
 + Фотография в хорошем качестве
 + Отчётливо видно лицо, взгляд в камеру, прямой ракурс
 + Нет посторонних предметов, загораживающих лицо`,
-    en: `Great! Send photos of your character (minimum 3).
+    en: `<b>Great! Send photos of your character (minimum 3).</b>
 
 Tips:
 + Good quality photos
@@ -129,26 +131,24 @@ Tips:
   },
 
   onboard_character_saved: {
-    ru: `✅ Персонаж сохранён!
+    ru: `<b>✅ Персонаж сохранён!</b>
 
 Он будет в разделе "Персонажи" в нижнем меню, чтобы ты всегда мог отредактировать параметры тела, чтобы улучшить результат, а также добавить новых персонажей и переключаться между ними.
 
-Выбери, что ты хочешь сгенерировать? Фото или видео?
-👇`,
-    en: `✅ Character saved!
+<i>Выбери, что ты хочешь сгенерировать? Фото или видео? 👇</i>`,
+    en: `<b>✅ Character saved!</b>
 
 Find her in "Characters" in the bottom menu — edit body settings, add more characters, switch between them.
 
-What do you want to generate? Photo or video?
-👇`,
+<i>What do you want to generate? Photo or video? 👇</i>`,
   },
 
   gen_kind_photo_btn: { ru: "Фото 🔞", en: "Photo 🔞" },
   gen_kind_video_btn: { ru: "Видео 🍓", en: "Video 🍓" },
 
   gen_pick_template: {
-    ru: `Теперь выбери первую позу и сюжет, который хочешь увидеть на {kind}. Ты можешь кликнуть, посмотреть пример и принять решение. А ещё можешь перейти в раздел "Маркетплейс", чтобы наглядно пролистать ленту шаблонов и выбрать тот, что тебе понравится.`,
-    en: `Pick the first pose and scene you want on your {kind}. Tap to preview and decide. Or open the Marketplace to scroll the template feed and pick what you like.`,
+    ru: `Теперь выбери первую позу и сюжет, который хочешь увидеть на фотографии <u>(или на видео, если выбрал видео)</u>. Ты можешь кликнуть, посмотреть пример и принять решение. А ещё можешь перейти в раздел "Маркетплейс", чтобы наглядно пролистать ленту шаблонов и выбрать тот, что тебе понравится.`,
+    en: `Pick the first pose and scene you want on your photo <u>(or video, if you chose video)</u>. Tap to preview and decide. Or open the Marketplace to scroll the template feed and pick what you like.`,
   },
 
   gen_kind_photo_label: { ru: "фотографии", en: "the photo" },
@@ -195,8 +195,8 @@ Start {kind} generation with model «{name}»?`,
   },
 
   gen_success: {
-    ru: "😍 {kind} готово!\n\nХочешь попробовать сгенерировать ещё что-то?",
-    en: "😍 Your {kind} is ready!\n\nWant to generate something else?",
+    ru: "<b>😍 {kind} готово!</b>\n\nХочешь попробовать сгенерировать ещё что-то?",
+    en: "<b>😍 {kind} is ready!</b>\n\nWant to generate something else?",
   },
 
   gen_success_photo: { ru: "Фото", en: "Photo" },
@@ -222,12 +222,12 @@ Tap below to top up 👇`,
   },
 
   topup_prompt: {
-    ru: `Сколько персиков хочешь приобрести?
+    ru: `<b>Сколько персиков хочешь приобрести?</b>
 
 🍑 1 персик = 1 рубль ({usdt}$ по актуальному курсу)
 
 Выбери по кнопке или введи число в чате 👇`,
-    en: `How many peaches do you want?
+    en: `<b>How many peaches do you want?</b>
 
 🍑 1 peach = 1 RUB ({usdt}$ at current rate)
 
@@ -251,20 +251,20 @@ Pick a button or type a number 👇`,
 
 У тебя на балансе: {balance}🍑
 
-📹 Нажми на кнопку "Генерация", чтобы сгенерировать фото или видео
+📹 <b>Нажми на кнопку "Генерация",</b> чтобы сгенерировать фото или видео
 
-🟠 Нажми на кнопку "Персонажи", чтобы выбрать из списка того персонажа, с которым хочешь сделать следующее фото/видео или добавить нового. Там же есть более тонкие настройки персонажа, чтобы скорректировать его вес, внешний вид тела и т.д, чтобы в следующей генерации было более похоже.
+🟠 <b>Нажми на кнопку "Персонажи",</b> чтобы выбрать из списка того персонажа, с которым хочешь сделать следующее фото/видео или добавить нового. Там же есть более тонкие настройки персонажа, чтобы скорректировать его вес, внешний вид тела и т.д, чтобы в следующей генерации было более похоже.
 
-💳 Нажми на кнопку "Баланс", чтобы проверить или пополнить удобным способом`,
+💳 <b>Нажми на кнопку "Баланс", </b>чтобы проверить или пополнить удобным способом`,
     en: `Ready to fantasize? 😏💦
 
 Your balance: {balance}🍑
 
-📹 Tap "Generation" to create a photo or video
+📹 <b>Tap "Generation"</b> to create a photo or video
 
-🟠 Tap "Characters" to pick who to generate with or add a new one. Fine-tune body settings there.
+🟠 <b>Tap "Characters"</b> to pick who to generate with or add a new one. Fine-tune body settings there.
 
-💳 Tap "Balance" to check or top up`,
+💳 <b>Tap "Balance"</b> to check or top up`,
   },
 
   menu_generation: { ru: "📹 Генерация", en: "📹 Generation" },

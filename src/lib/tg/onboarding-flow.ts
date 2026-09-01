@@ -16,7 +16,7 @@ import type { TgLocale } from "@/lib/tg/i18n";
 import { t, tFormat } from "@/lib/tg/i18n";
 import { mainMenuExtra } from "@/lib/tg/menu";
 import { tgSendMediaMessage } from "@/lib/tg/media-assets";
-import { tgRulesShortMessage } from "@/lib/tg/rules";
+import { tgRulesArticleUrl } from "@/lib/tg/rules";
 import { langInlineKeyboard } from "@/lib/tg/character-bot";
 import { setTgSession } from "@/lib/tg/session";
 import { tgSendMessage } from "@/lib/tg/telegram-api";
@@ -28,7 +28,9 @@ export async function sendStartPitch(chatId: number) {
 }
 
 export async function sendRulesStep(chatId: number, locale: TgLocale) {
-  const body = `${t("rules_step", locale)}\n\n${tgRulesShortMessage(locale)}`;
+  const body = tFormat("rules_step", locale, {
+    rulesUrl: tgRulesArticleUrl(locale),
+  });
   await tgSendMessage(chatId, body, {
     link_preview_options: { is_disabled: false },
     reply_markup: {
