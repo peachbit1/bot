@@ -567,7 +567,10 @@ export function PoseEvalBoard() {
                     onClick={() =>
                       void saveGroupRating(meta.id, {
                         ...gr,
-                        pickBest: gr.pickBest === String(v) ? null : String(v),
+                        pickBest:
+                          gr.pickBest === String(v)
+                            ? null
+                            : (String(v) as "1" | "2"),
                       })
                     }
                     className={`rounded-md border px-3 py-1 text-xs ${
