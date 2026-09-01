@@ -2,6 +2,17 @@ export type TgLocale = "ru" | "en";
 
 export const TG_LOCALES: TgLocale[] = ["ru", "en"];
 
+export const LANG_PICK_RU = "🇷🇺 Русский";
+export const LANG_PICK_EN = "🇺🇸 English";
+
+export function isLangPick(text: string): text is typeof LANG_PICK_RU | typeof LANG_PICK_EN {
+  return text === LANG_PICK_RU || text === LANG_PICK_EN;
+}
+
+export function localeFromLangPick(text: string): TgLocale {
+  return text === LANG_PICK_EN ? "en" : "ru";
+}
+
 export function normalizeLocale(raw?: string | null): TgLocale {
   const s = (raw || "ru").toLowerCase().slice(0, 2);
   return s === "en" ? "en" : "ru";
@@ -59,6 +70,26 @@ const M: Dict = {
     ru: "🔜 Peach Studio — скоро",
     en: "🔜 Peach Studio — coming soon",
   },
+  pick_lang: {
+    ru: "🍑 <b>PeachBitch</b>\n\n🌐",
+    en: "🍑 <b>PeachBitch</b>\n\n🌐",
+  },
+  rules_agree_btn: {
+    ru: "✅ Согласен с правилами",
+    en: "✅ I agree to the rules",
+  },
+  need_rules: {
+    ru: "Сначала прими правила — нажми кнопку ниже.",
+    en: "Please accept the rules first — tap the button below.",
+  },
+  need_lang: {
+    ru: "Сначала выбери язык.",
+    en: "Please choose your language first.",
+  },
+  welcome_back: {
+    ru: "С возвращением! 👇",
+    en: "Welcome back! 👇",
+  },
   welcome_full: {
     ru: `🍑 <b>PeachBitch</b>\n\nAI-фото и видео с <b>твоей моделью</b>.\nЗагрузи фото один раз — генерируй сколько угодно.\n\n🎁 1 бесплатное фото\n🎁 −20% на первое видео`,
     en: `🍑 <b>PeachBitch</b>\n\nAI photos & videos with <b>your model</b>.\nUpload once — generate forever.\n\n🎁 1 free photo\n🎁 −20% first video`,
@@ -100,8 +131,8 @@ const M: Dict = {
     en: "Max {max} photos. Open templates to generate.",
   },
   need_age: {
-    ru: "Сначала подтверди возраст (18+).",
-    en: "Confirm your age (18+) first.",
+    ru: "Сначала пройди онбординг: язык → правила.",
+    en: "Complete onboarding first: language → rules.",
   },
   need_photos: {
     ru: "Сначала загрузи минимум 3 фото модели.",

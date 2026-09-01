@@ -1,6 +1,11 @@
 import { prisma } from "@/lib/db";
 
-export type TgChatState = "idle" | "awaiting_photos" | "awaiting_speech";
+export type TgChatState =
+  | "idle"
+  | "awaiting_lang"
+  | "awaiting_rules"
+  | "awaiting_photos"
+  | "awaiting_speech";
 
 export type TgPending = {
   templateId?: string;

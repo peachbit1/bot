@@ -15,7 +15,7 @@ import {
   startTgPhotoGeneration,
   startTgVideoGeneration,
 } from "@/lib/tg/generation-service";
-import { normalizeLocale, t, tFormat, type TgLocale } from "@/lib/tg/i18n";
+import { normalizeLocale, t, tFormat, isLangPick, localeFromLangPick, LANG_PICK_RU, LANG_PICK_EN, type TgLocale } from "@/lib/tg/i18n";
 import { tgRulesText } from "@/lib/tg/rules";
 import {
   getTgSession,
@@ -77,23 +77,57 @@ function mainMenu(locale: TgLocale) {
   };
 }
 
-function ageKeyboard() {
+function langPickerKeyboard() {
   return {
     reply_markup: {
-      keyboard: [
-        [
-          { text: "✅ Мне есть 18 лет" },
-          { text: "✅ I am 18+" },
-        ],
-        [
-          { text: "📋 Правила" },
-          { text: "📋 Rules" },
-        ],
-      ],
+      keyboard: [[{ text: LANG_PICK_RU }, { text: LANG_PICK_EN }]],
       resize_keyboard: true,
       one_time_keyboard: true,
     },
   };
+}
+
+function rulesAgreeKeyboard(locale: TgLocale) {
+  return {
+    reply_markup: {
+      keyboard: [[{ text: t("rules_agree_btn", locale) }]],
+      resize_keyboard: true,
+      one_time_keyboard: true,
+    },
+  };
+}
+
+function isRulesAgree(text: string): boolean {
+  return (
+    text === t("rules_agree_btn", "ru") || text === t("rules_agree_btn", "en")
+  );
+}
+
+async function sendLangPicker(chatId: number) {
+  await tgSendMessage(chatId, t("pick_lang", "ru"), langPickerKeyboard());
+}
+
+async function sendRulesStep(chatId: number, locale: TgLocale) {
+  const body = `${t("welcome_full", locale)}\n\n${tgRulesText(locale)}`;
+  await tgSendMessage(chatId, body, rulesAgreeKeyboard(locale));
+}
+
+async function ensureOnboarded(
+  chatId: number,
+  userId: string,
+  locale: TgLocale,
+  chatState: string,
+  ageConfirmed: boolean,
+): Promise<boolean> {
+  if (ageConfirmed) return true;
+
+  if (chatState === "awaiting_lang") {
+    await sendLangPicker(chatId);
+    return false;
+  }
+
+  await sendRulesStep(chatId, locale);
+  return false;
 }
 
 function templatesInline(locale: TgLocale) {
@@ -123,11 +157,33 @@ function speechConfirmKeyboard(locale: TgLocale) {
 
 async function handleStart(chatId: number, from: TelegramBotUser, payload?: string) {
   const user = await findOrCreateTelegramUserFromBot(from, payload);
+  const platformUserId = String(chatId);
   const locale = localeFromUser(user.locale);
-  await tgSendMessage(chatId, t("welcome_full", locale), ageKeyboard());
+
+  if (user.ageConfirmed) {
+    await tgSendMessage(chatId, t("welcome_back", locale), mainMenu(locale));
+    return;
+  }
+
+  await setTgSession(platformUserId, { chatState: "awaiting_lang", clearPending: true });
+  await sendLangPicker(chatId);
 }
 
-async function confirmAge(chatId: number, userId: string, locale: TgLocale) {
+async function onLanguagePicked(
+  chatId: number,
+  userId: string,
+  locale: TgLocale,
+) {
+  await prisma.user.update({
+    where: { id: userId },
+    data: { locale },
+  });
+  const platformUserId = String(chatId);
+  await setTgSession(platformUserId, { chatState: "awaiting_rules" });
+  await sendRulesStep(chatId, locale);
+}
+
+async function confirmRules(chatId: number, userId: string, locale: TgLocale) {
   await prisma.user.update({
     where: { id: userId },
     data: { ageConfirmed: true },
@@ -145,7 +201,14 @@ async function handlePhoto(
 ) {
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user?.ageConfirmed) {
-    await tgSendMessage(chatId, t("need_age", locale), ageKeyboard());
+    const session = await getTgSession(String(chatId));
+    await ensureOnboarded(
+      chatId,
+      userId,
+      locale,
+      session?.chatState || "awaiting_lang",
+      false,
+    );
     return;
   }
 
@@ -294,11 +357,16 @@ async function handleWebAppData(
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user?.ageConfirmed) {
-    await tgSendMessage(chatId, t("need_age", locale), ageKeyboard());
+    const session = await getTgSession(platformUserId);
+    await ensureOnboarded(
+      chatId,
+      userId,
+      locale,
+      session?.chatState || "awaiting_lang",
+      false,
+    );
     return;
   }
-
-  const meta = await loadTemplateMeta(userId, data.kind, data.templateId);
   if (!meta) {
     await tgSendMessage(chatId, tFormat("gen_error", locale, { msg: "template not found" }));
     return;
@@ -348,38 +416,44 @@ export async function handleTgMessage(msg: TgUpdateMessage) {
     return;
   }
 
-  if (text === "✅ Мне есть 18 лет" || text === "✅ I am 18+") {
-    if (text.includes("18+")) {
-      locale = "en";
-      await prisma.user.update({ where: { id: user.id }, data: { locale: "en" } });
-    } else {
-      locale = "ru";
-      await prisma.user.update({ where: { id: user.id }, data: { locale: "ru" } });
-    }
-    await confirmAge(chatId, user.id, locale);
-    return;
-  }
+  const session = await getTgSession(platformUserId);
+  const pending = parsePending(session?.pendingJson || "{}");
+  const chatState = session?.chatState || "idle";
 
-  if (text === "📋 Правила" || text === "📋 Rules") {
-    if (text.includes("Rules")) {
-      locale = "en";
-      await prisma.user.update({ where: { id: user.id }, data: { locale: "en" } });
+  if (!user.ageConfirmed) {
+    if (isLangPick(text)) {
+      const picked = localeFromLangPick(text);
+      await onLanguagePicked(chatId, user.id, picked);
+      return;
     }
-    await tgSendMessage(chatId, tgRulesText(locale));
+
+    if (isRulesAgree(text)) {
+      const agreeLocale =
+        text === t("rules_agree_btn", "en") ? "en" : "ru";
+      await confirmRules(chatId, user.id, agreeLocale);
+      return;
+    }
+
+    if (chatState === "awaiting_lang") {
+      await sendLangPicker(chatId);
+      return;
+    }
+
+    if (chatState === "awaiting_rules") {
+      await sendRulesStep(chatId, locale);
+      return;
+    }
+
+    await sendLangPicker(chatId);
     return;
   }
 
   if (text === t("lang_btn", locale) || text === "🌐 English" || text === "🌐 Русский") {
     const next: TgLocale = locale === "en" ? "ru" : "en";
     await prisma.user.update({ where: { id: user.id }, data: { locale: next } });
-    locale = next;
-    await tgSendMessage(chatId, t("welcome_full", locale), mainMenu(locale));
+    await tgSendMessage(chatId, t("welcome_back", next), mainMenu(next));
     return;
   }
-
-  const session = await getTgSession(platformUserId);
-  const pending = parsePending(session?.pendingJson || "{}");
-  const chatState = session?.chatState || "idle";
 
   if (text === t("menu_templates", locale)) {
     await tgSendMessage(chatId, t("templates_hint", locale), templatesInline(locale));
