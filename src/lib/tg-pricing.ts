@@ -14,6 +14,10 @@ export const TG_VIDEO_PEACHES = {
   ultra: 384,
 } as const;
 
+/** Quick top-up buttons in bot (1 🍑 = 1 ₽). Template prices are separate. */
+export const TG_QUICK_TOPUP_AMOUNTS = [100, 300, 1000, 4000] as const;
+export const TG_MIN_TOPUP_PEACHES = 100;
+
 export const TG_TOP_UP_PACKS = [
   { id: "try", label: { ru: "Try", en: "Try" }, peaches: 109, bonusPct: 0 },
   { id: "hot", label: { ru: "Hot", en: "Hot" }, peaches: 329, bonusPct: 10 },

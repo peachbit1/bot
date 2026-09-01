@@ -63,6 +63,19 @@ export async function tgSendVideo(
   });
 }
 
+export async function tgSendAnimation(
+  chatId: number | string,
+  animation: string,
+  extra: Record<string, unknown> = {},
+) {
+  return tgApi("sendAnimation", {
+    chat_id: chatId,
+    animation,
+    parse_mode: "HTML",
+    ...extra,
+  });
+}
+
 export async function tgAnswerCallbackQuery(
   callbackQueryId: string,
   text?: string,

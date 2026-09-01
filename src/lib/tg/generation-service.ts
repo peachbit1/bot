@@ -261,6 +261,8 @@ export async function startTgPhotoGeneration(opts: {
       payload: {
         url: saved.publicUrl,
         caption: row.title,
+        successKind: "photo",
+        locale: user.locale?.startsWith("en") ? "en" : "ru",
       },
     });
   }
@@ -325,7 +327,15 @@ async function mockCompleteVideoRun(opts: {
     platformUserId: opts.platformUserId,
     userId: opts.userId,
     kind: "video",
-    payload: { url: saved.publicUrl, caption: opts.title, mock: true },
+    payload: {
+      url: saved.publicUrl,
+      caption: opts.title,
+      mock: true,
+      successKind: "video",
+      locale: (await prisma.user.findUnique({ where: { id: opts.userId } }))?.locale?.startsWith("en")
+        ? "en"
+        : "ru",
+    },
   });
 
   return { runId: run.id, galleryItemId: item.id };
@@ -338,12 +348,18 @@ export async function notifyTgVideoReady(
 ) {
   const acc = await prisma.platformAccount.findFirst({
     where: { userId, platform: "telegram" },
+    include: { user: true },
   });
   if (!acc) return;
   await enqueueTgOutbox({
     platformUserId: acc.platformUserId,
     userId,
     kind: "video",
-    payload: { url: videoUrl, caption: title },
+    payload: {
+      url: videoUrl,
+      caption: title,
+      successKind: "video",
+      locale: acc.user.locale?.startsWith("en") ? "en" : "ru",
+    },
   });
 }

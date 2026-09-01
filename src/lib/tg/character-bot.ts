@@ -22,6 +22,7 @@ export const CB = {
   charBack: "char:back",
   charAddPhotos: (id: string) => `char:ph:${id}`,
   charRename: (id: string) => `char:ren:${id}`,
+  charLookbook: (id: string) => `char:lb:${id}`,
 } as const;
 
 export function parseLangCb(data: string): TgLocale | null {
@@ -48,16 +49,14 @@ export async function sendCharactersList(
   locale: TgLocale,
 ) {
   const chars = await listTgCharacters(userId);
-  const acc = await import("@/lib/db").then((m) =>
-    m.prisma.platformAccount.findUnique({
-      where: {
-        platform_platformUserId: {
-          platform: "telegram",
-          platformUserId,
-        },
+  const acc = await prisma.platformAccount.findUnique({
+    where: {
+      platform_platformUserId: {
+        platform: "telegram",
+        platformUserId,
       },
-    }),
-  );
+    },
+  });
   const activeId = acc?.activeCharacterId;
 
   const rows: Array<Array<{ text: string; callback_data: string }>> = [];
@@ -117,6 +116,12 @@ export async function sendCharacterDetail(
             callback_data: CB.charRename(ch.id),
           },
         ],
+        [
+          {
+            text: t("char_lookbook_btn", locale),
+            callback_data: CB.charLookbook(ch.id),
+          },
+        ],
         [{ text: t("char_back_btn", locale), callback_data: CB.charBack }],
       ],
     },
@@ -174,6 +179,13 @@ export async function handleCharacterCallback(
       pending: { renameCharacterId: id },
     });
     await tgSendMessage(chatId, t("char_rename_prompt", locale));
+    return true;
+  }
+
+  if (data.startsWith("char:lb:")) {
+    const id = data.slice("char:lb:".length);
+    const { sendLookbookMenu } = await import("@/lib/tg/lookbook-bot");
+    await sendLookbookMenu(chatId, userId, id, locale);
     return true;
   }
 

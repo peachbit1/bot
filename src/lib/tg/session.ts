@@ -4,19 +4,31 @@ export type TgChatState =
   | "idle"
   | "awaiting_lang"
   | "awaiting_rules"
+  | "onboarding_awaiting_upload"
+  | "onboarding_awaiting_name"
+  | "onboarding_awaiting_photos"
   | "awaiting_photos"
   | "awaiting_speech"
   | "awaiting_character_name"
-  | "awaiting_character_rename";
+  | "awaiting_character_rename"
+  | "awaiting_topup_amount"
+  | "awaiting_lookbook_custom";
 
 export type TgPending = {
   templateId?: string;
   templateKind?: "video" | "photo";
+  templatePage?: number;
+  templateIds?: string[];
   pricePeaches?: number;
   title?: string;
   hasSpeech?: boolean;
   speechLine?: string;
   renameCharacterId?: string;
+  onboardingCharacterId?: string;
+  lookbookCharacterId?: string;
+  lookbookFieldId?: string;
+  discountApplied?: boolean;
+  freePhoto?: boolean;
 };
 
 export async function getTgSession(platformUserId: string) {
