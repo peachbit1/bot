@@ -51,6 +51,7 @@ import {
   findOrCreateTelegramUserFromBot,
   type TelegramBotUser,
 } from "@/lib/tg/user";
+import { isTgDevResetMessage, resetTgOnboarding } from "@/lib/tg/dev-reset";
 
 export type TgUpdateMessage = {
   message_id: number;
@@ -495,6 +496,16 @@ export async function handleTgMessage(msg: TgUpdateMessage) {
 
   let user = await findOrCreateTelegramUserFromBot(from);
   let locale = localeFromUser(user.locale);
+
+  if (isTgDevResetMessage(text)) {
+    await resetTgOnboarding(platformUserId, user.id);
+    await tgSendMessage(
+      chatId,
+      "🔄 <b>Сброс</b>\n\nОнбординг и промо обнулены. Персонажи и баланс сохранены.\n\n<i>Onboarding reset. Characters & balance kept.</i>",
+    );
+    await sendLangPicker(chatId);
+    return;
+  }
 
   if (text.startsWith("/start")) {
     const payload = text.split(/\s+/)[1];
