@@ -1,0 +1,8 @@
+[phases.setup]
+nixPkgs = ["nodejs_22", "npm-10_x", "openssl"]
+
+[phases.build]
+cmds = ["npx prisma generate", "npm run build"]
+
+[start]
+cmd = "npx prisma db push --accept-data-loss && node scripts/start-railway.mjs"
