@@ -56,12 +56,15 @@ export async function tgSendVideo(
   chatId: number | string,
   videoUrl: string,
   caption?: string,
+  extra: Record<string, unknown> = {},
 ) {
   return tgApi("sendVideo", {
     chat_id: chatId,
     video: videoUrl,
     caption,
     parse_mode: "HTML",
+    supports_streaming: true,
+    ...extra,
   });
 }
 

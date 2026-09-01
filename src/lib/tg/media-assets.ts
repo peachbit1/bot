@@ -1,19 +1,24 @@
-import { tgSendAnimation, tgSendMessage, tgSendPhoto } from "@/lib/tg/telegram-api";
+import {
+  tgSendAnimation,
+  tgSendMessage,
+  tgSendPhoto,
+  tgSendVideo,
+} from "@/lib/tg/telegram-api";
 
-/** Bundled onboarding / top-up images in `public/tg/media/`. */
+/** Bundled onboarding / top-up media in `public/tg/media/`. */
 export type TgMediaSlot = "start" | "welcome" | "photo_upload" | "topup";
 
 const ENV: Record<TgMediaSlot, string> = {
-  start: "TG_GIF_START",
-  welcome: "TG_GIF_WELCOME",
+  start: "TG_VIDEO_START",
+  welcome: "TG_VIDEO_WELCOME",
   photo_upload: "TG_GIF_PHOTO_UPLOAD",
   topup: "TG_GIF_TOPUP",
 };
 
 /** Default static files (override via env with file_id or URL). */
 const BUNDLED: Record<TgMediaSlot, string> = {
-  start: "/tg/media/onboard-1.gif",
-  welcome: "/tg/media/onboard-2.gif",
+  start: "/tg/media/onboard-1.mp4",
+  welcome: "/tg/media/onboard-2.mp4",
   photo_upload: "/tg/media/onboard-3.jpg",
   topup: "/tg/media/topup.jpg",
 };
@@ -33,17 +38,27 @@ export function tgAbsoluteUrl(pathOrUrl: string): string {
 }
 
 export function tgMediaAsset(slot: TgMediaSlot): string {
-  const fromEnv = process.env[ENV[slot]]?.trim();
+  const legacy =
+    slot === "start"
+      ? process.env.TG_GIF_START?.trim()
+      : slot === "welcome"
+        ? process.env.TG_GIF_WELCOME?.trim()
+        : undefined;
+  const fromEnv = process.env[ENV[slot]]?.trim() || legacy;
   if (fromEnv) return fromEnv;
   return tgAbsoluteUrl(BUNDLED[slot]);
 }
 
-function isAnimationMedia(media: string): boolean {
+function isGifMedia(media: string): boolean {
   if (media.startsWith("Cg")) return true;
   return /\.gif(\?|$)/i.test(media);
 }
 
-/** Send text with bundled/env photo or GIF (file_id or URL). */
+function isVideoMedia(media: string): boolean {
+  return /\.(mp4|webm|mov)(\?|$)/i.test(media);
+}
+
+/** Send text with bundled/env photo, video, or GIF (file_id or URL). */
 export async function tgSendMediaMessage(
   chatId: number,
   slot: TgMediaSlot,
@@ -51,7 +66,10 @@ export async function tgSendMediaMessage(
   extra: Record<string, unknown> = {},
 ) {
   const media = tgMediaAsset(slot);
-  if (isAnimationMedia(media)) {
+  if (isVideoMedia(media)) {
+    return tgSendVideo(chatId, media, text, extra);
+  }
+  if (isGifMedia(media)) {
     return tgSendAnimation(chatId, media, {
       caption: text,
       parse_mode: "HTML",
@@ -72,12 +90,8 @@ export async function tgSendPreviewMessage(
     return tgSendMessage(chatId, text, extra);
   }
   const url = tgAbsoluteUrl(previewUrl);
-  if (/\.(mp4|webm|mov)(\?|$)/i.test(url)) {
-    const { tgSendVideo } = await import("@/lib/tg/telegram-api");
-    await tgSendVideo(chatId, url, text);
-    if (extra.reply_markup) {
-      return tgSendMessage(chatId, "👇", extra);
-    }
+  if (isVideoMedia(url)) {
+    await tgSendVideo(chatId, url, text, extra);
     return;
   }
   return tgSendPhoto(chatId, url, text, extra);
