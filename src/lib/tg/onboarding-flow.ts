@@ -150,9 +150,8 @@ export async function onOnboardPhotoReceived(
   }
 
   await setTgSession(platformUserId, { chatState: "idle" });
-  await tgSendMediaMessage(
+  await tgSendMessage(
     chatId,
-    "character_saved",
     t("onboard_character_saved", locale),
     { reply_markup: onboardKindInlineKeyboard(locale) },
   );

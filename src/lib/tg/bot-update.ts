@@ -51,7 +51,7 @@ import {
   startLookbookCustom,
 } from "@/lib/tg/lookbook-bot";
 import { mainMenuExtra, sendMainMenuHub } from "@/lib/tg/menu";
-import { tgSendMediaMessage } from "@/lib/tg/media-assets";
+import { getTemplatePreviewUrl } from "@/lib/tg/template-preview";
 import {
   isMenuText,
   normalizeLocale,
@@ -252,24 +252,24 @@ async function showTemplateConfirm(
     ? (locale === "en" ? "photo" : "фото")
     : (locale === "en" ? "video" : "видео");
 
-  await tgSendMediaMessage(
-    chatId,
-    "pose_confirm",
-    tFormat("gen_confirm_pose", locale, {
-      title,
-      price: pricing.label,
-      kind: kindWord,
-      name,
-    }),
-    {
-      reply_markup: {
-        inline_keyboard: [
-          [{ text: t("gen_confirm_btn", locale), callback_data: GEN_CB.confirm }],
-          [{ text: t("gen_other_poses_btn", locale), callback_data: GEN_CB.backTemplates }],
-        ],
-      },
+  const caption = tFormat("gen_confirm_pose", locale, {
+    title,
+    price: pricing.label,
+    kind: kindWord,
+    name,
+  });
+  const markup = {
+    reply_markup: {
+      inline_keyboard: [
+        [{ text: t("gen_confirm_btn", locale), callback_data: GEN_CB.confirm }],
+        [{ text: t("gen_other_poses_btn", locale), callback_data: GEN_CB.backTemplates }],
+      ],
     },
-  );
+  };
+
+  const previewUrl = await getTemplatePreviewUrl(userId, kind, templateId);
+  const { tgSendPreviewMessage } = await import("@/lib/tg/media-assets");
+  await tgSendPreviewMessage(chatId, previewUrl, caption, markup);
 
   await setTgSession(platformUserId, {
     chatState: "idle",

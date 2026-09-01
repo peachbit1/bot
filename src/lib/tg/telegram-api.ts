@@ -41,12 +41,14 @@ export async function tgSendPhoto(
   chatId: number | string,
   photoUrl: string,
   caption?: string,
+  extra: Record<string, unknown> = {},
 ) {
   return tgApi("sendPhoto", {
     chat_id: chatId,
     photo: photoUrl,
     caption,
     parse_mode: "HTML",
+    ...extra,
   });
 }
 
