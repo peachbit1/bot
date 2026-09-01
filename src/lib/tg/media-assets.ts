@@ -12,8 +12,8 @@ const ENV: Record<TgMediaSlot, string> = {
 
 /** Default static files (override via env with file_id or URL). */
 const BUNDLED: Record<TgMediaSlot, string> = {
-  start: "/tg/media/onboard-1.jpg",
-  welcome: "/tg/media/onboard-2.jpg",
+  start: "/tg/media/onboard-1.gif",
+  welcome: "/tg/media/onboard-2.gif",
   photo_upload: "/tg/media/onboard-3.jpg",
   topup: "/tg/media/topup.jpg",
 };
