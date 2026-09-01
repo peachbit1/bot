@@ -5,18 +5,32 @@ import {
   addCharacterPhotoFromBuffer,
   characterPhotoCount,
   characterReady,
-  ensureTgCharacter,
-  getPrimaryTgCharacter,
+  createTgCharacter,
+  getActiveTgCharacter,
+  listTgCharacters,
   TG_MAX_CHARACTER_PHOTOS,
   TG_MIN_CHARACTER_PHOTOS,
 } from "@/lib/tg/character-service";
+import {
+  handleCharacterCallback,
+  handleCharacterTextInput,
+  langInlineKeyboard,
+  parseLangCb,
+  sendCharactersList,
+  CB,
+} from "@/lib/tg/character-bot";
 import {
   resolveTemplatePricePeaches,
   startTgPhotoGeneration,
   startTgVideoGeneration,
 } from "@/lib/tg/generation-service";
-import { normalizeLocale, t, tFormat, isLangPick, localeFromLangPick, LANG_PICK_RU, LANG_PICK_EN, type TgLocale } from "@/lib/tg/i18n";
-import { tgRulesText } from "@/lib/tg/rules";
+import {
+  normalizeLocale,
+  t,
+  tFormat,
+  type TgLocale,
+} from "@/lib/tg/i18n";
+import { tgRulesShortMessage } from "@/lib/tg/rules";
 import {
   getTgSession,
   parsePending,
@@ -26,6 +40,7 @@ import {
   type TgPending,
 } from "@/lib/tg/session";
 import {
+  tgAnswerCallbackQuery,
   tgDownloadFile,
   tgSendMessage,
   tgSendPhoto,
@@ -46,6 +61,13 @@ export type TgUpdateMessage = {
   web_app_data?: { data: string };
 };
 
+export type TgCallbackQuery = {
+  id: string;
+  from: TelegramBotUser;
+  message?: { chat: { id: number }; message_id: number };
+  data?: string;
+};
+
 function localeFromUser(userLocale?: string | null): TgLocale {
   return normalizeLocale(userLocale);
 }
@@ -59,7 +81,7 @@ function mainMenu(locale: TgLocale) {
     reply_markup: {
       keyboard: [
         [
-          { text: t("menu_model", locale) },
+          { text: t("menu_characters", locale) },
           { text: t("menu_templates", locale) },
         ],
         [
@@ -77,39 +99,28 @@ function mainMenu(locale: TgLocale) {
   };
 }
 
-function langPickerKeyboard() {
-  return {
-    reply_markup: {
-      keyboard: [[{ text: LANG_PICK_RU }, { text: LANG_PICK_EN }]],
-      resize_keyboard: true,
-      one_time_keyboard: true,
-    },
-  };
-}
-
-function rulesAgreeKeyboard(locale: TgLocale) {
-  return {
-    reply_markup: {
-      keyboard: [[{ text: t("rules_agree_btn", locale) }]],
-      resize_keyboard: true,
-      one_time_keyboard: true,
-    },
-  };
-}
-
-function isRulesAgree(text: string): boolean {
-  return (
-    text === t("rules_agree_btn", "ru") || text === t("rules_agree_btn", "en")
-  );
-}
-
 async function sendLangPicker(chatId: number) {
-  await tgSendMessage(chatId, t("pick_lang", "ru"), langPickerKeyboard());
+  await tgSendMessage(chatId, "🍑 <b>PeachBitch</b>\n\n🌐", {
+    reply_markup: langInlineKeyboard(),
+  });
+}
+
+async function sendLangSwitch(chatId: number, locale: TgLocale) {
+  await tgSendMessage(chatId, t("pick_lang_switch", locale), {
+    reply_markup: langInlineKeyboard(),
+  });
 }
 
 async function sendRulesStep(chatId: number, locale: TgLocale) {
-  const body = `${t("welcome_full", locale)}\n\n${tgRulesText(locale)}`;
-  await tgSendMessage(chatId, body, rulesAgreeKeyboard(locale));
+  const body = `${t("welcome_full", locale)}\n\n${tgRulesShortMessage(locale)}`;
+  await tgSendMessage(chatId, body, {
+    link_preview_options: { is_disabled: false },
+    reply_markup: {
+      inline_keyboard: [
+        [{ text: t("rules_agree_btn", locale), callback_data: CB.rulesAgree }],
+      ],
+    },
+  });
 }
 
 async function ensureOnboarded(
@@ -120,12 +131,10 @@ async function ensureOnboarded(
   ageConfirmed: boolean,
 ): Promise<boolean> {
   if (ageConfirmed) return true;
-
   if (chatState === "awaiting_lang") {
     await sendLangPicker(chatId);
     return false;
   }
-
   await sendRulesStep(chatId, locale);
   return false;
 }
@@ -155,6 +164,10 @@ function speechConfirmKeyboard(locale: TgLocale) {
   };
 }
 
+async function applyLocale(userId: string, locale: TgLocale) {
+  await prisma.user.update({ where: { id: userId }, data: { locale } });
+}
+
 async function handleStart(chatId: number, from: TelegramBotUser, payload?: string) {
   const user = await findOrCreateTelegramUserFromBot(from, payload);
   const platformUserId = String(chatId);
@@ -174,34 +187,51 @@ async function onLanguagePicked(
   userId: string,
   locale: TgLocale,
 ) {
-  await prisma.user.update({
-    where: { id: userId },
-    data: { locale },
-  });
+  await applyLocale(userId, locale);
   const platformUserId = String(chatId);
   await setTgSession(platformUserId, { chatState: "awaiting_rules" });
   await sendRulesStep(chatId, locale);
 }
 
-async function confirmRules(chatId: number, userId: string, locale: TgLocale) {
+async function confirmRules(
+  chatId: number,
+  platformUserId: string,
+  userId: string,
+  locale: TgLocale,
+) {
   await prisma.user.update({
     where: { id: userId },
-    data: { ageConfirmed: true },
+    data: { ageConfirmed: true, locale },
   });
-  const platformUserId = String(chatId);
+
+  const chars = await listTgCharacters(userId);
+  if (!chars.length) {
+    const ch = await createTgCharacter(userId, locale === "en" ? "Model" : "Модель");
+    await prisma.platformAccount.update({
+      where: {
+        platform_platformUserId: {
+          platform: "telegram",
+          platformUserId,
+        },
+      },
+      data: { activeCharacterId: ch.id },
+    });
+  }
+
   await setTgSession(platformUserId, { chatState: "awaiting_photos" });
   await tgSendMessage(chatId, t("age_ok", locale), mainMenu(locale));
 }
 
 async function handlePhoto(
   chatId: number,
+  platformUserId: string,
   userId: string,
   locale: TgLocale,
   fileId: string,
 ) {
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user?.ageConfirmed) {
-    const session = await getTgSession(String(chatId));
+    const session = await getTgSession(platformUserId);
     await ensureOnboarded(
       chatId,
       userId,
@@ -212,7 +242,20 @@ async function handlePhoto(
     return;
   }
 
-  const character = await ensureTgCharacter(userId);
+  let character = await getActiveTgCharacter(userId, platformUserId);
+  if (!character) {
+    character = await createTgCharacter(userId, locale === "en" ? "Model" : "Модель");
+    await prisma.platformAccount.update({
+      where: {
+        platform_platformUserId: {
+          platform: "telegram",
+          platformUserId,
+        },
+      },
+      data: { activeCharacterId: character.id },
+    });
+  }
+
   const before = characterPhotoCount(character.id);
   if (before >= TG_MAX_CHARACTER_PHOTOS) {
     await tgSendMessage(chatId, tFormat("photo_max", locale, { max: TG_MAX_CHARACTER_PHOTOS }));
@@ -220,12 +263,11 @@ async function handlePhoto(
   }
 
   const buf = await tgDownloadFile(fileId);
-  const ext = "jpg";
   await addCharacterPhotoFromBuffer(
     userId,
     character.id,
     buf,
-    `tg_${Date.now()}.${ext}`,
+    `tg_${Date.now()}.jpg`,
   );
   const after = characterPhotoCount(character.id);
   const need = Math.max(0, TG_MIN_CHARACTER_PHOTOS - after);
@@ -286,7 +328,7 @@ async function beginGeneration(
   locale: TgLocale,
   pending: TgPending,
 ) {
-  const character = await getPrimaryTgCharacter(userId);
+  const character = await getActiveTgCharacter(userId, platformUserId);
   if (!character || !characterReady(character.id)) {
     await tgSendMessage(chatId, t("need_photos", locale));
     return;
@@ -367,6 +409,8 @@ async function handleWebAppData(
     );
     return;
   }
+
+  const meta = await loadTemplateMeta(userId, data.kind, data.templateId);
   if (!meta) {
     await tgSendMessage(chatId, tFormat("gen_error", locale, { msg: "template not found" }));
     return;
@@ -401,6 +445,48 @@ async function handleWebAppData(
   await beginGeneration(chatId, platformUserId, userId, locale, pending);
 }
 
+export async function handleTgCallbackQuery(cq: TgCallbackQuery) {
+  const data = cq.data || "";
+  const chatId = cq.message?.chat.id;
+  if (!chatId) {
+    await tgAnswerCallbackQuery(cq.id);
+    return;
+  }
+
+  const platformUserId = String(chatId);
+  let user = await findOrCreateTelegramUserFromBot(cq.from);
+  let locale = localeFromUser(user.locale);
+
+  const lang = parseLangCb(data);
+  if (lang) {
+    await tgAnswerCallbackQuery(cq.id);
+    if (!user.ageConfirmed) {
+      await onLanguagePicked(chatId, user.id, lang);
+    } else {
+      await applyLocale(user.id, lang);
+      locale = lang;
+      await tgSendMessage(chatId, t("lang_switched", locale), mainMenu(locale));
+    }
+    return;
+  }
+
+  if (data === CB.rulesAgree) {
+    await tgAnswerCallbackQuery(cq.id);
+    if (!user.ageConfirmed) {
+      await confirmRules(chatId, platformUserId, user.id, locale);
+    }
+    return;
+  }
+
+  if (user.ageConfirmed && data.startsWith("char:")) {
+    await tgAnswerCallbackQuery(cq.id);
+    await handleCharacterCallback(chatId, platformUserId, user.id, locale, data);
+    return;
+  }
+
+  await tgAnswerCallbackQuery(cq.id);
+}
+
 export async function handleTgMessage(msg: TgUpdateMessage) {
   const chatId = msg.chat.id;
   const platformUserId = String(chatId);
@@ -421,37 +507,44 @@ export async function handleTgMessage(msg: TgUpdateMessage) {
   const chatState = session?.chatState || "idle";
 
   if (!user.ageConfirmed) {
-    if (isLangPick(text)) {
-      const picked = localeFromLangPick(text);
-      await onLanguagePicked(chatId, user.id, picked);
-      return;
-    }
-
-    if (isRulesAgree(text)) {
-      const agreeLocale =
-        text === t("rules_agree_btn", "en") ? "en" : "ru";
-      await confirmRules(chatId, user.id, agreeLocale);
-      return;
-    }
-
     if (chatState === "awaiting_lang") {
       await sendLangPicker(chatId);
       return;
     }
-
     if (chatState === "awaiting_rules") {
       await sendRulesStep(chatId, locale);
       return;
     }
-
     await sendLangPicker(chatId);
     return;
   }
 
-  if (text === t("lang_btn", locale) || text === "🌐 English" || text === "🌐 Русский") {
-    const next: TgLocale = locale === "en" ? "ru" : "en";
-    await prisma.user.update({ where: { id: user.id }, data: { locale: next } });
-    await tgSendMessage(chatId, t("welcome_back", next), mainMenu(next));
+  if (
+    text === t("lang_btn", "ru") ||
+    text === t("lang_btn", "en") ||
+    text === "🌐 English" ||
+    text === "🌐 Русский"
+  ) {
+    await sendLangSwitch(chatId, locale);
+    return;
+  }
+
+  if (
+    await handleCharacterTextInput(
+      chatId,
+      platformUserId,
+      user.id,
+      locale,
+      chatState,
+      text,
+      pending,
+    )
+  ) {
+    return;
+  }
+
+  if (text === t("menu_characters", locale) || text === t("menu_model", locale)) {
+    await sendCharactersList(chatId, user.id, platformUserId, locale);
     return;
   }
 
@@ -473,21 +566,6 @@ export async function handleTgMessage(msg: TgUpdateMessage) {
 
   if (text === t("menu_affiliate", locale)) {
     await tgSendMessage(chatId, t("aff_stats", locale));
-    return;
-  }
-
-  if (text === t("menu_model", locale)) {
-    const ch = await getPrimaryTgCharacter(user.id);
-    const n = ch ? characterPhotoCount(ch.id) : 0;
-    const ready = ch && characterReady(ch.id);
-    await tgSendMessage(
-      chatId,
-      tFormat("model_status", locale, {
-        n,
-        max: TG_MAX_CHARACTER_PHOTOS,
-        ready: ready ? t("model_ready_suffix", locale) : "",
-      }),
-    );
     return;
   }
 
@@ -520,7 +598,7 @@ export async function handleTgMessage(msg: TgUpdateMessage) {
 
   if (msg.photo?.length) {
     const largest = msg.photo[msg.photo.length - 1]!;
-    await handlePhoto(chatId, user.id, locale, largest.file_id);
+    await handlePhoto(chatId, platformUserId, user.id, locale, largest.file_id);
     return;
   }
 

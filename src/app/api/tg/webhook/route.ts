@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { handleTgMessage, flushTgOutbox } from "@/lib/tg/bot-update";
+import {
+  handleTgMessage,
+  handleTgCallbackQuery,
+  flushTgOutbox,
+} from "@/lib/tg/bot-update";
 
 /** Telegram webhook (production). Same handlers as `npm run tg:bot`. */
 export async function POST(req: Request) {
@@ -14,18 +18,22 @@ export async function POST(req: Request) {
   const update = (await req.json().catch(() => null)) as {
     update_id?: number;
     message?: Parameters<typeof handleTgMessage>[0];
+    callback_query?: Parameters<typeof handleTgCallbackQuery>[0];
   } | null;
   if (!update) {
     return NextResponse.json({ error: "Bad body" }, { status: 400 });
   }
 
-  if (update.message) {
-    try {
-      await handleTgMessage(update.message);
-      await flushTgOutbox();
-    } catch (e) {
-      console.error("[tg/webhook]", e);
+  try {
+    if (update.callback_query) {
+      await handleTgCallbackQuery(update.callback_query);
     }
+    if (update.message) {
+      await handleTgMessage(update.message);
+    }
+    await flushTgOutbox();
+  } catch (e) {
+    console.error("[tg/webhook]", e);
   }
 
   return NextResponse.json({ ok: true });

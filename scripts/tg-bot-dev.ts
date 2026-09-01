@@ -3,12 +3,13 @@
  * Usage: TELEGRAM_BOT_TOKEN=... npm run tg:bot
  */
 import "dotenv/config";
-import { handleTgMessage, flushTgOutbox } from "../src/lib/tg/bot-update";
+import { handleTgMessage, handleTgCallbackQuery, flushTgOutbox } from "../src/lib/tg/bot-update";
 import { tgApi } from "../src/lib/tg/telegram-api";
 
 type TgUpdate = {
   update_id: number;
   message?: Parameters<typeof handleTgMessage>[0];
+  callback_query?: Parameters<typeof handleTgCallbackQuery>[0];
 };
 
 async function poll() {
@@ -23,10 +24,17 @@ async function poll() {
       const updates = await tgApi<TgUpdate[]>("getUpdates", {
         offset,
         timeout: 25,
-        allowed_updates: ["message"],
+        allowed_updates: ["message", "callback_query"],
       });
       for (const u of updates) {
         offset = u.update_id + 1;
+        if (u.callback_query) {
+          try {
+            await handleTgCallbackQuery(u.callback_query);
+          } catch (e) {
+            console.error("[tg-bot] callback error:", e);
+          }
+        }
         if (u.message) {
           try {
             await handleTgMessage(u.message);

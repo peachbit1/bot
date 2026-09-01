@@ -34,6 +34,7 @@ const M: Dict = {
   rules_btn: { ru: "📋 Правила", en: "📋 Rules" },
   lang_btn: { ru: "🌐 English", en: "🌐 Русский" },
   menu_model: { ru: "👤 Моя модель", en: "👤 My model" },
+  menu_characters: { ru: "👤 Персонажи", en: "👤 Characters" },
   menu_templates: { ru: "🎬 Шаблоны", en: "🎬 Templates" },
   menu_balance: { ru: "💰 Баланс", en: "💰 Balance" },
   menu_topup: { ru: "💳 Пополнить", en: "💳 Top up" },
@@ -71,8 +72,12 @@ const M: Dict = {
     en: "🔜 Peach Studio — coming soon",
   },
   pick_lang: {
-    ru: "🍑 <b>PeachBitch</b>\n\n🌐",
-    en: "🍑 <b>PeachBitch</b>\n\n🌐",
+    ru: "🍑 <b>PeachBitch</b>\n\n🌐 Выбери язык",
+    en: "🍑 <b>PeachBitch</b>\n\n🌐 Choose language",
+  },
+  pick_lang_switch: {
+    ru: "🌐 Выбери язык:",
+    en: "🌐 Choose language:",
   },
   rules_agree_btn: {
     ru: "✅ Согласен с правилами",
@@ -177,6 +182,38 @@ const M: Dict = {
   free_photo_note: {
     ru: " (бесплатно 🎁)",
     en: " (free 🎁)",
+  },
+  char_list_title: {
+    ru: "<b>Персонажи</b>\n\nВыбери модель или создай новую:",
+    en: "<b>Characters</b>\n\nPick a model or create a new one:",
+  },
+  char_new_btn: { ru: "➕ Новый персонаж", en: "➕ New character" },
+  char_back_btn: { ru: "◀️ Назад", en: "◀️ Back" },
+  char_add_photos_btn: { ru: "📸 Добавить фото", en: "📸 Add photos" },
+  char_rename_btn: { ru: "✏️ Переименовать", en: "✏️ Rename" },
+  char_name_prompt: {
+    ru: "Как назвать персонажа? (до 40 символов)",
+    en: "Character name? (up to 40 chars)",
+  },
+  char_rename_prompt: {
+    ru: "Новое имя персонажа:",
+    en: "New character name:",
+  },
+  char_created: {
+    ru: "Персонаж <b>{name}</b> создан ✅",
+    en: "Character <b>{name}</b> created ✅",
+  },
+  char_not_found: {
+    ru: "Персонаж не найден.",
+    en: "Character not found.",
+  },
+  char_detail: {
+    ru: "👤 <b>{name}</b>\n📸 {n}/{max} фото{ready}\n\nМинимум {min} фото для генерации.",
+    en: "👤 <b>{name}</b>\n📸 {n}/{max} photos{ready}\n\nAt least {min} photos to generate.",
+  },
+  lang_switched: {
+    ru: "Язык: русский 🇷🇺",
+    en: "Language: English 🇺🇸",
   },
 };
 

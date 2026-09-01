@@ -63,6 +63,16 @@ export async function tgSendVideo(
   });
 }
 
+export async function tgAnswerCallbackQuery(
+  callbackQueryId: string,
+  text?: string,
+) {
+  return tgApi("answerCallbackQuery", {
+    callback_query_id: callbackQueryId,
+    ...(text ? { text, show_alert: false } : {}),
+  });
+}
+
 export async function tgDownloadFile(fileId: string): Promise<Buffer> {
   const file = await tgApi<{ file_path: string }>("getFile", { file_id: fileId });
   const url = `https://api.telegram.org/file/bot${botToken()}/${file.file_path}`;

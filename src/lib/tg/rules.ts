@@ -1,39 +1,30 @@
 import type { TgLocale } from "@/lib/tg/i18n";
 
-/** Age gate + usage rules shown before first use. */
-export function tgRulesText(locale: TgLocale): string {
+const DEFAULT_SITE =
+  process.env.TELEGRAM_MINIAPP_URL?.replace(/\/tg\/templates\/?$/, "") ||
+  "https://bot-production-c305.up.railway.app";
+
+/** Long-read rules (Telegram article / Instant View). */
+export function tgRulesArticleUrl(locale: TgLocale): string {
   if (locale === "en") {
-    return `<b>PeachBitch — rules</b>
-
-• You must be <b>18+</b>.
-• Upload only photos you own or have explicit consent to use.
-• Do not create images of real people without their permission (no non-consensual deepfakes).
-• Do not use the service for illegal content.
-• AI-generated content may be imperfect — use reroll if needed.
-• We may update these rules; continued use means acceptance.
-
-By tapping «I am 18 or older» you confirm you agree.`;
+    return (
+      process.env.TELEGRAM_RULES_ARTICLE_URL_EN ||
+      `${DEFAULT_SITE}/tg/rules?lang=en`
+    );
   }
+  return (
+    process.env.TELEGRAM_RULES_ARTICLE_URL_RU ||
+    `${DEFAULT_SITE}/tg/rules?lang=ru`
+  );
+}
 
-  return `<b>PeachBitch — правила</b>
-
-• Тебе должно быть <b>18+</b>.
-• Загружай только свои фото или фото с явного согласия модели.
-• Не создавай изображения реальных людей без их разрешения (никаких deepfake без согласия).
-• Не используй сервис для незаконного контента.
-• AI может ошибаться — используй перегенерацию при необходимости.
-• Правила могут обновляться; продолжая пользоваться, ты принимаешь их.
-
-Нажимая «Мне есть 18 лет», ты подтверждаешь согласие.`;
+/** Short rules blurb with link — full text lives in the article page. */
+export function tgRulesShortMessage(locale: TgLocale): string {
+  const url = tgRulesArticleUrl(locale);
+  if (locale === "en") {
+    return `You must be <b>18+</b>. By continuing you accept our <a href="${url}">Terms &amp; Rules</a>.`;
+  }
+  return `Тебе должно быть <b>18+</b>. Продолжая, ты принимаешь <a href="${url}">правила сервиса</a>.`;
 }
 
 export const TG_PAYMENT_NOTE = {
-  ru: "Оплата: криптовалюта и СБП через наш платёжный сервис. Сумма также показывается в USDT для удобства.",
-  en: "Pay with crypto or SBP via our payment provider. Amount is also shown in USDT for convenience.",
-};
-
-/** Explains affiliate «cookie» — first ref link wins forever. */
-export const TG_AFFILIATE_ATTRIBUTION_NOTE = {
-  ru: `«Куки» партнёрки: если юзер пришёл по ссылке <code>?start=ref_XXX</code>, мы <b>навсегда</b> привязываем его к этому партнёру. Все пополнения этого юзера дают партнёру 50% — даже через месяц с другого устройства (пока тот же Telegram-аккаунт).`,
-  en: `Affiliate attribution: if a user arrives via <code>?start=ref_XXX</code>, we link them to that partner <b>for life</b> (same Telegram account). All their top-ups pay 50% to that partner.`,
-};

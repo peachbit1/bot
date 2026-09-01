@@ -5,7 +5,9 @@ export type TgChatState =
   | "awaiting_lang"
   | "awaiting_rules"
   | "awaiting_photos"
-  | "awaiting_speech";
+  | "awaiting_speech"
+  | "awaiting_character_name"
+  | "awaiting_character_rename";
 
 export type TgPending = {
   templateId?: string;
@@ -14,6 +16,7 @@ export type TgPending = {
   title?: string;
   hasSpeech?: boolean;
   speechLine?: string;
+  renameCharacterId?: string;
 };
 
 export async function getTgSession(platformUserId: string) {

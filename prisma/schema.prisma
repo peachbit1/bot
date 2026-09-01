@@ -719,7 +719,9 @@ model PlatformAccount {
   firstName      String?
   lastName       String?
   languageCode   String?
-  /// idle | awaiting_photos | awaiting_speech
+  /// Active TG character for generation
+  activeCharacterId String?
+  /// idle | awaiting_lang | awaiting_rules | awaiting_photos | awaiting_speech | awaiting_character_name | awaiting_character_rename
   chatState      String   @default("idle")
   pendingJson    String   @default("{}")
   lastSeenAt     DateTime @default(now())

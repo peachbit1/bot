@@ -27,8 +27,8 @@ await gql(
       buildCommand: "npx prisma generate && npm run build",
       startCommand:
         "npx prisma db push --accept-data-loss && node scripts/start-railway.mjs",
-      healthcheckPath: "/api/tg/bot-config",
-      healthcheckTimeout: 120,
+      healthcheckPath: "/",
+      healthcheckTimeout: 300,
       restartPolicyType: "ON_FAILURE",
       restartPolicyMaxRetries: 5,
     },

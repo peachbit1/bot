@@ -9,6 +9,13 @@ import { emptyLookbook } from "@/lib/lookbook";
 export const TG_MIN_CHARACTER_PHOTOS = 3;
 export const TG_MAX_CHARACTER_PHOTOS = 5;
 
+export async function listTgCharacters(userId: string) {
+  return prisma.character.findMany({
+    where: { userId },
+    orderBy: { createdAt: "asc" },
+  });
+}
+
 export async function getPrimaryTgCharacter(userId: string) {
   return prisma.character.findFirst({
     where: { userId },
@@ -16,14 +23,47 @@ export async function getPrimaryTgCharacter(userId: string) {
   });
 }
 
-export async function ensureTgCharacter(userId: string, name?: string) {
-  const existing = await getPrimaryTgCharacter(userId);
-  if (existing) return existing;
+export async function getActiveTgCharacter(
+  userId: string,
+  platformUserId: string,
+) {
+  const acc = await prisma.platformAccount.findUnique({
+    where: {
+      platform_platformUserId: {
+        platform: "telegram",
+        platformUserId,
+      },
+    },
+  });
+  if (acc?.activeCharacterId) {
+    const ch = await prisma.character.findFirst({
+      where: { id: acc.activeCharacterId, userId },
+    });
+    if (ch) return ch;
+  }
+  return getPrimaryTgCharacter(userId);
+}
 
+export async function setActiveTgCharacter(
+  platformUserId: string,
+  characterId: string,
+) {
+  await prisma.platformAccount.update({
+    where: {
+      platform_platformUserId: {
+        platform: "telegram",
+        platformUserId,
+      },
+    },
+    data: { activeCharacterId: characterId },
+  });
+}
+
+export async function createTgCharacter(userId: string, name: string) {
   const character = await prisma.character.create({
     data: {
       userId,
-      name: (name || "Model").slice(0, 40),
+      name: name.trim().slice(0, 40) || "Model",
       gender: "female",
       consentGiven: true,
       photoCount: 0,
@@ -34,6 +74,23 @@ export async function ensureTgCharacter(userId: string, name?: string) {
   });
   ensureCharacterDirs(character.id);
   return character;
+}
+
+export async function renameTgCharacter(
+  userId: string,
+  characterId: string,
+  name: string,
+) {
+  return prisma.character.updateMany({
+    where: { id: characterId, userId },
+    data: { name: name.trim().slice(0, 40) || "Model" },
+  });
+}
+
+export async function ensureTgCharacter(userId: string, name?: string) {
+  const existing = await getPrimaryTgCharacter(userId);
+  if (existing) return existing;
+  return createTgCharacter(userId, name || "Model");
 }
 
 export async function addCharacterPhotoFromBuffer(
