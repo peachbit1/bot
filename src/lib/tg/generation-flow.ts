@@ -63,7 +63,8 @@ export async function listBotInlineTemplates(
     kind: "video" as const,
   }));
   if (!filter) return mapped;
-  return mapped.filter((r) => filter.includes(r.id));
+  const picked = mapped.filter((r) => filter.includes(r.id));
+  return picked.length ? picked : mapped;
 }
 
 import { tgMiniAppUrl } from "@/lib/tg/miniapp-url";

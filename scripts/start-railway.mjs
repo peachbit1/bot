@@ -17,6 +17,7 @@ function run(label, cmd, args) {
 
 console.log("[railway] starting web + bot…");
 
+run("bootstrap", "npx", ["tsx", "scripts/seed-tg-catalog.ts"]);
 const bot = run("bot", "npx", ["tsx", "scripts/tg-bot-dev.ts"]);
 const web = run("web", "npm", ["start"]);
 

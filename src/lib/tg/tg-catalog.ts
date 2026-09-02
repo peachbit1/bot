@@ -3,6 +3,7 @@
  */
 import { prisma } from "@/lib/db";
 import type { TgLocale } from "@/lib/tg/i18n";
+import { ensureTgBootstrap } from "@/lib/tg/tg-bootstrap";
 import { listPublicPhotoTemplates } from "@/lib/photo-template";
 import {
   listPublishedQuickVideoTemplates,
@@ -120,6 +121,7 @@ function orderByIds<T extends { id: string }>(rows: T[], ids: string[]): T[] {
 export async function listTgFeaturedVideoTemplates(
   userId: string,
 ): Promise<PublicQuickVideoTemplate[]> {
+  await ensureTgBootstrap();
   await ensureTgCatalog();
   const all = await listPublishedQuickVideoTemplates(userId);
 
@@ -150,6 +152,7 @@ export async function listTgFeaturedVideoTemplates(
 }
 
 export async function listTgFeaturedPhotoTemplates(locale: TgLocale = "ru") {
+  await ensureTgBootstrap();
   await ensureTgCatalog();
   const all = await listPublicPhotoTemplates(locale);
 

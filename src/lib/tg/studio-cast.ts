@@ -5,6 +5,7 @@ import {
   TG_STUDIO_CAST_NAMES,
   TG_STUDIO_CAST_TRIGGERS,
 } from "@/lib/tg/tg-catalog";
+import { ensureTgBootstrap } from "@/lib/tg/tg-bootstrap";
 
 export { castsMiniAppUrl, tgMiniAppUrl } from "@/lib/tg/miniapp-url";
 
@@ -55,6 +56,7 @@ async function findStudioCastCandidates() {
 
 /** Mark house LoRA models; unmark everything else. */
 export async function ensureStudioCasts(): Promise<void> {
+  await ensureTgBootstrap();
   const candidates = await findStudioCastCandidates();
   const realIds = new Set<string>();
 
