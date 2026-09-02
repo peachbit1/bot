@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { TgShell, useTgMiniApp } from "@/lib/tg/miniapp/client";
 
@@ -40,7 +40,7 @@ const UI = {
   },
 } as const;
 
-export default function VideoFlowPage() {
+function VideoFlowPageInner() {
   const router = useRouter();
   const params = useSearchParams();
   const templateId = params.get("templateId") || "";
@@ -241,5 +241,13 @@ export default function VideoFlowPage() {
         </button>
       </div>
     </TgShell>
+  );
+}
+
+export default function VideoFlowPage() {
+  return (
+    <Suspense fallback={<p className="tg-loading">…</p>}>
+      <VideoFlowPageInner />
+    </Suspense>
   );
 }

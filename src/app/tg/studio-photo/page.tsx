@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { TgShell, useTgMiniApp } from "@/lib/tg/miniapp/client";
 
@@ -35,7 +35,7 @@ const UI = {
   },
 } as const;
 
-export default function StudioPhotoPage() {
+function StudioPhotoPageInner() {
   const router = useRouter();
   const params = useSearchParams();
   const castId = params.get("castId") || "";
@@ -152,5 +152,13 @@ export default function StudioPhotoPage() {
         ))}
       </div>
     </TgShell>
+  );
+}
+
+export default function StudioPhotoPage() {
+  return (
+    <Suspense fallback={<p className="tg-loading">…</p>}>
+      <StudioPhotoPageInner />
+    </Suspense>
   );
 }
