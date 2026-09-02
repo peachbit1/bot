@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { ensureTgBootstrap } from "@/lib/tg/tg-bootstrap";
+import { seedCastCoverUrl } from "@/lib/tg/tg-catalog-seed";
 import {
   TG_STUDIO_CAST_NAMES,
   TG_STUDIO_CAST_SPEC,
@@ -100,7 +101,9 @@ export async function listStudioCasts(_locale: "ru" | "en" = "ru") {
     out.push({
       id: ch.id,
       name: spec?.displayName || ch.name,
-      coverUrl: await pickCharacterCoverUrl(ch.id),
+      coverUrl:
+        (await pickCharacterCoverUrl(ch.id)) ||
+        seedCastCoverUrl(ch.triggerWord),
     });
   }
 

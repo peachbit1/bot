@@ -20,6 +20,7 @@
     "stack": "node scripts/peach-stack.mjs",
     "preflight": "node scripts/peach-preflight.mjs",
     "test:smoke": "node scripts/smoke.mjs",
+    "sync:tg-catalog": "tsx scripts/sync-tg-catalog-assets.ts",
     "tg:bot": "npx tsx scripts/tg-bot-dev.ts"
   },
   "dependencies": {

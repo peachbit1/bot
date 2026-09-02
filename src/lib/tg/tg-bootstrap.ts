@@ -1,49 +1,14 @@
 /**
- * Idempotent TG launch catalog seed — creates studio casts + featured templates
- * when prod DB is empty (ensureTgCatalog alone only updates existing rows).
+ * Idempotent TG launch catalog seed — uses bundled cabinet exports
+ * (public/tg/catalog + tg-catalog-seed.json). Re-sync: npm run sync:tg-catalog
  */
 import { prisma } from "@/lib/db";
 import { hashPassword } from "@/lib/auth";
 import { suggestedLookbook } from "@/lib/lookbook";
-import {
-  TG_FEATURED_PHOTO_TITLES,
-  TG_FEATURED_VIDEO_TITLES,
-  TG_STUDIO_CAST_SPEC,
-} from "@/lib/tg/tg-launch-constants";
-import {
-  photoTemplatePreview,
-  videoTemplatePreviewByIndex,
-} from "@/lib/tg/tg-static-previews";
+import { TG_STUDIO_CAST_SPEC } from "@/lib/tg/tg-launch-constants";
+import { getTgCatalogSeed } from "@/lib/tg/tg-catalog-seed";
 
 const STUDIO_OWNER_EMAIL = "tg-studio@peachbitch.internal";
-
-const BOOTSTRAP_VIDEOS = [
-  {
-    title: TG_FEATURED_VIDEO_TITLES[0]!,
-    durationSec: 10,
-    shotsJson:
-      '{"__qvShots":1,"totalDurationSec":10,"shots":[{"id":"shot-1","durationSec":5,"legoQuery":"[location:in the evening, in the bedroom][Аня]without clothes, completely naked[Минет + eye contact (явный акцент взгляда)][Oral: приглушённый стон/hum на члене]"},{"id":"shot-2-mtiusskr","durationSec":2,"legoQuery":"[Аня][location:in the evening, in the bedroom][Аня]without clothes, completely naked[Handjob, вид сбоку][Дуэт: она стонет + он дышит/grunt тише]"},{"id":"shot-3-mtiustir","durationSec":3,"legoQuery":"[Аня][location:in the evening, in the bedroom][Аня]without clothes, completely naked[Кончает на лицо (facial, POV вниз)]"}]}',
-    slotBlueprintJson:
-      '[{"role":"identity","label":"Аня"},{"role":"identity","label":"Аня"},{"role":"identity","label":"Аня"}]',
-    identityPersonCount: 1,
-  },
-  {
-    title: TG_FEATURED_VIDEO_TITLES[1]!,
-    durationSec: 6,
-    shotsJson:
-      '{"__qvShots":1,"totalDurationSec":6,"shots":[{"id":"shot-1","durationSec":6,"legoQuery":"[location:bedroom][Рейчел][Снимает верх (side)][Тихое дыхание удовольствия (soft breath only)]"}]}',
-    slotBlueprintJson:
-      '[{"role":"identity","label":"Рейчел"},{"role":"identity","label":"Рейчел"},{"role":"identity","label":"Рейчел"}]',
-    identityPersonCount: 1,
-  },
-] as const;
-
-const BOOTSTRAP_PHOTO = {
-  title: TG_FEATURED_PHOTO_TITLES[0]!,
-  tier: "pose" as const,
-  editPrompt:
-    "amateur handheld first-person POV looking down, woman presses her breasts around his thick cock and strokes a titjob, looking up at camera. on-camera direct flash, harsh frontal flash, hard shadows, high contrast, clinical cold-white light, glossy skin specular hits, 35mm snapshot look, f/8, deep focus, raw unflattering flash aesthetic",
-};
 
 let bootstrapPromise: Promise<void> | null = null;
 
@@ -136,36 +101,46 @@ async function ensureStudioCastCharacters(): Promise<void> {
 
 async function ensureFeaturedTemplates(): Promise<void> {
   const ownerId = await ensureStudioOwnerUserId();
+  const seed = getTgCatalogSeed();
 
-  for (let i = 0; i < BOOTSTRAP_VIDEOS.length; i++) {
-    const tpl = BOOTSTRAP_VIDEOS[i]!;
-    const previewVideo = videoTemplatePreviewByIndex(i);
+  for (const tpl of seed.videos) {
     const existing = await prisma.quickVideoTemplate.findFirst({
       where: { title: tpl.title },
     });
+    const previewData = {
+      previewVideoUrl: tpl.previewVideoUrl,
+      previewPhotoUrl: tpl.previewPhotoUrl,
+      shotsJson: tpl.shotsJson,
+      slotBlueprintJson: tpl.slotBlueprintJson,
+      identityPersonCount: tpl.identityPersonCount,
+      durationSec: tpl.durationSec,
+      published: true,
+      pricePeaches: 0,
+      priceCredits: 0,
+    };
+
     if (existing) {
-      const patch: {
-        published?: boolean;
-        pricePeaches?: number;
-        priceCredits?: number;
-        previewVideoUrl?: string;
-        previewPhotoUrl?: string;
-      } = {};
-      if (!existing.published) {
-        patch.published = true;
-        patch.pricePeaches = 0;
-        patch.priceCredits = 0;
-      }
-      if (!existing.previewVideoUrl?.trim()) {
-        patch.previewVideoUrl = previewVideo;
-        patch.previewPhotoUrl = previewVideo;
-      }
-      if (Object.keys(patch).length) {
-        await prisma.quickVideoTemplate.update({
-          where: { id: existing.id },
-          data: patch,
-        });
-      }
+      await prisma.quickVideoTemplate.update({
+        where: { id: existing.id },
+        data: {
+          ...previewData,
+          // Keep cabinet previews if they exist and are not api/media stubs on prod
+          previewVideoUrl:
+            existing.previewVideoUrl?.includes("/tg/catalog/") ||
+            !existing.previewVideoUrl?.trim()
+              ? tpl.previewVideoUrl
+              : existing.previewVideoUrl.startsWith("/api/media/")
+                ? tpl.previewVideoUrl
+                : existing.previewVideoUrl,
+          previewPhotoUrl:
+            existing.previewPhotoUrl?.includes("/tg/catalog/") ||
+            !existing.previewPhotoUrl?.trim()
+              ? tpl.previewPhotoUrl
+              : existing.previewPhotoUrl.startsWith("/api/media/")
+                ? tpl.previewPhotoUrl
+                : existing.previewPhotoUrl,
+        },
+      });
       continue;
     }
 
@@ -174,26 +149,20 @@ async function ensureFeaturedTemplates(): Promise<void> {
         userId: ownerId,
         title: tpl.title,
         category: "bitch",
-        published: true,
-        pricePeaches: 0,
-        priceCredits: 0,
         isJuice: false,
-        shotsJson: tpl.shotsJson,
-        slotBlueprintJson: tpl.slotBlueprintJson,
-        identityPersonCount: tpl.identityPersonCount,
-        durationSec: tpl.durationSec,
         orientation: "9_16",
-        previewVideoUrl: previewVideo,
-        previewPhotoUrl: previewVideo,
+        ...previewData,
       },
     });
   }
 
-  const photoTitle = BOOTSTRAP_PHOTO.title;
+  const photoSeed = seed.photo;
+  if (!photoSeed) return;
+
   const photoExisting = await prisma.photoTemplate.findFirst({
     where: {
       OR: [
-        { title: photoTitle },
+        { title: photoSeed.title },
         { title: "2" },
         { editPrompt: { contains: "titjob" } },
       ],
@@ -201,38 +170,43 @@ async function ensureFeaturedTemplates(): Promise<void> {
     orderBy: { createdAt: "desc" },
   });
 
+  const photoData = {
+    title: photoSeed.title,
+    tier: photoSeed.tier,
+    editPrompt: photoSeed.editPrompt,
+    pricePeaches: photoSeed.pricePeaches,
+    previewImageUrl: photoSeed.previewImageUrl,
+    sceneImageUrl: photoSeed.sceneImageUrl,
+    published: true,
+    sortOrder: 0,
+  };
+
   if (photoExisting) {
     await prisma.photoTemplate.update({
       where: { id: photoExisting.id },
       data: {
-        title: photoTitle,
-        published: true,
-        sortOrder: 0,
-        editPrompt: photoExisting.editPrompt || BOOTSTRAP_PHOTO.editPrompt,
+        ...photoData,
         previewImageUrl:
-          photoExisting.previewImageUrl?.trim() || photoTemplatePreview(),
+          photoExisting.previewImageUrl?.startsWith("/api/media/") ||
+          !photoExisting.previewImageUrl?.trim()
+            ? photoSeed.previewImageUrl
+            : photoExisting.previewImageUrl.includes("/tg/catalog/")
+              ? photoSeed.previewImageUrl
+              : photoExisting.previewImageUrl,
         sceneImageUrl:
-          photoExisting.sceneImageUrl?.trim() || photoTemplatePreview(),
+          photoExisting.sceneImageUrl?.startsWith("/api/media/") ||
+          !photoExisting.sceneImageUrl?.trim()
+            ? photoSeed.sceneImageUrl
+            : photoExisting.sceneImageUrl,
       },
     });
     return;
   }
 
-  await prisma.photoTemplate.create({
-    data: {
-      title: photoTitle,
-      tier: BOOTSTRAP_PHOTO.tier,
-      editPrompt: BOOTSTRAP_PHOTO.editPrompt,
-      published: true,
-      sortOrder: 0,
-      pricePeaches: 54,
-      previewImageUrl: photoTemplatePreview(),
-      sceneImageUrl: photoTemplatePreview(),
-    },
-  });
+  await prisma.photoTemplate.create({ data: photoData });
 }
 
-/** Creates missing launch catalog rows once per process (safe to call often). */
+/** Creates / syncs launch catalog from bundled cabinet seed. */
 export function ensureTgBootstrap(): Promise<void> {
   if (!bootstrapPromise) {
     bootstrapPromise = (async () => {

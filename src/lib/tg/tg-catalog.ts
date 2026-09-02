@@ -2,6 +2,7 @@
  * TG bot + Mini App featured catalog (templates & studio cast sync).
  */
 import { prisma } from "@/lib/db";
+import { seedCastCoverUrl } from "@/lib/tg/tg-catalog-seed";
 import { studioCastCoverUrl } from "@/lib/tg/tg-static-previews";
 import type { TgLocale } from "@/lib/tg/i18n";
 import { ensureTgBootstrap } from "@/lib/tg/tg-bootstrap";
@@ -169,7 +170,10 @@ export async function pickCharacterCoverUrl(
       where: { id: characterId },
       select: { triggerWord: true },
     });
-    return studioCastCoverUrl(ch?.triggerWord);
+    return (
+      seedCastCoverUrl(ch?.triggerWord) ||
+      studioCastCoverUrl(ch?.triggerWord)
+    );
   }
   const pick = rows[Math.floor(Math.random() * rows.length)]!;
   return pick.resultUrl;

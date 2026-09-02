@@ -7,10 +7,7 @@ import {
   videoTemplatePricePeaches,
 } from "@/lib/tg/tg-catalog";
 import { normalizeLocale, type TgLocale } from "@/lib/tg/i18n";
-import {
-  photoTemplatePreview,
-  videoTemplatePreviewByIndex,
-} from "@/lib/tg/tg-static-previews";
+import { seedPreviewForPhoto, seedPreviewForVideo } from "@/lib/tg/tg-catalog-seed";
 
 function videoTitle(
   row: { title: string; titleEn?: string },
@@ -39,11 +36,16 @@ export async function GET(req: Request) {
 
   const video = videoRaw.map((t, i) => {
     const row = t as typeof t & { titleEn?: string; hasSpeech?: boolean };
+    const seedPrev = seedPreviewForVideo(row.title, i);
     const previewVideo =
       t.previewVideoUrl?.trim() ||
       t.previewPhotoUrl?.trim() ||
-      videoTemplatePreviewByIndex(i);
-    const previewPhoto = t.previewPhotoUrl?.trim() || previewVideo;
+      seedPrev?.previewVideoUrl ||
+      "";
+    const previewPhoto =
+      t.previewPhotoUrl?.trim() ||
+      seedPrev?.previewPhotoUrl ||
+      previewVideo;
     return {
       ...t,
       title: videoTitle(row, locale),
@@ -54,9 +56,12 @@ export async function GET(req: Request) {
     };
   });
 
-  const photoMapped = photo.map((p, i) => ({
+  const photoMapped = photo.map((p) => ({
     ...p,
-    previewImageUrl: p.previewImageUrl?.trim() || photoTemplatePreview(),
+    previewImageUrl:
+      p.previewImageUrl?.trim() ||
+      seedPreviewForPhoto(p.title) ||
+      "",
   }));
 
   return NextResponse.json({ video, photo: photoMapped, locale });
