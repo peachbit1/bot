@@ -21,19 +21,29 @@ export async function GET() {
     ? fs.readdirSync(catalogDir).sort()
     : [];
 
+  const presetNames = [
+    "krea_concept_loras.json",
+    "prompt_lego.json",
+    "prompt_lego_video.json",
+    "prompt_presets.json",
+  ];
+  const presetsDir = path.join(process.cwd(), "presets");
+  const presets = Object.fromEntries(
+    presetNames.map((name) => [name, fs.existsSync(path.join(presetsDir, name))]),
+  );
+
   const gpu = {
     useComfy: useComfy(),
     comfyUrl: comfyBaseUrl(),
     comfyUp: await pingComfy(),
     forceMock: process.env.COMFY_FORCE_MOCK === "1",
     tunnelConfigured: Boolean(process.env.METALNODE_SSH_KEY?.trim()),
-    presetsOk: fs.existsSync(
-      path.join(process.cwd(), "presets", "krea_concept_loras.json"),
-    ),
+    presetsOk: presetNames.every((name) => presets[name]),
+    presets,
   };
 
   return NextResponse.json({
-    build: "tg-ready-v3-gpu",
+    build: "tg-ready-v4-presets",
     gpu,
     catalogFiles,
     features: {

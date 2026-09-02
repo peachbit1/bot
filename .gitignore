@@ -72,8 +72,8 @@ klein_fix_latest.png
 /datasets/
 /samples/
 
-# optional local presets — ship TG-required registry to Railway
+# optional local presets — ship all JSON registries needed on Railway
 /presets/*
-!/presets/krea_concept_loras.json
+!/presets/*.json
 
 # keep workflows — needed for Comfy later

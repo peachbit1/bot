@@ -18,6 +18,8 @@ type PromptPresetsFile = {
 let cache: PromptPresetsFile | null = null;
 let cacheMtimeMs = 0;
 
+const EMPTY_TEMPLATES: PromptPresetsFile = { poses: [], styles: [] };
+
 export function clearPromptTemplateCache() {
   cache = null;
   cacheMtimeMs = 0;
@@ -29,7 +31,11 @@ export function loadPromptTemplates(): PromptPresetsFile {
   try {
     mtimeMs = statSync(p).mtimeMs;
   } catch {
-    /* ignore */
+    if (!cache) {
+      console.warn(`[prompt-templates] missing ${p} — using empty catalog`);
+      cache = EMPTY_TEMPLATES;
+    }
+    return cache;
   }
   if (cache && mtimeMs && mtimeMs === cacheMtimeMs) return cache;
   cache = JSON.parse(readFileSync(p, "utf-8")) as PromptPresetsFile;

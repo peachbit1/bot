@@ -31,16 +31,44 @@ let legoMtime = 0;
 let videoLegoCache: VideoLegoFile | null = null;
 let videoLegoMtime = 0;
 
+const EMPTY_LEGO: LegoFile = {
+  lighting: [],
+  events: [],
+  stylization: [],
+  body: [],
+};
+
+const EMPTY_VIDEO_LEGO: VideoLegoFile = {
+  poses: [],
+  actions: [],
+  voices: [],
+  cameras: [],
+};
+
+function readPresetJson<T>(name: string, empty: T): T {
+  const p = path.join(process.cwd(), "presets", name);
+  try {
+    return JSON.parse(readFileSync(p, "utf8")) as T;
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "ENOENT") {
+      console.warn(`[prompt-lego] missing ${p} — using empty catalog`);
+      return empty;
+    }
+    throw e;
+  }
+}
+
 export function loadLegoFile(): LegoFile {
   const p = path.join(process.cwd(), "presets", "prompt_lego.json");
   let mtime = 0;
   try {
     mtime = statSync(p).mtimeMs;
   } catch {
-    /* ignore */
+    if (!legoCache) legoCache = EMPTY_LEGO;
+    return legoCache;
   }
   if (legoCache && mtime && mtime === legoMtime) return legoCache;
-  const raw = JSON.parse(readFileSync(p, "utf8")) as LegoFile;
+  const raw = readPresetJson<LegoFile>("prompt_lego.json", EMPTY_LEGO);
   const keep = <T extends { enabled?: boolean }>(rows: T[] | undefined) =>
     (rows || []).filter((row) => row.enabled !== false);
   legoCache = {
@@ -59,10 +87,11 @@ export function loadVideoLegoFile(): VideoLegoFile {
   try {
     mtime = statSync(p).mtimeMs;
   } catch {
-    /* ignore */
+    if (!videoLegoCache) videoLegoCache = EMPTY_VIDEO_LEGO;
+    return videoLegoCache;
   }
   if (videoLegoCache && mtime && mtime === videoLegoMtime) return videoLegoCache;
-  const raw = JSON.parse(readFileSync(p, "utf8")) as VideoLegoFile;
+  const raw = readPresetJson<VideoLegoFile>("prompt_lego_video.json", EMPTY_VIDEO_LEGO);
   videoLegoCache = {
     poses: raw.poses || [],
     actions: raw.actions || [],
