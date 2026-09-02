@@ -85,7 +85,7 @@ export async function sendWelcomeAfterRules(
   await tgSendMediaMessage(chatId, "welcome", t("welcome_after_rules", locale), {
     reply_markup: welcomeKeyboard(locale),
   });
-  await tgSendMessage(chatId, "👇", mainMenuExtra(locale));
+  await tgSendMessage(chatId, t("menu_keyboard_hint", locale), mainMenuExtra(locale));
 }
 
 export async function startOnboardCharacter(

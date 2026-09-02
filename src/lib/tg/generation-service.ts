@@ -28,8 +28,8 @@ import {
   characterReadyForVideo,
 } from "@/lib/tg/character-service";
 import {
-  hasRealCharacterLora,
   isStudioCastCharacter,
+  characterUsesLoraPhoto,
 } from "@/lib/tg/studio-cast";
 import {
   consumeLoraWelcomePhoto,
@@ -287,8 +287,7 @@ export async function startTgPhotoGeneration(opts: {
     };
   }
 
-  const studioLora =
-    isStudioCastCharacter(character) && hasRealCharacterLora(character);
+  const loraPhoto = characterUsesLoraPhoto(character);
 
   const item = await enqueuePhotoJob(opts.userId, {
     userId: opts.userId,
@@ -296,8 +295,8 @@ export async function startTgPhotoGeneration(opts: {
     characterIds: [opts.characterId],
     characterId: opts.characterId,
     composedPrompt: row.editPrompt,
-    useIdentityDualRef: !studioLora,
-    studioCastLora: studioLora,
+    useIdentityDualRef: !loraPhoto,
+    studioCastLora: loraPhoto,
     title: row.title,
     width: 888,
     height: 1176,

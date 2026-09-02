@@ -74,7 +74,7 @@ export async function tryStartLoraTraining(opts: {
       },
     },
   );
-  await tgSendMessage(opts.chatId, "👇", mainMenuExtra(opts.locale));
+  await tgSendMessage(opts.chatId, t("menu_keyboard_hint", opts.locale), mainMenuExtra(opts.locale));
 
   if (!useComfy()) {
     await completeLoraTrainingMock({

@@ -130,9 +130,36 @@ export default function TgCharactersPage() {
               className="tg-char-card studio"
               onClick={() => sendAction({ action: "pick_cast", characterId: c.id })}
             >
-              <div>
-                <strong>{c.name}</strong>
-                <small>PeachBitch Studio · LoRA</small>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                {c.coverUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={c.coverUrl}
+                    alt=""
+                    style={{
+                      width: 48,
+                      height: 48,
+                      borderRadius: 10,
+                      objectFit: "cover",
+                      flexShrink: 0,
+                    }}
+                  />
+                ) : (
+                  <span
+                    style={{
+                      width: 48,
+                      height: 48,
+                      borderRadius: 10,
+                      background: "#222",
+                      display: "inline-block",
+                      flexShrink: 0,
+                    }}
+                  />
+                )}
+                <div>
+                  <strong>{c.name}</strong>
+                  <small>PeachBitch Studio · LoRA</small>
+                </div>
               </div>
               <span className="badge">{u.cast}</span>
             </button>

@@ -381,7 +381,7 @@ Pick a button or type a number 👇`,
 
 📹 <b>Нажми на кнопку "Генерация",</b> чтобы сгенерировать фото или видео
 
-🟠 <b>Нажми на кнопку "Персонажи",</b> чтобы выбрать из списка того персонажа, с которым хочешь сделать следующее фото/видео или добавить нового. Там же есть более тонкие настройки персонажа, чтобы скорректировать его вес, внешний вид тела и т.д, чтобы в следующей генерации было более похоже.
+🟠 <b>Нажми на кнопку "Персонажи",</b> чтобы выбрать из списка того персонажа, с которым хочешь сделать следующее фото или обучить PeachBitch новой модели для фото. Для видео персонажа не нужно создавать — просто перед генерацией отправь фото того человека, с которым хочешь сделать видео.
 
 💳 <b>Нажми на кнопку "Баланс", </b>чтобы проверить или пополнить удобным способом`,
     en: `Ready to fantasize? 😏💦
@@ -390,7 +390,7 @@ Your balance: {balance}🍑
 
 📹 <b>Tap "Generation"</b> to create a photo or video
 
-🟠 <b>Tap "Characters"</b> to pick who to generate with or add a new one. Fine-tune body settings there.
+🟠 <b>Tap "Characters"</b> to pick who to use for photos or train a new LoRA model. For video you don't need a trained character — just send reference photos before generating.
 
 💳 <b>Tap "Balance"</b> to check or top up`,
   },
@@ -401,6 +401,11 @@ Your balance: {balance}🍑
   menu_earn: { ru: "💰 Заработать", en: "💰 Earn" },
   menu_help: { ru: "❓ Помощь", en: "❓ Help" },
   menu_main: { ru: "🏠 Главное меню", en: "🏠 Main menu" },
+
+  menu_keyboard_hint: {
+    ru: "Меню управления — кнопки ниже.",
+    en: "Control menu — buttons below.",
+  },
 
   help_title: {
     ru: `<b>Помощь</b>

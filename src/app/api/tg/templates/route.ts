@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
-import { listPublishedQuickVideoTemplates } from "@/lib/quick-video-template";
-import { listPublicPhotoTemplates } from "@/lib/photo-template";
 import { getSessionUserId } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { TG_VIDEO_PEACHES } from "@/lib/tg-pricing";
+import {
+  listTgFeaturedPhotoTemplates,
+  listTgFeaturedVideoTemplates,
+  videoTemplatePricePeaches,
+} from "@/lib/tg/tg-catalog";
 import { normalizeLocale, type TgLocale } from "@/lib/tg/i18n";
 
 function videoTitle(
@@ -27,21 +29,16 @@ export async function GET(req: Request) {
   const locale = normalizeLocale(localeParam || user?.locale);
 
   const [videoRaw, photo] = await Promise.all([
-    kind === "photo" ? Promise.resolve([]) : listPublishedQuickVideoTemplates(userId),
-    kind === "video" ? Promise.resolve([]) : listPublicPhotoTemplates(locale),
+    kind === "photo" ? Promise.resolve([]) : listTgFeaturedVideoTemplates(userId),
+    kind === "video" ? Promise.resolve([]) : listTgFeaturedPhotoTemplates(locale),
   ]);
 
   const video = videoRaw.map((t) => {
-    const row = t as typeof t & { titleEn?: string; pricePeaches?: number; hasSpeech?: boolean };
+    const row = t as typeof t & { titleEn?: string; hasSpeech?: boolean };
     return {
       ...t,
       title: videoTitle(row, locale),
-      pricePeaches:
-        row.pricePeaches && row.pricePeaches > 0
-          ? row.pricePeaches
-          : row.priceCredits > 0
-            ? row.priceCredits
-            : TG_VIDEO_PEACHES.basic5,
+      pricePeaches: videoTemplatePricePeaches(t),
       hasSpeech: Boolean(row.hasSpeech),
     };
   });

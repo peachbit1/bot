@@ -1,10 +1,9 @@
-import { listPublicPhotoTemplates } from "@/lib/photo-template";
-import { listPublishedQuickVideoTemplates } from "@/lib/quick-video-template";
+import { listTgFeaturedPhotoTemplates, listTgFeaturedVideoTemplates } from "@/lib/tg/tg-catalog";
 import type { TgLocale } from "@/lib/tg/i18n";
 import { t, tFormat } from "@/lib/tg/i18n";
 import { resolveTemplatePricePeaches } from "@/lib/tg/generation-service";
 import { tgSendMessage } from "@/lib/tg/telegram-api";
-import { isStudioCastCharacter } from "@/lib/tg/studio-cast";
+import { isStudioCastCharacter, characterUsesLoraPhoto } from "@/lib/tg/studio-cast";
 import {
   canUseStudioDailyFree,
 } from "@/lib/tg/tg-promo";
@@ -52,18 +51,12 @@ export async function listBotInlineTemplates(
   kind: "photo" | "video",
   locale: TgLocale,
 ): Promise<BotTemplateRow[]> {
-  const filter = botTemplateFilter();
   if (kind === "photo") {
-    const rows = await listPublicPhotoTemplates(locale);
-    const mapped = rows.map((r) => ({
-      id: r.id,
-      title: r.title,
-      kind: "photo" as const,
-    }));
-    if (!filter) return mapped;
-    return mapped.filter((r) => filter.includes(r.id));
+    const rows = await listTgFeaturedPhotoTemplates(locale);
+    return rows.map((r) => ({ id: r.id, title: r.title, kind: "photo" as const }));
   }
-  const rows = await listPublishedQuickVideoTemplates(userId);
+  const rows = await listTgFeaturedVideoTemplates(userId);
+  const filter = botTemplateFilter();
   const mapped = rows.map((r) => ({
     id: r.id,
     title: r.title,
@@ -206,7 +199,7 @@ export async function templatePriceLabel(opts: {
           studioDaily: true,
         };
       }
-    } else if (opts.character.loraStatus === "lora_ready") {
+    } else if (characterUsesLoraPhoto(opts.character)) {
       const left = user?.tgLoraWelcomePhotosLeft ?? 0;
       if (left > 0) {
         const leftNote =

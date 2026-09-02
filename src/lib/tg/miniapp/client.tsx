@@ -20,7 +20,7 @@ export type TgMiniAppProfile = {
     photoCount: number;
     isStudioCast: boolean;
   }>;
-  casts: Array<{ id: string; name: string }>;
+  casts: Array<{ id: string; name: string; coverUrl: string | null }>;
 };
 
 const UI = {

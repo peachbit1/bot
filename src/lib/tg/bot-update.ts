@@ -90,7 +90,7 @@ import { isTgDevResetMessage, resetTgOnboarding } from "@/lib/tg/dev-reset";
 import { maybeSendWelcomePush } from "@/lib/tg/tg-promo";
 import { goToMainMenu, routeMenuText } from "@/lib/tg/menu-routing";
 import { tgMiniAppUrl } from "@/lib/tg/miniapp-url";
-import { isStudioCastCharacter, getStudioCast } from "@/lib/tg/studio-cast";
+import { isStudioCastCharacter, getStudioCast, characterUsesLoraPhoto } from "@/lib/tg/studio-cast";
 
 export type TgUpdateMessage = {
   message_id: number;
@@ -342,7 +342,7 @@ async function beginGeneration(
         });
         return;
       }
-    } else if (character.loraStatus !== "lora_ready" && !pending.loraWelcome) {
+    } else if (!characterUsesLoraPhoto(character) && !pending.loraWelcome) {
       await tgSendMessage(chatId, t("photo_need_lora", locale));
       return;
     }
