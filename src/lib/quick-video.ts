@@ -1,7 +1,6 @@
 /**
  * Quick video: labeled <Picture N> refs + optional pose video → MiniMax Ref2V.
  */
-import { after } from "next/server";
 import { prisma } from "@/lib/db";
 import { enqueueGpuJob } from "@/lib/gallery-jobs";
 import { GALLERY_PLACEHOLDER_URL, parseGalleryMeta } from "@/lib/gallery-meta";
@@ -24,6 +23,7 @@ import {
   type QuickVideoShotsPlan,
 } from "@/lib/quick-video-prompt";
 import { loadVideoLegoFile } from "@/lib/prompt-lego";
+import { scheduleAfterResponse } from "@/lib/schedule-after";
 import { clampDurationSec } from "@/lib/video-graphs";
 import {
   minimaxOutputSize,
@@ -286,9 +286,7 @@ export async function getQuickVideoRun(userId: string, id: string) {
 }
 
 function scheduleGpu(fn: () => void) {
-  after(() => {
-    fn();
-  });
+  scheduleAfterResponse(fn);
 }
 
 async function runQuickVideoJob(runId: string, userId: string) {

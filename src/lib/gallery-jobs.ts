@@ -1,4 +1,3 @@
-import { after } from "next/server";
 import { prisma } from "@/lib/db";
 import { backupDatabase, saveGalleryBinary } from "@/lib/local-store";
 import {
@@ -12,6 +11,7 @@ import {
   generatePhotoBytes,
 } from "@/lib/peach-lab";
 import { galleryRoot } from "@/lib/paths";
+import { scheduleAfterResponse } from "@/lib/schedule-after";
 
 type PhotoPayload = Parameters<typeof generatePhotoBytes>[0] & {
   templateRunFrameId?: string;
@@ -335,9 +335,7 @@ async function runFilmJob(itemId: string, userId: string, opts: FilmPayload) {
 }
 
 function scheduleJob(fn: () => Promise<void>) {
-  after(() => {
-    void enqueueGpuJob(fn);
-  });
+  scheduleAfterResponse(() => enqueueGpuJob(fn));
 }
 
 export async function enqueuePhotoJob(userId: string, opts: PhotoPayload) {
