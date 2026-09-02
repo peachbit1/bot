@@ -27,12 +27,38 @@ export const TG_STUDIO_CAST_NAMES = (
   .map((s) => s.trim())
   .filter(Boolean);
 
-let catalogEnsured = false;
+/** Match by trigger if name differs on prod. */
+export const TG_STUDIO_CAST_TRIGGERS = (
+  process.env.TG_STUDIO_CAST_TRIGGERS?.trim() ||
+  "daisysh,masha1,olh_person"
+)
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+/** Per-slot: display name + ways to find character in DB. */
+export const TG_STUDIO_CAST_SPEC: Array<{
+  displayName: string;
+  names: string[];
+  triggers: string[];
+}> = [
+  {
+    displayName: "Daisy Shtorm",
+    names: ["Daisy Shtorm", "Daisy"],
+    triggers: ["daisysh"],
+  },
+  { displayName: "Маша", names: ["Маша", "Masha"], triggers: ["masha1"] },
+  { displayName: "Лора", names: ["Лора", "Lora"], triggers: ["olh_person"] },
+];
+
+function envIds(key: "TG_FEATURED_VIDEO_IDS" | "TG_FEATURED_PHOTO_IDS"): string[] {
+  const raw = process.env[key]?.trim();
+  if (!raw) return [];
+  return raw.split(",").map((s) => s.trim()).filter(Boolean);
+}
 
 /** Idempotent DB fixes: rename photo tpl, publish featured videos. */
 export async function ensureTgCatalog(): Promise<void> {
-  if (catalogEnsured) return;
-
   for (const title of TG_FEATURED_VIDEO_TITLES) {
     await prisma.quickVideoTemplate.updateMany({
       where: { title },
@@ -51,10 +77,7 @@ export async function ensureTgCatalog(): Promise<void> {
   if (!photoFeatured) {
     const legacy = await prisma.photoTemplate.findFirst({
       where: {
-        OR: [
-          { title: "2" },
-          { editPrompt: { contains: "titjob" } },
-        ],
+        OR: [{ title: "2" }, { editPrompt: { contains: "titjob" } }],
       },
       orderBy: { createdAt: "desc" },
     });
@@ -74,40 +97,75 @@ export async function ensureTgCatalog(): Promise<void> {
       data: { published: true, sortOrder: 0 },
     });
   }
-
-  catalogEnsured = true;
 }
 
-function orderByTitles<T extends { title: string }>(
+function orderByTitles<T extends { title: string; id?: string }>(
   rows: T[],
   titles: readonly string[],
 ): T[] {
   const out: T[] = [];
-  for (const t of titles) {
-    const row = rows.find((r) => r.title === t);
+  for (const title of titles) {
+    const row = rows.find((r) => r.title === title);
     if (row) out.push(row);
   }
   return out;
+}
+
+function orderByIds<T extends { id: string }>(rows: T[], ids: string[]): T[] {
+  return ids
+    .map((id) => rows.find((r) => r.id === id))
+    .filter(Boolean) as T[];
 }
 
 export async function listTgFeaturedVideoTemplates(
   userId: string,
 ): Promise<PublicQuickVideoTemplate[]> {
   await ensureTgCatalog();
-  const envIds = process.env.TG_BOT_INLINE_TEMPLATE_IDS?.trim();
-  if (envIds) {
-    const ids = envIds.split(",").map((s) => s.trim()).filter(Boolean);
-    const all = await listPublishedQuickVideoTemplates(userId);
-    return all.filter((t) => ids.includes(t.id));
-  }
   const all = await listPublishedQuickVideoTemplates(userId);
-  return orderByTitles(all, TG_FEATURED_VIDEO_TITLES);
+
+  const byEnv = envIds("TG_FEATURED_VIDEO_IDS");
+  if (byEnv.length) {
+    const picked = orderByIds(all, byEnv);
+    if (picked.length) return picked;
+  }
+
+  const botIds = process.env.TG_BOT_INLINE_TEMPLATE_IDS?.trim();
+  if (botIds) {
+    const ids = botIds.split(",").map((s) => s.trim()).filter(Boolean);
+    const picked = orderByIds(all, ids);
+    if (picked.length) return picked;
+  }
+
+  const byTitle = orderByTitles(all, TG_FEATURED_VIDEO_TITLES);
+  if (byTitle.length) return byTitle;
+
+  const fuzzy = all.filter(
+    (t) =>
+      /сосёт|кончает/i.test(t.title) ||
+      /снимает.*одежд|верхн.*одежд/i.test(t.title),
+  );
+  if (fuzzy.length) return fuzzy.slice(0, 2);
+
+  return all.slice(0, 2);
 }
 
 export async function listTgFeaturedPhotoTemplates(locale: TgLocale = "ru") {
   await ensureTgCatalog();
   const all = await listPublicPhotoTemplates(locale);
-  return orderByTitles(all, TG_FEATURED_PHOTO_TITLES);
+
+  const byEnv = envIds("TG_FEATURED_PHOTO_IDS");
+  if (byEnv.length) {
+    const picked = orderByIds(all, byEnv);
+    if (picked.length) return picked;
+  }
+
+  const byTitle = orderByTitles(all, TG_FEATURED_PHOTO_TITLES);
+  if (byTitle.length) return byTitle;
+
+  const fuzzy = all.filter((t) => /член.*рту|во рту/i.test(t.title));
+  if (fuzzy.length) return fuzzy.slice(0, 1);
+
+  return all.slice(0, 1);
 }
 
 export function videoTemplatePricePeaches(t: PublicQuickVideoTemplate): number {

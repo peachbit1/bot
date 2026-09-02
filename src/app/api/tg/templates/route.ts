@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getSessionUserId } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { resolveTgApiUserId } from "@/lib/tg/resolve-api-user";
 import {
   listTgFeaturedPhotoTemplates,
   listTgFeaturedVideoTemplates,
@@ -17,7 +17,7 @@ function videoTitle(
 
 /** Templates feed for TG Mini App. */
 export async function GET(req: Request) {
-  const userId = await getSessionUserId();
+  const userId = await resolveTgApiUserId(req);
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

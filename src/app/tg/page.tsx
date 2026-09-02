@@ -48,7 +48,8 @@ const UI = {
 } as const;
 
 export default function TgFeedPage() {
-  const { status, error, profile, locale, setLocale, sendAction } = useTgMiniApp();
+  const { status, error, profile, locale, setLocale, sendAction, apiFetch } =
+    useTgMiniApp();
   const [tab, setTab] = useState<"all" | "video" | "photo">("all");
   const [items, setItems] = useState<FeedItem[]>([]);
   const [loadErr, setLoadErr] = useState("");
@@ -59,9 +60,7 @@ export default function TgFeedPage() {
   const load = useCallback(async () => {
     setLoadErr("");
     const kind = tab;
-    const res = await fetch(`/api/tg/templates?kind=${kind}&locale=${locale}`, {
-      credentials: "include",
-    });
+    const res = await apiFetch(`/api/tg/templates?kind=${kind}&locale=${locale}`);
     if (!res.ok) {
       setLoadErr("load");
       return;
@@ -98,7 +97,7 @@ export default function TgFeedPage() {
       }
     }
     setItems(feed);
-  }, [tab, locale]);
+  }, [tab, locale, apiFetch]);
 
   useEffect(() => {
     if (status !== "ready") return;

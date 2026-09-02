@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getSessionUserId } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { resolveTgApiUserId } from "@/lib/tg/resolve-api-user";
 import { listTgCharacters } from "@/lib/tg/character-service";
 import { listStudioCasts } from "@/lib/tg/studio-cast";
 import { normalizeLocale } from "@/lib/tg/i18n";
@@ -8,7 +8,7 @@ import { TG_PROMO } from "@/lib/tg-pricing";
 
 /** Mini App profile: balance, characters, studio cast, promos. */
 export async function GET(req: Request) {
-  const userId = await getSessionUserId();
+  const userId = await resolveTgApiUserId(req);
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

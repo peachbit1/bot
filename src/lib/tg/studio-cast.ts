@@ -1,7 +1,9 @@
 import { prisma } from "@/lib/db";
 import {
   pickCharacterCoverUrl,
+  TG_STUDIO_CAST_SPEC,
   TG_STUDIO_CAST_NAMES,
+  TG_STUDIO_CAST_TRIGGERS,
 } from "@/lib/tg/tg-catalog";
 
 export { castsMiniAppUrl, tgMiniAppUrl } from "@/lib/tg/miniapp-url";
@@ -17,6 +19,7 @@ export function hasRealCharacterLora(ch: {
   const path = (ch.loraPath || "").trim();
   if (path && !path.startsWith("mock://")) return true;
   if (ch.name && TG_STUDIO_CAST_NAMES.includes(ch.name)) return true;
+  if (ch.triggerWord && TG_STUDIO_CAST_TRIGGERS.includes(ch.triggerWord)) return true;
   return ch.triggerWord === "olh_person";
 }
 
@@ -24,18 +27,30 @@ async function findStudioCastCandidates() {
   const rows = await prisma.character.findMany({
     where: {
       loraStatus: "lora_ready",
-      OR: TG_STUDIO_CAST_NAMES.map((name) => ({ name })),
+      OR: [
+        { name: { in: TG_STUDIO_CAST_NAMES } },
+        ...TG_STUDIO_CAST_SPEC.flatMap((s) =>
+          s.names.map((name) => ({ name: { contains: name } })),
+        ),
+        { triggerWord: { in: TG_STUDIO_CAST_TRIGGERS } },
+      ],
     },
     orderBy: { createdAt: "asc" },
   });
-  const byName = new Map<string, (typeof rows)[number]>();
-  for (const name of TG_STUDIO_CAST_NAMES) {
+
+  const out: typeof rows = [];
+  for (const spec of TG_STUDIO_CAST_SPEC) {
     const hit =
-      rows.find((r) => r.name === name) ||
-      rows.find((r) => r.name.toLowerCase() === name.toLowerCase());
-    if (hit) byName.set(name, hit);
+      rows.find((r) => spec.names.includes(r.name)) ||
+      rows.find((r) =>
+        spec.names.some((n) => r.name.toLowerCase().includes(n.toLowerCase())),
+      ) ||
+      rows.find(
+        (r) => r.triggerWord && spec.triggers.includes(r.triggerWord),
+      );
+    if (hit && !out.some((x) => x.id === hit.id)) out.push(hit);
   }
-  return TG_STUDIO_CAST_NAMES.map((n) => byName.get(n)).filter(Boolean) as typeof rows;
+  return out;
 }
 
 /** Mark house LoRA models; unmark everything else. */
@@ -46,19 +61,14 @@ export async function ensureStudioCasts(): Promise<void> {
   for (const ch of candidates) {
     if (!hasRealCharacterLora(ch)) continue;
     realIds.add(ch.id);
+    const patch: { isStudioCast: boolean; loraPath?: string } = {
+      isStudioCast: true,
+    };
     if (ch.loraPath?.startsWith("mock://") && ch.triggerWord === "olh_person") {
-      await prisma.character.update({
-        where: { id: ch.id },
-        data: {
-          loraPath: "krea2/olh_person_krea2.safetensors",
-          isStudioCast: true,
-        },
-      });
-    } else if (!ch.isStudioCast) {
-      await prisma.character.update({
-        where: { id: ch.id },
-        data: { isStudioCast: true },
-      });
+      patch.loraPath = "krea2/olh_person_krea2.safetensors";
+    }
+    if (!ch.isStudioCast || patch.loraPath) {
+      await prisma.character.update({ where: { id: ch.id }, data: patch });
     }
   }
 
@@ -80,9 +90,14 @@ export async function listStudioCasts(_locale: "ru" | "en" = "ru") {
 
   for (const ch of candidates) {
     if (!hasRealCharacterLora(ch)) continue;
+    const spec = TG_STUDIO_CAST_SPEC.find(
+      (s) =>
+        s.names.includes(ch.name) ||
+        (ch.triggerWord && s.triggers.includes(ch.triggerWord)),
+    );
     out.push({
       id: ch.id,
-      name: ch.name,
+      name: spec?.displayName || ch.name,
       coverUrl: await pickCharacterCoverUrl(ch.id),
     });
   }

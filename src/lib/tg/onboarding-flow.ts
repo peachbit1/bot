@@ -1,6 +1,5 @@
 import type { TgLocale } from "@/lib/tg/i18n";
 import { t, tFormat } from "@/lib/tg/i18n";
-import { mainMenuExtra } from "@/lib/tg/menu";
 import { castsMiniAppUrl } from "@/lib/tg/studio-cast";
 import {
   scheduleWelcomePush,
@@ -85,7 +84,6 @@ export async function sendWelcomeAfterRules(
   await tgSendMediaMessage(chatId, "welcome", t("welcome_after_rules", locale), {
     reply_markup: welcomeKeyboard(locale),
   });
-  await tgSendMessage(chatId, t("menu_keyboard_hint", locale), mainMenuExtra(locale));
 }
 
 export async function startOnboardCharacter(

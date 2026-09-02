@@ -10,9 +10,9 @@ export function AppChrome({
   children: React.ReactNode;
 }) {
   const pathname = usePathname() || "";
-  const peach = pathname.startsWith("/peach");
+  const bare = pathname.startsWith("/peach") || pathname.startsWith("/tg");
 
-  if (peach) {
+  if (bare) {
     return <div className="min-h-full">{children}</div>;
   }
 

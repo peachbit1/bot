@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -58,7 +58,7 @@ declare global {
   }
 }
 
-async function waitInitData(maxMs = 4000): Promise<string> {
+async function waitInitData(maxMs = 6000): Promise<string> {
   const started = Date.now();
   while (Date.now() - started < maxMs) {
     const d = window.Telegram?.WebApp?.initData;
@@ -68,15 +68,32 @@ async function waitInitData(maxMs = 4000): Promise<string> {
   return window.Telegram?.WebApp?.initData || "";
 }
 
+function tgFetch(
+  initData: string,
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> {
+  const headers = new Headers(init?.headers);
+  if (initData) headers.set("X-Tg-Init-Data", initData);
+  return fetch(input, {
+    ...init,
+    credentials: "include",
+    headers,
+  });
+}
+
 export function useTgMiniApp() {
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [error, setError] = useState("");
   const [profile, setProfile] = useState<TgMiniAppProfile | null>(null);
   const [locale, setLocale] = useState<"ru" | "en">("ru");
+  const initDataRef = useRef("");
 
   const refresh = useCallback(async (loc?: "ru" | "en") => {
+    const initData = initDataRef.current;
+    if (!initData) throw new Error("no initData");
     const q = loc ? `?locale=${loc}` : "";
-    const res = await fetch(`/api/tg/me${q}`, { credentials: "include" });
+    const res = await tgFetch(initData, `/api/tg/me${q}`);
     if (!res.ok) throw new Error("profile");
     const data = (await res.json()) as TgMiniAppProfile;
     setProfile(data);
@@ -92,16 +109,16 @@ export function useTgMiniApp() {
       window.Telegram?.WebApp?.setBackgroundColor?.("#0a0a0f");
 
       const initData = await waitInitData();
+      initDataRef.current = initData;
       if (!initData) {
         setError(UI.ru.openInTg);
         setStatus("error");
         return;
       }
 
-      const authRes = await fetch("/api/tg/auth", {
+      const authRes = await tgFetch(initData, "/api/tg/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: "include",
         body: JSON.stringify({ initData }),
       });
       if (!authRes.ok) {
@@ -110,10 +127,7 @@ export function useTgMiniApp() {
         return;
       }
 
-      await fetch("/api/tg/miniapp-heartbeat", {
-        method: "POST",
-        credentials: "include",
-      });
+      await tgFetch(initData, "/api/tg/miniapp-heartbeat", { method: "POST" });
 
       try {
         await refresh();
@@ -123,15 +137,20 @@ export function useTgMiniApp() {
         setStatus("error");
       }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refresh]);
+
+  const apiFetch = useCallback(
+    (input: RequestInfo | URL, init?: RequestInit) =>
+      tgFetch(initDataRef.current, input, init),
+    [],
+  );
 
   const sendAction = useCallback((payload: Record<string, unknown>) => {
     window.Telegram?.WebApp?.sendData(JSON.stringify(payload));
     window.Telegram?.WebApp?.close();
   }, []);
 
-  return { status, error, profile, locale, setLocale, refresh, sendAction };
+  return { status, error, profile, locale, setLocale, refresh, sendAction, apiFetch };
 }
 
 export function TgTabBar({ locale }: { locale: "ru" | "en" }) {

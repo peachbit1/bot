@@ -402,11 +402,6 @@ Your balance: {balance}🍑
   menu_help: { ru: "❓ Помощь", en: "❓ Help" },
   menu_main: { ru: "🏠 Главное меню", en: "🏠 Main menu" },
 
-  menu_keyboard_hint: {
-    ru: "Меню управления — кнопки ниже.",
-    en: "Control menu — buttons below.",
-  },
-
   help_title: {
     ru: `<b>Помощь</b>
 
