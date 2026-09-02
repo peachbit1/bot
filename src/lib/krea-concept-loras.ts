@@ -58,13 +58,22 @@ type RegistryFile = {
 let cache: RegistryFile | null = null;
 let cacheMtime = 0;
 
+const EMPTY_REGISTRY: RegistryFile = { maxExtraLoras: 4, loras: [] };
+
 function loadRegistry(): RegistryFile {
   const p = path.join(process.cwd(), "presets", "krea_concept_loras.json");
   let mtime = 0;
   try {
     mtime = statSync(p).mtimeMs;
   } catch {
-    /* ignore */
+    if (!cache) {
+      console.warn(
+        `[krea-concept-loras] missing ${p} — using empty registry (no concept LoRAs)`,
+      );
+      cache = EMPTY_REGISTRY;
+      cacheMtime = 0;
+    }
+    return cache;
   }
   if (cache && mtime && mtime === cacheMtime) return cache;
   cache = JSON.parse(readFileSync(p, "utf8")) as RegistryFile;

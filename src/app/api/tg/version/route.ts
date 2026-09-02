@@ -27,6 +27,9 @@ export async function GET() {
     comfyUp: await pingComfy(),
     forceMock: process.env.COMFY_FORCE_MOCK === "1",
     tunnelConfigured: Boolean(process.env.METALNODE_SSH_KEY?.trim()),
+    presetsOk: fs.existsSync(
+      path.join(process.cwd(), "presets", "krea_concept_loras.json"),
+    ),
   };
 
   return NextResponse.json({
