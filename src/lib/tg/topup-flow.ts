@@ -39,7 +39,12 @@ export async function handleTopupAmount(
     return;
   }
   await setTgSession(platformUserId, { chatState: "idle" });
-  await tgSendMessage(chatId, tFormat("topup_stub", locale, { n: amount }));
+  const { mainMenuExtra } = await import("@/lib/tg/menu");
+  await tgSendMessage(
+    chatId,
+    tFormat("topup_stub", locale, { n: amount }),
+    mainMenuExtra(locale),
+  );
 }
 
 export async function sendInsufficientBalance(

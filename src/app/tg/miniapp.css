@@ -1,0 +1,280 @@
+.tg-app {
+  min-height: 100dvh;
+  background: #0a0a0f;
+  color: #f5f5f7;
+  font-family: system-ui, -apple-system, sans-serif;
+  padding-bottom: calc(4.5rem + env(safe-area-inset-bottom));
+}
+
+.tg-shell {
+  min-height: 100dvh;
+}
+
+.tg-tabbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 50;
+  display: flex;
+  gap: 0;
+  padding: 0.35rem 0.75rem calc(0.5rem + env(safe-area-inset-bottom));
+  background: #0a0a0ff2;
+  backdrop-filter: blur(12px);
+  border-top: 1px solid #ffffff14;
+}
+
+.tg-tabbar a {
+  flex: 1;
+  text-align: center;
+  padding: 0.55rem 0.25rem;
+  border-radius: 12px;
+  color: #888;
+  text-decoration: none;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.tg-tabbar a span {
+  display: block;
+  font-size: 1.15rem;
+  margin-bottom: 0.15rem;
+}
+
+.tg-tabbar a.active {
+  color: #ff4d8d;
+  background: #ff4d8d18;
+}
+
+.tg-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #0a0a0fe6;
+  backdrop-filter: blur(10px);
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid #ffffff10;
+}
+
+.tg-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.tg-header h1 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.tg-balance {
+  font-size: 0.85rem;
+  color: #ff4d8d;
+  white-space: nowrap;
+}
+
+.tg-lang {
+  border: 1px solid #444;
+  background: transparent;
+  color: #ff4d8d;
+  border-radius: 8px;
+  padding: 0.3rem 0.55rem;
+  font-size: 0.75rem;
+}
+
+.tg-tabs {
+  display: flex;
+  gap: 0.45rem;
+  margin-top: 0.65rem;
+}
+
+.tg-tabs button {
+  flex: 1;
+  padding: 0.45rem;
+  border: 1px solid #333;
+  border-radius: 8px;
+  background: transparent;
+  color: #aaa;
+  font-size: 0.82rem;
+}
+
+.tg-tabs button.active {
+  background: #ff4d8d22;
+  border-color: #ff4d8d;
+  color: #ff4d8d;
+}
+
+.tg-reels {
+  height: calc(100dvh - 4.5rem - env(safe-area-inset-bottom));
+  overflow-y: scroll;
+  scroll-snap-type: y mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+
+.tg-reel {
+  scroll-snap-align: start;
+  height: calc(100dvh - 4.5rem - env(safe-area-inset-bottom));
+  position: relative;
+  background: #000;
+}
+
+.tg-reel-media {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.tg-reel-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 1rem 1rem 1.25rem;
+  background: linear-gradient(transparent, #000c);
+}
+
+.tg-reel-overlay strong {
+  display: block;
+  font-size: 1rem;
+  margin-bottom: 0.25rem;
+}
+
+.tg-reel-overlay p {
+  margin: 0 0 0.5rem;
+  font-size: 0.82rem;
+  color: #ccc;
+}
+
+.tg-reel-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.tg-price {
+  color: #ff4d8d;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.tg-use-btn {
+  background: linear-gradient(135deg, #ff4d8d, #ff8a4d);
+  border: none;
+  color: #fff;
+  padding: 0.6rem 1rem;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.tg-section {
+  padding: 1rem;
+}
+
+.tg-section h2 {
+  margin: 0 0 0.65rem;
+  font-size: 0.95rem;
+  color: #ddd;
+}
+
+.tg-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.tg-char-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  border-radius: 14px;
+  border: 1px solid #ffffff12;
+  background: #14141c;
+  text-align: left;
+  color: inherit;
+  width: 100%;
+}
+
+.tg-char-card.studio {
+  border-color: #ff4d8d44;
+}
+
+.tg-char-card small {
+  display: block;
+  margin-top: 0.2rem;
+  color: #888;
+  font-size: 0.75rem;
+}
+
+.tg-char-card .badge {
+  font-size: 0.68rem;
+  padding: 0.2rem 0.45rem;
+  border-radius: 999px;
+  background: #ff4d8d22;
+  color: #ff8ab0;
+  white-space: nowrap;
+}
+
+.tg-char-card .badge.ready {
+  background: #2ecc7122;
+  color: #7dffb0;
+}
+
+.tg-settings {
+  margin-top: 1.25rem;
+  padding: 1rem;
+  border-radius: 16px;
+  background: #12121a;
+  border: 1px solid #ffffff10;
+}
+
+.tg-settings h2 {
+  margin: 0 0 0.75rem;
+  font-size: 0.95rem;
+}
+
+.tg-settings-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid #ffffff0a;
+  font-size: 0.88rem;
+}
+
+.tg-settings-row:last-child {
+  border-bottom: none;
+}
+
+.tg-settings-row button,
+.tg-primary-btn {
+  background: #ff4d8d;
+  border: none;
+  color: #fff;
+  border-radius: 10px;
+  padding: 0.55rem 0.85rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.tg-muted {
+  padding: 2rem 1rem;
+  text-align: center;
+  color: #666;
+}
+
+.tg-error {
+  padding: 2rem 1rem;
+  text-align: center;
+  color: #ff6b6b;
+}
+
+.tg-loading {
+  padding: 3rem 1rem;
+  text-align: center;
+  color: #666;
+}

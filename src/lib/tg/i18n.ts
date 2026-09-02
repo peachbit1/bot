@@ -525,6 +525,11 @@ Change language with the button below 👇`,
     en: "Character <b>{name}</b> created ✅",
   },
 
+  char_selected: {
+    ru: "Персонаж <b>{name}</b> выбран ✅",
+    en: "Character <b>{name}</b> selected ✅",
+  },
+
   char_not_found: {
     ru: "Персонаж не найден.",
     en: "Character not found.",
@@ -595,7 +600,7 @@ export function tFormat(
 ): string {
   let s = t(key, locale);
   for (const [k, v] of Object.entries(vars)) {
-    s = s.replace(`{${k}}`, String(v));
+    s = s.replaceAll(`{${k}}`, String(v));
   }
   return s;
 }

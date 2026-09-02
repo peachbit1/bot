@@ -56,7 +56,6 @@ import {
 import { mainMenuExtra, sendMainMenuHub } from "@/lib/tg/menu";
 import { getTemplatePreviewUrl } from "@/lib/tg/template-preview";
 import {
-  isMenuText,
   normalizeLocale,
   t,
   tFormat,
@@ -89,6 +88,8 @@ import {
 } from "@/lib/tg/user";
 import { isTgDevResetMessage, resetTgOnboarding } from "@/lib/tg/dev-reset";
 import { maybeSendWelcomePush } from "@/lib/tg/tg-promo";
+import { goToMainMenu, routeMenuText } from "@/lib/tg/menu-routing";
+import { tgMiniAppUrl } from "@/lib/tg/miniapp-url";
 import { isStudioCastCharacter, getStudioCast } from "@/lib/tg/studio-cast";
 
 export type TgUpdateMessage = {
@@ -335,7 +336,7 @@ async function beginGeneration(
         await tgSendMessage(chatId, t("studio_free_not_ready", locale), {
           reply_markup: {
             inline_keyboard: [
-              [{ text: t("marketplace_btn", locale), web_app: { url: process.env.TELEGRAM_MINIAPP_URL || "https://bot-production-c305.up.railway.app/tg/templates" } }],
+              [{ text: t("marketplace_btn", locale), web_app: { url: tgMiniAppUrl() } }],
             ],
           },
         });
@@ -425,11 +426,34 @@ async function handleWebAppData(
       {
         reply_markup: {
           inline_keyboard: [
-            [{ text: t("marketplace_btn", locale), web_app: { url: process.env.TELEGRAM_MINIAPP_URL || "https://bot-production-c305.up.railway.app/tg/templates" } }],
+            [{ text: t("marketplace_btn", locale), web_app: { url: tgMiniAppUrl() } }],
           ],
         },
       },
     );
+    return;
+  }
+
+  if (data.action === "create_character") {
+    await startOnboardCharacter(chatId, platformUserId, locale, userId);
+    return;
+  }
+
+  if (data.action === "topup") {
+    await sendTopupPrompt(chatId, locale);
+    return;
+  }
+
+  if (data.action === "select_character" && data.characterId) {
+    const ch = await prisma.character.findFirst({
+      where: { id: data.characterId, userId },
+    });
+    if (!ch) {
+      await tgSendMessage(chatId, tFormat("gen_error", locale, { msg: "character not found" }));
+      return;
+    }
+    await setActiveTgCharacter(platformUserId, ch.id);
+    await tgSendMessage(chatId, tFormat("char_selected", locale, { name: ch.name }), mainMenuExtra(locale));
     return;
   }
 
@@ -539,7 +563,7 @@ async function handleGenerationCallback(
   }
 
   if (data === GEN_CB.toHub) {
-    await sendMainMenuHub(chatId, userId, locale);
+    await goToMainMenu(chatId, platformUserId, userId, locale);
     return true;
   }
 
@@ -725,6 +749,10 @@ export async function handleTgMessage(msg: TgUpdateMessage) {
   const pending = parsePending(session?.pendingJson || "{}");
   const chatState = session?.chatState || "idle";
 
+  if (user.ageConfirmed && text && (await routeMenuText(chatId, platformUserId, user.id, locale, text))) {
+    return;
+  }
+
   if (!user.ageConfirmed) {
     if (chatState === "awaiting_lang") {
       await sendStartPitch(chatId);
@@ -788,43 +816,6 @@ export async function handleTgMessage(msg: TgUpdateMessage) {
       pending,
     )
   ) {
-    return;
-  }
-
-  if (isMenuText(text, "menu_main")) {
-    await sendMainMenuHub(chatId, user.id, locale);
-    return;
-  }
-
-  if (isMenuText(text, "menu_generation")) {
-    await sendGenerationKindPicker(chatId, locale);
-    return;
-  }
-
-  if (isMenuText(text, "menu_characters")) {
-    await sendCharactersList(chatId, user.id, platformUserId, locale);
-    return;
-  }
-
-  if (isMenuText(text, "menu_balance")) {
-    const bal = await getBalancePeaches(user.id);
-    await tgSendMessage(chatId, tFormat("balance_with_topup_hint", locale, { n: bal }), {
-      reply_markup: {
-        inline_keyboard: [
-          [{ text: t("topup_btn", locale), callback_data: "tu:open" }],
-        ],
-      },
-    });
-    return;
-  }
-
-  if (isMenuText(text, "menu_earn")) {
-    await tgSendMessage(chatId, t("earn_text", locale), mainMenuExtra(locale));
-    return;
-  }
-
-  if (isMenuText(text, "menu_help")) {
-    await sendHelp(chatId, locale);
     return;
   }
 

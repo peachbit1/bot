@@ -73,8 +73,10 @@ export async function listBotInlineTemplates(
   return mapped.filter((r) => filter.includes(r.id));
 }
 
+import { tgMiniAppUrl } from "@/lib/tg/miniapp-url";
+
 function miniAppUrl(): string {
-  return process.env.TELEGRAM_MINIAPP_URL || "http://localhost:3000/tg/templates";
+  return tgMiniAppUrl();
 }
 
 export function templatePickerKeyboard(

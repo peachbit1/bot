@@ -13,6 +13,7 @@ import { t, tFormat } from "@/lib/tg/i18n";
 import { tgSendMessage } from "@/lib/tg/telegram-api";
 import { mainMenuExtra } from "@/lib/tg/menu";
 import { GEN_CB } from "@/lib/tg/generation-flow";
+import { tgMiniAppUrl } from "@/lib/tg/miniapp-url";
 
 export async function tryStartLoraTraining(opts: {
   chatId: number;
@@ -132,11 +133,7 @@ export async function completeLoraTrainingMock(opts: {
           [
             {
               text: t("marketplace_btn", opts.locale),
-              web_app: {
-                url:
-                  process.env.TELEGRAM_MINIAPP_URL ||
-                  "https://bot-production-c305.up.railway.app/tg/templates",
-              },
+              web_app: { url: tgMiniAppUrl() },
             },
           ],
         ],
