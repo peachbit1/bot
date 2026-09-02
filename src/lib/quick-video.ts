@@ -387,10 +387,16 @@ async function runQuickVideoJob(runId: string, userId: string) {
   backupDatabase("quick-video");
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
-  if (user?.source === "telegram") {
-    const { notifyTgVideoReady } = await import("@/lib/tg/generation-service");
+  if (user) {
+    const { notifyTelegramMediaReady } = await import("@/lib/tg/tg-notify");
     const charIds = JSON.parse(run.characterIdsJson || "[]") as string[];
-    await notifyTgVideoReady(userId, saved.publicUrl, run.title, charIds[0]);
+    await notifyTelegramMediaReady({
+      userId,
+      kind: "video",
+      mediaUrl: saved.publicUrl,
+      caption: run.title,
+      offerSaveCharacterId: charIds[0],
+    }).catch((e) => console.error("[peach] tg video notify:", e));
   }
 }
 
@@ -437,6 +443,8 @@ async function markQuickVideoRunError(
       }),
     },
   });
+  const { notifyTelegramGenerationError } = await import("@/lib/tg/tg-notify");
+  await notifyTelegramGenerationError(userId, friendly).catch(() => undefined);
 }
 
 /** GPU queue entry — survives only while the Node process is alive. */

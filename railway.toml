@@ -3,7 +3,7 @@ builder = "NIXPACKS"
 buildCommand = "npx prisma generate && npm run build"
 
 [deploy]
-startCommand = "npx prisma db push --accept-data-loss && node scripts/start-railway.mjs"
+startCommand = "npx tsx scripts/railway-ensure-data.ts && npx prisma db push && node scripts/start-railway.mjs"
 healthcheckPath = "/"
 healthcheckTimeout = 120
 restartPolicyType = "ON_FAILURE"

@@ -37,6 +37,21 @@ export async function tgSendMessage(
   });
 }
 
+export async function tgEditMessageText(
+  chatId: number | string,
+  messageId: number,
+  text: string,
+  extra: Record<string, unknown> = {},
+) {
+  return tgApi("editMessageText", {
+    chat_id: chatId,
+    message_id: messageId,
+    text,
+    parse_mode: "HTML",
+    ...extra,
+  });
+}
+
 export async function tgSendPhoto(
   chatId: number | string,
   photoUrl: string,

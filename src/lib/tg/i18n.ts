@@ -313,8 +313,52 @@ Next upload model photos (or pick a saved 🎬) — no LoRA needed.`,
   },
 
   video_upload_prompt: {
-    ru: "Отправь <b>1–5 фото</b> лица модели в этот чат. Можно сразу несколько.",
-    en: "Send <b>1–5 photos</b> of the model's face to this chat.",
+    ru: `Отправь <b>1–5 фото</b> лица модели в этот чат (можно несколько подряд).
+
+Минимум — <b>1 фото</b>, генерация возможна сразу. Чем больше ракурсов (до 5), тем стабильнее лицо в видео.
+
+Когда хватит — нажми «Готово, начать».`,
+    en: `Send <b>1–5 photos</b> of the model's face (you can send several in a row).
+
+Minimum is <b>1 photo</b>. More angles (up to 5) improve face consistency.
+
+When ready — tap «Done, start».`,
+  },
+
+  upload_progress: {
+    ru: `<b>Принято фотографий:</b> {accepted}
+<b>Нужно ещё:</b> {need}
+
+{extra}`,
+    en: `<b>Photos received:</b> {accepted}
+<b>Still need:</b> {need}
+
+{extra}`,
+  },
+
+  upload_need_more: {
+    ru: "Загрузи ещё {n} фото, чтобы продолжить.",
+    en: "Upload {n} more photo(s) to continue.",
+  },
+
+  upload_min_reached: {
+    ru: "Минимум достигнут ✅",
+    en: "Minimum reached ✅",
+  },
+
+  upload_video_can_add_more: {
+    ru: "Можно начать с 1 фото. Добавь ещё (до 5) для лучшего результата или нажми «Готово, начать».",
+    en: "You can start with 1 photo. Add more (up to 5) for better results, or tap «Done, start».",
+  },
+
+  upload_video_max_reached: {
+    ru: "Загружено максимум фото. Нажми «Готово, начать».",
+    en: "Maximum photos uploaded. Tap «Done, start».",
+  },
+
+  upload_done_btn: {
+    ru: "✅ Готово, начать",
+    en: "✅ Done, start",
   },
 
   video_pick_ref_title: {

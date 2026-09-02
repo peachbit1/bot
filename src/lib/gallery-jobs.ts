@@ -231,16 +231,13 @@ async function runPhotoJob(itemId: string, userId: string, opts: PhotoPayload) {
         sourceUrl: out.sourceUrl,
         meta: { ...out.meta, localKey: saved.relKey, engine: out.engine },
       });
-      if (photoOpts.tgPhotoTemplateId) {
-        const user = await prisma.user.findUnique({
-          where: { id: userId },
-          select: { source: true },
-        });
-        if (user?.source === "telegram") {
-          const { notifyTgPhotoReady } = await import("@/lib/tg/generation-service");
-          await notifyTgPhotoReady(userId, saved.publicUrl, out.title || "Photo");
-        }
-      }
+      const { notifyTelegramMediaReady } = await import("@/lib/tg/tg-notify");
+      await notifyTelegramMediaReady({
+        userId,
+        kind: "photo",
+        mediaUrl: saved.publicUrl,
+        caption: out.title || "Photo",
+      }).catch((e) => console.error("[peach] tg photo notify:", e));
       if (opts.templateRunFrameId) {
         await prisma.templateRunFrame.updateMany({
           where: { id: opts.templateRunFrameId },
@@ -261,6 +258,8 @@ async function runPhotoJob(itemId: string, userId: string, opts: PhotoPayload) {
   const msg = lastErr instanceof Error ? lastErr.message : "ошибка генерации";
   console.error("[peach] photo job failed:", lastErr);
   await markError(itemId, userId, msg, { jobAction: "photo" });
+  const { notifyTelegramGenerationError } = await import("@/lib/tg/tg-notify");
+  await notifyTelegramGenerationError(userId, msg).catch(() => undefined);
 }
 
 async function runClipJob(itemId: string, userId: string, opts: ClipPayload) {

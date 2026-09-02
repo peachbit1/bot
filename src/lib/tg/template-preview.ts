@@ -14,6 +14,6 @@ export async function getTemplatePreviewUrl(
   }
   const detail = await getQuickVideoTemplateDetail(userId, templateId);
   if (!detail) return null;
-  const raw = detail.previewPhotoUrl || detail.previewVideoUrl;
+  const raw = detail.previewVideoUrl || detail.previewPhotoUrl;
   return raw ? tgAbsoluteUrl(raw) : null;
 }

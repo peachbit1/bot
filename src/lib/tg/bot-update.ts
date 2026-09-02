@@ -60,6 +60,7 @@ import {
 } from "@/lib/tg/lookbook-bot";
 import { mainMenuExtra, sendMainMenuHub } from "@/lib/tg/menu";
 import { getTemplatePreviewUrl } from "@/lib/tg/template-preview";
+import { tgAbsoluteUrl } from "@/lib/tg/media-assets";
 import {
   normalizeLocale,
   t,
@@ -97,6 +98,7 @@ import { isTestPromoMessage, redeemTestPromo } from "@/lib/tg/test-promo";
 import { goToMainMenu, routeMenuText } from "@/lib/tg/menu-routing";
 import { tgMiniAppUrl } from "@/lib/tg/miniapp-url";
 import { isStudioCastCharacter, getStudioCast, characterUsesLoraPhoto } from "@/lib/tg/studio-cast";
+import { showPhotoUploadProgress } from "@/lib/tg/photo-upload-ui";
 
 export type TgUpdateMessage = {
   message_id: number;
@@ -198,23 +200,35 @@ async function handlePhoto(
 
   const after = characterPhotoCount(character.id);
 
-  if (
+  const isVideoRefUpload =
     pending.templateKind === "video" &&
     pending.templateId &&
-    pending.videoUploadCharacterId === character.id &&
-    after >= TG_MIN_VIDEO_PHOTOS
-  ) {
-    await tgSendMessage(
+    pending.videoUploadCharacterId === character.id;
+
+  if (isVideoRefUpload) {
+    await showPhotoUploadProgress({
       chatId,
-      tFormat("photo_progress", locale, {
-        n: after,
-        max: maxPhotos,
-        hint: t("gen_starting", locale),
-      }),
-    );
-    await beginGeneration(chatId, platformUserId, userId, locale, {
-      ...pending,
-      videoUploadCharacterId: character.id,
+      platformUserId,
+      locale,
+      pending,
+      mode: "video_ref",
+      accepted: after,
+      max: maxPhotos,
+      min: TG_MIN_VIDEO_PHOTOS,
+    });
+    return;
+  }
+
+  if (chatState === "awaiting_photos" && !pending.onboardingCharacterId) {
+    await showPhotoUploadProgress({
+      chatId,
+      platformUserId,
+      locale,
+      pending,
+      mode: "character",
+      accepted: after,
+      max: maxPhotos,
+      min: TG_MIN_CHARACTER_PHOTOS,
     });
     return;
   }
@@ -222,24 +236,19 @@ async function handlePhoto(
   const minNeeded =
     chatState === "onboarding_awaiting_photos"
       ? TG_MIN_LORA_PHOTOS
-      : pending.templateKind === "video"
-        ? TG_MIN_VIDEO_PHOTOS
-        : TG_MIN_CHARACTER_PHOTOS;
+      : TG_MIN_CHARACTER_PHOTOS;
   const need = Math.max(0, minNeeded - after);
-  const hint =
-    need > 0
-      ? tFormat("photo_need_more", locale, { n: need })
-      : t("gen_pick_kind", locale);
 
-  await tgSendMessage(
+  await showPhotoUploadProgress({
     chatId,
-    tFormat("photo_progress", locale, {
-      n: after,
-      max: maxPhotos,
-      hint,
-    }),
-    after >= minNeeded ? mainMenuExtra(locale) : undefined,
-  );
+    platformUserId,
+    locale,
+    pending,
+    mode: "onboarding_lora",
+    accepted: after,
+    max: maxPhotos,
+    min: minNeeded,
+  });
 }
 
 async function loadTemplateMeta(
@@ -369,7 +378,11 @@ async function beginVideoUploadFlow(
   const ch = await createVideoRefCharacter(userId, "Модель");
   await setTgSession(platformUserId, {
     chatState: "awaiting_photos",
-    pending: { ...pending, videoUploadCharacterId: ch.id },
+    pending: {
+      ...pending,
+      videoUploadCharacterId: ch.id,
+      uploadProgressMessageId: undefined,
+    },
   });
   await tgSendMessage(chatId, t("video_upload_prompt", locale));
 }
@@ -641,9 +654,26 @@ async function handleGenerationCallback(
     const ch = await createVideoRefCharacter(userId, "Модель");
     await setTgSession(platformUserId, {
       chatState: "awaiting_photos",
-      pending: { ...pending, videoUploadCharacterId: ch.id },
+      pending: {
+        ...pending,
+        videoUploadCharacterId: ch.id,
+        uploadProgressMessageId: undefined,
+      },
     });
     await tgSendMessage(chatId, t("video_upload_prompt", locale));
+    return true;
+  }
+
+  if (data === VID_CB.photosDone) {
+    const charId = pending.videoUploadCharacterId;
+    if (!charId || !characterReadyForVideo(charId)) {
+      await tgSendMessage(chatId, t("video_upload_prompt", locale));
+      return true;
+    }
+    await beginGeneration(chatId, platformUserId, userId, locale, {
+      ...pending,
+      videoUploadCharacterId: charId,
+    });
     return true;
   }
 
@@ -1046,9 +1076,9 @@ export async function flushTgOutbox() {
       const locale = payload.locale || "ru";
 
       if (row.kind === "video" && payload.url) {
-        await tgSendVideo(chatId, payload.url, payload.caption);
+        await tgSendVideo(chatId, tgAbsoluteUrl(payload.url), payload.caption);
       } else if (row.kind === "photo" && payload.url) {
-        await tgSendPhoto(chatId, payload.url, payload.caption);
+        await tgSendPhoto(chatId, tgAbsoluteUrl(payload.url), payload.caption);
       } else if (row.kind === "text" && payload.text) {
         const extra = payload.reply_markup
           ? { reply_markup: payload.reply_markup as Record<string, unknown> }

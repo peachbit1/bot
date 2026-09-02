@@ -8,7 +8,8 @@ import {
 import { tgSendMediaMessage } from "@/lib/tg/media-assets";
 import { tgRulesArticleUrl } from "@/lib/tg/rules";
 import { langInlineKeyboard } from "@/lib/tg/character-bot";
-import { setTgSession } from "@/lib/tg/session";
+import { getTgSession, parsePending, setTgSession } from "@/lib/tg/session";
+import { showPhotoUploadProgress } from "@/lib/tg/photo-upload-ui";
 import { tgSendMessage } from "@/lib/tg/telegram-api";
 import { prisma } from "@/lib/db";
 import {
@@ -167,22 +168,21 @@ export async function onOnboardPhotoReceived(
   const n = characterPhotoCount(characterId);
   const need = Math.max(0, TG_MIN_LORA_PHOTOS - n);
 
+  const session = await getTgSession(platformUserId);
+  const pending = parsePending(session?.pendingJson);
+
+  await showPhotoUploadProgress({
+    chatId,
+    platformUserId,
+    locale,
+    pending,
+    mode: "onboarding_lora",
+    accepted: n,
+    max: TG_MAX_LORA_PHOTOS,
+    min: TG_MIN_LORA_PHOTOS,
+  });
+
   if (need > 0) {
-    await tgSendMessage(
-      chatId,
-      tFormat("onboard_photo_progress", locale, {
-        n,
-        min: TG_MIN_LORA_PHOTOS,
-        hint: tFormat("onboard_photo_need_more", locale, { n: need }),
-      }),
-      {
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: t("onboard_back_name_btn", locale), callback_data: OB_CB.backName }],
-          ],
-        },
-      },
-    );
     return;
   }
 

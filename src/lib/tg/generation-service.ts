@@ -287,7 +287,7 @@ export async function startTgPhotoGeneration(opts: {
       userId: opts.userId,
       kind: "photo",
       payload: {
-        url: saved.publicUrl,
+        url: (await import("@/lib/tg/media-assets")).tgAbsoluteUrl(saved.publicUrl),
         caption: row.title,
         successKind: "photo",
         locale: user.locale?.startsWith("en") ? "en" : "ru",
@@ -391,22 +391,12 @@ export async function notifyTgPhotoReady(
   photoUrl: string,
   title: string,
 ) {
-  const acc = await prisma.platformAccount.findFirst({
-    where: { userId, platform: "telegram" },
-    include: { user: true },
-  });
-  if (!acc) return;
-
-  await enqueueTgOutbox({
-    platformUserId: acc.platformUserId,
+  const { notifyTelegramMediaReady } = await import("@/lib/tg/tg-notify");
+  await notifyTelegramMediaReady({
     userId,
     kind: "photo",
-    payload: {
-      url: photoUrl,
-      caption: title,
-      successKind: "photo",
-      locale: acc.user.locale?.startsWith("en") ? "en" : "ru",
-    },
+    mediaUrl: photoUrl,
+    caption: title,
   });
 }
 
@@ -416,12 +406,6 @@ export async function notifyTgVideoReady(
   title: string,
   characterId?: string,
 ) {
-  const acc = await prisma.platformAccount.findFirst({
-    where: { userId, platform: "telegram" },
-    include: { user: true },
-  });
-  if (!acc) return;
-
   let offerSaveCharacterId: string | undefined;
   if (characterId) {
     const ch = await prisma.character.findFirst({
@@ -432,16 +416,12 @@ export async function notifyTgVideoReady(
     }
   }
 
-  await enqueueTgOutbox({
-    platformUserId: acc.platformUserId,
+  const { notifyTelegramMediaReady } = await import("@/lib/tg/tg-notify");
+  await notifyTelegramMediaReady({
     userId,
     kind: "video",
-    payload: {
-      url: videoUrl,
-      caption: title,
-      successKind: "video",
-      locale: acc.user.locale?.startsWith("en") ? "en" : "ru",
-      offerSaveCharacterId,
-    },
+    mediaUrl: videoUrl,
+    caption: title,
+    offerSaveCharacterId,
   });
 }

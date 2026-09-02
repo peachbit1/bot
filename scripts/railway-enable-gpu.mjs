@@ -62,6 +62,7 @@ await gql(
         METALNODE_SSH_PORT: process.env.METALNODE_SSH_PORT || "22024",
         METALNODE_SSH_USER: "root",
         METALNODE_SSH_KEY: sshKey,
+        DATABASE_URL: "file:/app/data/prod.db",
       },
     },
   },

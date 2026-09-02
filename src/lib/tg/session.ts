@@ -34,6 +34,8 @@ export type TgPending = {
   loraWelcome?: boolean;
   /** Temp character for video ref photo upload */
   videoUploadCharacterId?: string;
+  /** Single editable upload progress message */
+  uploadProgressMessageId?: number;
   /** Studio cast id when generating photo from mini app */
   studioCastId?: string;
 };

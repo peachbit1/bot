@@ -23,6 +23,7 @@ export const GEN_CB = {
 export const VID_CB = {
   pickRef: (id: string) => `vid:ref:${id}`,
   uploadNew: "vid:new",
+  photosDone: "vid:done",
   saveYes: (id: string) => `vid:save:${id}`,
   saveSkip: "vid:skip",
 } as const;

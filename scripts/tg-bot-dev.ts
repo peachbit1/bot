@@ -17,7 +17,7 @@ async function poll() {
   console.log("[tg-bot] polling…");
   setInterval(() => {
     void flushTgOutbox().catch((e) => console.error("[tg-outbox]", e));
-  }, 4000);
+  }, 2000);
 
   for (;;) {
     try {
