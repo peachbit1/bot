@@ -166,6 +166,7 @@ export async function startTgVideoGeneration(opts: {
       platformUserId: opts.platformUserId,
       title: detail.title,
       characterId: opts.characterId,
+      previewVideoUrl: detail.previewVideoUrl || detail.previewPhotoUrl,
     });
     return {
       runId: mock.runId,
@@ -248,6 +249,10 @@ export async function startTgPhotoGeneration(opts: {
   }
 
   if (!useComfy()) {
+    const previewUrl = row.previewImageUrl || row.sceneImageUrl || "/tg/catalog/photo-1.png";
+    const previewBytes =
+      localBytesFromResultUrl(previewUrl) ||
+      localBytesFromResultUrl("/tg/catalog/photo-1.png");
     const mockItem = await prisma.galleryItem.create({
       data: {
         userId: opts.userId,
@@ -256,23 +261,25 @@ export async function startTgPhotoGeneration(opts: {
         title: row.title,
         prompt: row.editPrompt,
         resultUrl: GALLERY_PLACEHOLDER_URL,
-        metaJson: JSON.stringify({ status: "pending", mock: true }),
+        metaJson: JSON.stringify({ status: "pending", engine: "mock" }),
       },
     });
     const saved = saveGalleryBinary(
       opts.userId,
       "png",
-      Buffer.from(
-        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z/C/HwAHggJ/PdIqQQAAAABJRU5ErkJggg==",
-        "base64",
-      ),
+      previewBytes?.length
+        ? previewBytes
+        : Buffer.from(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z/C/HwAHggJ/PdIqQQAAAABJRU5ErkJggg==",
+            "base64",
+          ),
       `tg_photo_${mockItem.id}`,
     );
     await prisma.galleryItem.update({
       where: { id: mockItem.id },
       data: {
         resultUrl: saved.publicUrl,
-        metaJson: JSON.stringify({ status: "ready", mock: true }),
+        metaJson: JSON.stringify({ status: "ready", engine: "mock" }),
       },
     });
     await enqueueTgOutbox({
@@ -320,11 +327,16 @@ async function mockCompleteVideoRun(opts: {
   platformUserId: string;
   title: string;
   characterId: string;
+  previewVideoUrl?: string;
 }) {
+  const previewUrl = opts.previewVideoUrl || "/tg/catalog/video-1.mp4";
+  const videoBytes =
+    localBytesFromResultUrl(previewUrl) ||
+    localBytesFromResultUrl("/tg/catalog/video-1.mp4");
   const saved = saveGalleryBinary(
     opts.userId,
     "mp4",
-    Buffer.from("mock"),
+    videoBytes?.length ? videoBytes : Buffer.from("mock"),
     `tg_mock_video_${Date.now()}`,
   );
 
@@ -355,7 +367,7 @@ async function mockCompleteVideoRun(opts: {
       kind: "video",
       title: opts.title,
       resultUrl: saved.publicUrl,
-      metaJson: JSON.stringify({ status: "ready", mock: true }),
+      metaJson: JSON.stringify({ status: "ready", engine: "mock" }),
     },
   });
 

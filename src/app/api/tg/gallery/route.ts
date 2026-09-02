@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { mapGalleryItem, parseGalleryMeta } from "@/lib/gallery-meta";
 import { resolveTgApiUserId } from "@/lib/tg/resolve-api-user";
+import { cleanupLegacyTgGalleryItems } from "@/lib/tg/tg-gallery-cleanup";
 
 /** TG Mini App gallery — user's generated photos & videos. */
 export async function GET(req: Request) {
@@ -12,6 +13,8 @@ export async function GET(req: Request) {
 
   const url = new URL(req.url);
   const id = url.searchParams.get("id");
+
+  await cleanupLegacyTgGalleryItems(userId);
 
   if (id) {
     const row = await prisma.galleryItem.findFirst({
@@ -39,6 +42,9 @@ export async function GET(req: Request) {
   });
 
   return NextResponse.json({
-    items: root.slice(0, 80).map((i) => mapGalleryItem(i)),
+    items: root
+      .slice(0, 80)
+      .map((i) => mapGalleryItem(i))
+      .filter((i) => i.status !== "error"),
   });
 }

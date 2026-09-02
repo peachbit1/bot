@@ -2,6 +2,7 @@
  * TG bot + Mini App featured catalog (templates & studio cast sync).
  */
 import { prisma } from "@/lib/db";
+import { GALLERY_PLACEHOLDER_URL } from "@/lib/gallery-meta";
 import { seedCastCoverUrl } from "@/lib/tg/tg-catalog-seed";
 import { studioCastCoverUrl } from "@/lib/tg/tg-static-previews";
 import type { TgLocale } from "@/lib/tg/i18n";
@@ -155,26 +156,44 @@ export function videoTemplatePricePeaches(t: PublicQuickVideoTemplate): number {
 export async function pickCharacterCoverUrl(
   characterId: string,
 ): Promise<string | null> {
+  const ch = await prisma.character.findUnique({
+    where: { id: characterId },
+    select: { triggerWord: true, isStudioCast: true },
+  });
+  if (ch?.isStudioCast) {
+    return (
+      seedCastCoverUrl(ch.triggerWord) ||
+      studioCastCoverUrl(ch.triggerWord)
+    );
+  }
+
   const rows = await prisma.galleryItem.findMany({
     where: {
       characterId,
       kind: "photo",
       resultUrl: { not: "" },
+      NOT: { resultUrl: GALLERY_PLACEHOLDER_URL },
     },
     orderBy: { createdAt: "desc" },
     take: 24,
-    select: { resultUrl: true },
+    select: { resultUrl: true, metaJson: true },
   });
-  if (!rows.length) {
-    const ch = await prisma.character.findUnique({
-      where: { id: characterId },
-      select: { triggerWord: true },
-    });
+  const valid = rows.filter((r) => {
+    if (r.resultUrl.startsWith("data:image/svg")) return false;
+    try {
+      const m = JSON.parse(r.metaJson || "{}") as { mock?: boolean };
+      if (m.mock && r.resultUrl === GALLERY_PLACEHOLDER_URL) return false;
+    } catch {
+      /* ignore */
+    }
+    return true;
+  });
+  if (!valid.length) {
     return (
       seedCastCoverUrl(ch?.triggerWord) ||
       studioCastCoverUrl(ch?.triggerWord)
     );
   }
-  const pick = rows[Math.floor(Math.random() * rows.length)]!;
+  const pick = valid[Math.floor(Math.random() * valid.length)]!;
   return pick.resultUrl;
 }

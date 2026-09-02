@@ -27,8 +27,12 @@ export function galleryStatus(metaJson: string | null | undefined): GalleryJobSt
 /** Legacy mock SVG placeholders from before async jobs. */
 export function isLegacyMockResult(resultUrl: string, metaJson: string | null | undefined) {
   if (resultUrl.startsWith("data:image/svg")) return true;
-  const m = parseGalleryMeta(metaJson);
-  return m.mock === true;
+  if (resultUrl === GALLERY_PLACEHOLDER_URL || !resultUrl.trim()) {
+    const m = parseGalleryMeta(metaJson);
+    return m.mock === true;
+  }
+  // Saved /api/media/ or static files with engine mock are valid (Railway mock mode).
+  return false;
 }
 
 export function mapGalleryItem<T extends { metaJson: string; createdAt: Date | string; resultUrl: string }>(

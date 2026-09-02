@@ -79,8 +79,20 @@ function StudioPhotoPageInner() {
     });
     setBusy(null);
     if (!res.ok) {
-      const j = (await res.json().catch(() => ({}))) as { error?: string };
-      setErr(j.error || u.err);
+      const j = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        need?: number;
+        balance?: number;
+      };
+      if (j.error === "insufficient_balance") {
+        setErr(
+          locale === "en"
+            ? `Not enough peaches (need ${j.need}, have ${j.balance}). Send НАЧИСЛИ500 to the bot.`
+            : `Недостаточно персиков (нужно ${j.need}, есть ${j.balance}). Напиши боту НАЧИСЛИ500`,
+        );
+      } else {
+        setErr(j.error || u.err);
+      }
       return;
     }
     const j = (await res.json()) as { galleryItemId?: string };

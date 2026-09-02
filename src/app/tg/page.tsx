@@ -189,12 +189,7 @@ export default function TgFeedPage() {
                       );
                       return;
                     }
-                    sendAction({
-                      action: "use_template",
-                      kind: item.kind,
-                      templateId: item.id,
-                      price: item.price,
-                    });
+                    router.push("/tg/characters");
                   }}
                 >
                   {u.use}

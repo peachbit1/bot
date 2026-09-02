@@ -1,4 +1,5 @@
 import fs from "fs";
+import path from "path";
 import { prisma } from "@/lib/db";
 import {
   characterAppearanceForPrompt,
@@ -200,6 +201,10 @@ export function localBytesFromResultUrl(resultUrl: string): Buffer | null {
     const key = resultUrl.replace(/^\/api\/media\//, "");
     const abs = resolveGalleryFile(key);
     if (abs) return fs.readFileSync(abs);
+  }
+  if (resultUrl.startsWith("/")) {
+    const staticPath = path.join(process.cwd(), "public", resultUrl.replace(/^\//, ""));
+    if (fs.existsSync(staticPath)) return fs.readFileSync(staticPath);
   }
   if (resultUrl.startsWith("data:")) {
     const m = /^data:([^;]+);base64,(.+)$/.exec(resultUrl);

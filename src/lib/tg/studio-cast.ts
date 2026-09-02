@@ -6,7 +6,8 @@ import {
   TG_STUDIO_CAST_SPEC,
   TG_STUDIO_CAST_TRIGGERS,
 } from "@/lib/tg/tg-launch-constants";
-import { pickCharacterCoverUrl } from "@/lib/tg/tg-catalog";
+import { seedCastCoverUrl } from "@/lib/tg/tg-catalog-seed";
+import { studioCastCoverUrl } from "@/lib/tg/tg-static-previews";
 
 export { castsMiniAppUrl, tgMiniAppUrl } from "@/lib/tg/miniapp-url";
 
@@ -102,8 +103,8 @@ export async function listStudioCasts(_locale: "ru" | "en" = "ru") {
       id: ch.id,
       name: spec?.displayName || ch.name,
       coverUrl:
-        (await pickCharacterCoverUrl(ch.id)) ||
-        seedCastCoverUrl(ch.triggerWord),
+        seedCastCoverUrl(ch.triggerWord) ||
+        studioCastCoverUrl(ch.triggerWord),
     });
   }
 
