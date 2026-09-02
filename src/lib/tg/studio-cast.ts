@@ -1,13 +1,31 @@
 import { prisma } from "@/lib/db";
 import { ensureCharacterDirs } from "@/lib/character-dataset";
+import { suggestedLookbook } from "@/lib/lookbook";
 
 const STUDIO_USER_EMAIL = "studio-cast@peachbitch.internal";
 
-const DEFAULT_CASTS = [
-  { name: "Алиса", nameEn: "Alice" },
-  { name: "Мила", nameEn: "Mila" },
-  { name: "Софи", nameEn: "Sophie" },
-];
+/** LoRA triggers of house models (comma-separated). Add new actresses here after train. */
+function configuredTriggers(): string[] {
+  const raw = process.env.TG_STUDIO_CAST_TRIGGERS?.trim() || "olh_person";
+  return raw.split(",").map((s) => s.trim()).filter(Boolean);
+}
+
+/** Optional display names in Mini App (fallback = Character.name). */
+const DISPLAY_NAMES: Record<string, { ru: string; en: string }> = {
+  olh_person: { ru: "Оля", en: "Olya" },
+};
+
+/** Real Krea LoRA on GPU — not lookbook-only and not mock. */
+export function hasRealCharacterLora(ch: {
+  loraStatus?: string;
+  triggerWord?: string | null;
+  loraPath?: string | null;
+}): boolean {
+  if (ch.loraStatus !== "lora_ready" || !ch.triggerWord?.trim()) return false;
+  const path = (ch.loraPath || "").trim();
+  if (path && !path.startsWith("mock://")) return true;
+  return ch.triggerWord === "olh_person";
+}
 
 export function castsMiniAppUrl(): string {
   const base =
@@ -35,57 +53,114 @@ async function ensureStudioUserId(): Promise<string> {
   return user.id;
 }
 
-/** Ensure shared studio LoRA-ready characters exist. */
-export async function ensureStudioCasts(): Promise<void> {
-  const studioUserId = await ensureStudioUserId();
-  const count = await prisma.character.count({
-    where: { userId: studioUserId, isStudioCast: true },
+async function ensureOlhPersonCast(studioUserId: string) {
+  const existing = await prisma.character.findFirst({
+    where: { triggerWord: "olh_person", loraStatus: "lora_ready" },
   });
-  if (count >= DEFAULT_CASTS.length) return;
+  if (existing) return existing;
 
-  for (const cast of DEFAULT_CASTS) {
-    const found = await prisma.character.findFirst({
-      where: { userId: studioUserId, name: cast.name, isStudioCast: true },
+  const ch = await prisma.character.create({
+    data: {
+      userId: studioUserId,
+      name: DISPLAY_NAMES.olh_person?.ru || "Оля",
+      gender: "female",
+      consentGiven: true,
+      status: "ready",
+      photoCount: 25,
+      isStudioCast: true,
+      loraStatus: "lora_ready",
+      triggerWord: "olh_person",
+      loraPath: "krea2/olh_person_krea2.safetensors",
+      lookbookJson: JSON.stringify(suggestedLookbook("female", "olh")),
+    },
+  });
+  ensureCharacterDirs(ch.id);
+  return ch;
+}
+
+/**
+ * Sync studio cast list: only LoRA-trained house models.
+ * Unmarks lookbook placeholders (Алиса/Мила/Софи etc.).
+ */
+export async function ensureStudioCasts(): Promise<void> {
+  const triggers = configuredTriggers();
+  const studioUserId = await ensureStudioUserId();
+
+  if (triggers.includes("olh_person")) {
+    await ensureOlhPersonCast(studioUserId);
+  }
+
+  const candidates = await prisma.character.findMany({
+    where: {
+      triggerWord: { in: triggers },
+      loraStatus: "lora_ready",
+    },
+    orderBy: { createdAt: "asc" },
+  });
+
+  const realIds = new Set<string>();
+  for (const ch of candidates) {
+    if (!hasRealCharacterLora(ch)) continue;
+    realIds.add(ch.id);
+    if (!ch.isStudioCast) {
+      await prisma.character.update({
+        where: { id: ch.id },
+        data: { isStudioCast: true },
+      });
+    }
+  }
+
+  const stale = await prisma.character.findMany({
+    where: {
+      isStudioCast: true,
+      id: { notIn: [...realIds] },
+    },
+  });
+  for (const s of stale) {
+    await prisma.character.update({
+      where: { id: s.id },
+      data: { isStudioCast: false },
     });
-    if (found) continue;
-    const ch = await prisma.character.create({
-      data: {
-        userId: studioUserId,
-        name: cast.name,
-        gender: "female",
-        consentGiven: true,
-        status: "ready",
-        photoCount: 0,
-        isStudioCast: true,
-        loraStatus: "lora_ready",
-        triggerWord: cast.name.toLowerCase(),
-      },
-    });
-    ensureCharacterDirs(ch.id);
   }
 }
 
 export async function listStudioCasts(locale: "ru" | "en" = "ru") {
   await ensureStudioCasts();
-  const studioUserId = await ensureStudioUserId();
+  const triggers = configuredTriggers();
   const rows = await prisma.character.findMany({
-    where: { userId: studioUserId, isStudioCast: true },
+    where: {
+      isStudioCast: true,
+      loraStatus: "lora_ready",
+    },
     orderBy: { createdAt: "asc" },
   });
-  return rows.map((r, i) => ({
-    id: r.id,
-    name:
-      locale === "en" && DEFAULT_CASTS[i]?.nameEn
-        ? DEFAULT_CASTS[i]!.nameEn
-        : r.name,
-  }));
+
+  const ordered = triggers
+    .map((tw) => rows.find((r) => r.triggerWord === tw))
+    .filter(Boolean) as typeof rows;
+
+  return ordered
+    .filter((r) => hasRealCharacterLora(r))
+    .map((r) => {
+      const d = r.triggerWord ? DISPLAY_NAMES[r.triggerWord] : undefined;
+      return {
+        id: r.id,
+        name: locale === "en" ? d?.en || r.name : d?.ru || r.name,
+      };
+    });
 }
 
 export async function getStudioCast(characterId: string) {
-  const studioUserId = await ensureStudioUserId();
-  return prisma.character.findFirst({
-    where: { id: characterId, userId: studioUserId, isStudioCast: true },
+  await ensureStudioCasts();
+  const ch = await prisma.character.findFirst({
+    where: {
+      id: characterId,
+      isStudioCast: true,
+      loraStatus: "lora_ready",
+    },
   });
+  if (!ch || !hasRealCharacterLora(ch)) return null;
+  return ch;
 }
 
 export function isStudioCastCharacter(ch: { isStudioCast?: boolean }): boolean {

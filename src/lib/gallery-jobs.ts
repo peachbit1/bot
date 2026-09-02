@@ -17,6 +17,11 @@ type PhotoPayload = Parameters<typeof generatePhotoBytes>[0] & {
   templateRunFrameId?: string;
   legoQuery?: string;
   orientationId?: string;
+  customIdentityBuffers?: Buffer[];
+  manualSlots?: import("@/lib/photo-refs-shared").PhotoManualSlot[];
+  useIdentityDualRef?: boolean;
+  /** House LoRA model — TG template via Krea T2I, not identity dual-ref. */
+  studioCastLora?: boolean;
 };
 type ClipPayload = Parameters<typeof generateClipBytes>[0] & {
   templatePackId?: string;
@@ -143,7 +148,79 @@ async function runPhotoJob(itemId: string, userId: string, opts: PhotoPayload) {
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       const { templateRunFrameId: _runFrameId, ...photoOpts } = opts;
-      const out = await generatePhotoBytes({ ...photoOpts, userId });
+      const characterIds = resolveCharacterIds(photoOpts);
+      const isTgTemplate = !!photoOpts.tgPhotoTemplateId;
+      const isTemplate = !!photoOpts.photoTemplateId;
+      const useDual =
+        !photoOpts.studioCastLora &&
+        (isTgTemplate || isTemplate || photoOpts.useIdentityDualRef);
+
+      let dualRefPersonBuffer: Buffer | undefined;
+      let dualRefSceneBuffer: Buffer | undefined;
+
+      if (useDual) {
+        const { resolvePhotoPersonBuffer } = await import("@/lib/photo-refs");
+        const castIds = isTemplate || isTgTemplate
+          ? characterIds.filter((id) => id && !id.startsWith("custom:"))
+          : characterIds;
+        const person = await resolvePhotoPersonBuffer({
+          userId,
+          characterIds: castIds.length ? castIds : characterIds,
+          customIdentityBuffers: photoOpts.customIdentityBuffers,
+          manualSlots: photoOpts.manualSlots,
+        });
+        if (!person?.length) {
+          throw new Error(
+            "Нужно фото лица: загрузи снимок или выбери персонажа с рефами",
+          );
+        }
+        dualRefPersonBuffer = person;
+
+        if (isTgTemplate && photoOpts.tgPhotoTemplateId) {
+          const {
+            resolveTgPhotoTemplateSceneBuffer,
+            getTgPhotoTemplateForGeneration,
+          } = await import("@/lib/tg-photo-template-lab");
+          dualRefSceneBuffer =
+            (await resolveTgPhotoTemplateSceneBuffer(
+              photoOpts.tgPhotoTemplateId,
+            )) || undefined;
+          if (!dualRefSceneBuffer?.length) {
+            throw new Error("Шаблон без превью-сцены — пересохрани шаблон");
+          }
+          const tpl = await getTgPhotoTemplateForGeneration(
+            photoOpts.tgPhotoTemplateId,
+          );
+          if (tpl?.editPrompt && !photoOpts.composedPrompt?.trim()) {
+            photoOpts.composedPrompt = tpl.editPrompt;
+          }
+        } else if (isTemplate && photoOpts.photoTemplateId) {
+          const { resolvePhotoTemplateSceneBuffer } = await import(
+            "@/lib/photo-refs"
+          );
+          dualRefSceneBuffer =
+            (await resolvePhotoTemplateSceneBuffer(
+              userId,
+              photoOpts.photoTemplateId,
+            )) || undefined;
+          if (!dualRefSceneBuffer?.length) {
+            throw new Error("Шаблон без превью-сцены — пересохрани шаблон");
+          }
+        }
+      }
+
+      const out = await generatePhotoBytes({
+        ...photoOpts,
+        userId,
+        characterIds: isTemplate || isTgTemplate
+          ? characterIds.filter((id) => !id.startsWith("custom:")).length
+            ? characterIds.filter((id) => !id.startsWith("custom:"))
+            : characterIds
+          : characterIds,
+        dualRefPersonBuffer,
+        dualRefSceneBuffer,
+        useIdentityDualRef: !!dualRefPersonBuffer && useDual,
+      });
       const saved = saveGalleryBinary(userId, "png", out.bytes, out.prefix);
       await markReady(itemId, userId, {
         resultUrl: saved.publicUrl,
@@ -284,6 +361,12 @@ export async function enqueuePhotoJob(userId: string, opts: PhotoPayload) {
       pokies: !!(opts.clothed && opts.pokies),
       skinDetail: opts.skinDetail,
       skinDetailStrength: opts.skinDetailStrength,
+      photoTemplateId: opts.photoTemplateId || null,
+      tgPhotoTemplateId: opts.tgPhotoTemplateId || null,
+      useIdentityDualRef:
+        opts.useIdentityDualRef ||
+        !!opts.photoTemplateId ||
+        !!opts.tgPhotoTemplateId,
     },
   });
   scheduleJob(() => runPhotoJob(item.id, userId, opts));
@@ -346,6 +429,10 @@ export async function enqueueRegenJob(userId: string, srcId: string) {
     pokies?: boolean;
     skinDetail?: boolean;
     skinDetailStrength?: number;
+    legoQuery?: string;
+    orientationId?: string;
+    photoTemplateId?: string | null;
+    useIdentityDualRef?: boolean;
   };
   const characterIds =
     meta.characterIds?.length
@@ -364,6 +451,8 @@ export async function enqueueRegenJob(userId: string, srcId: string) {
     userNote: meta.userNote || meta.legoQuery || undefined,
     legoQuery: meta.legoQuery || meta.userNote || undefined,
     orientationId: meta.orientationId,
+    photoTemplateId: meta.photoTemplateId || undefined,
+    useIdentityDualRef: meta.useIdentityDualRef || !!meta.photoTemplateId,
     includeMale: meta.includeMale,
     clothed: meta.clothed,
     pokies: meta.pokies,

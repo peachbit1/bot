@@ -72,7 +72,7 @@ export default function TgCastsPage() {
         </button>
       </div>
       <p className="mb-4 text-sm text-zinc-400">
-        Выбери модель для бесплатного тестового кадра. Потом — шаблон в маркетплейсе.
+        Актрисы с обученной LoRA — готовы к съёмке. Выбери модель, потом шаблон в маркетплейсе.
       </p>
       <div className="grid gap-3">
         {casts.map((c) => (

@@ -27,7 +27,10 @@ import { enqueueTgOutbox } from "@/lib/tg/session";
 import {
   characterReadyForVideo,
 } from "@/lib/tg/character-service";
-import { isStudioCastCharacter } from "@/lib/tg/studio-cast";
+import {
+  hasRealCharacterLora,
+  isStudioCastCharacter,
+} from "@/lib/tg/studio-cast";
 import {
   consumeLoraWelcomePhoto,
   consumeStudioDailyFree,
@@ -284,13 +287,17 @@ export async function startTgPhotoGeneration(opts: {
     };
   }
 
+  const studioLora =
+    isStudioCastCharacter(character) && hasRealCharacterLora(character);
+
   const item = await enqueuePhotoJob(opts.userId, {
     userId: opts.userId,
     tgPhotoTemplateId: opts.templateId,
     characterIds: [opts.characterId],
     characterId: opts.characterId,
     composedPrompt: row.editPrompt,
-    useIdentityDualRef: true,
+    useIdentityDualRef: !studioLora,
+    studioCastLora: studioLora,
     title: row.title,
     width: 888,
     height: 1176,
