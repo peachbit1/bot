@@ -68,7 +68,13 @@ type IdentityPackInfo = {
 
 type Mode = "pick" | "lookbook" | "lora";
 
-export function CharacterLab({ characters }: { characters: Character[] }) {
+export function CharacterLab({
+  characters,
+  studioCasts = [],
+}: {
+  characters: Character[];
+  studioCasts?: Character[];
+}) {
   const router = useRouter();
   const [selectedId, setSelectedId] = useState(characters[0]?.id || "");
   const selected = characters.find((c) => c.id === selectedId) || null;
@@ -479,6 +485,34 @@ export function CharacterLab({ characters }: { characters: Character[] }) {
   }
 
   return (
+    <>
+      {studioCasts.length > 0 ? (
+        <div className="rounded-lg border border-peach/40 bg-peach/5 p-4">
+          <h2 className="font-medium text-peach">Актрисы TG (витрина)</h2>
+          <p className="mt-1 text-sm text-zinc-600">
+            Карточки для мини-аппа. Выбери актрису — справа блок «Карточка в Telegram».
+          </p>
+          <ul className="mt-3 divide-y rounded-lg border border-peach/20 bg-white">
+            {studioCasts.map((c) => (
+              <li key={c.id}>
+                <button
+                  type="button"
+                  onClick={() => select(c)}
+                  className={`w-full px-4 py-3 text-left text-sm hover:bg-peach/5 ${
+                    selectedId === c.id ? "bg-peach/10" : ""
+                  }`}
+                >
+                  <div className="font-medium">
+                    {c.tgDisplayName || c.name}
+                    <span className="ml-2 text-xs text-zinc-500">({c.triggerWord})</span>
+                  </div>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
     <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
       <div className="flex flex-col gap-4">
         <div className="rounded-lg border border-zinc-200 bg-white p-4">
@@ -1079,5 +1113,6 @@ export function CharacterLab({ characters }: { characters: Character[] }) {
         {msg ? <p className="text-sm text-emerald-700">{msg}</p> : null}
       </div>
     </div>
+    </>
   );
 }

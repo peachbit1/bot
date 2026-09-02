@@ -43,7 +43,7 @@ export async function GET() {
   };
 
   return NextResponse.json({
-    build: "tg-ready-v7-platform-sync",
+    build: "tg-ready-v8-gallery-partner",
     gpu,
     catalogFiles,
     features: {

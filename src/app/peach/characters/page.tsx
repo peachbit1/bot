@@ -6,10 +6,16 @@ export default async function PeachCharactersPage() {
   const user = await requireUser();
   if (!user) return null;
 
-  const characters = await prisma.character.findMany({
-    where: { userId: user.id },
-    orderBy: { updatedAt: "desc" },
-  });
+  const [characters, studioCasts] = await Promise.all([
+    prisma.character.findMany({
+      where: { userId: user.id },
+      orderBy: { updatedAt: "desc" },
+    }),
+    prisma.character.findMany({
+      where: { isStudioCast: true, loraStatus: "lora_ready" },
+      orderBy: { triggerWord: "asc" },
+    }),
+  ]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -19,7 +25,7 @@ export default async function PeachCharactersPage() {
           Создай героя по фото или описанию — его внешность будет во всех генерациях.
         </p>
       </div>
-      <CharacterLab characters={characters} />
+      <CharacterLab characters={characters} studioCasts={studioCasts} />
     </div>
   );
 }

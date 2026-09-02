@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { AnimatePhotoModal, type AnimatePhotoItem } from "@/components/animate-photo-modal";
 import { AddToTemplateButton } from "@/components/add-to-template-button";
+import { GalleryTgTransferButtons } from "@/components/gallery-tg-transfer-buttons";
+import { usePeachUiMode } from "@/components/peach-ui-mode-provider";
 import { MediaLightbox } from "@/components/media-lightbox";
 import { BorderBeam } from "@/components/border-beam";
 import { ImageGeneration } from "@/components/image-generation";
@@ -118,6 +120,7 @@ function GalleryMedia({
 
 export function GalleryGrid({ initialItems }: { initialItems: Item[] }) {
   const router = useRouter();
+  const { isAdmin } = usePeachUiMode();
   const [items, setItems] = useState(initialItems);
   const [editId, setEditId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
@@ -299,6 +302,14 @@ export function GalleryGrid({ initialItems }: { initialItems: Item[] }) {
                   <AddToTemplateButton
                     itemId={item.id}
                     kind={item.kind}
+                    onDone={() => void refreshItems()}
+                  />
+                ) : null}
+                {isAdmin && item.status === "ready" && (item.kind === "photo" || item.kind === "video") ? (
+                  <GalleryTgTransferButtons
+                    itemId={item.id}
+                    kind={item.kind}
+                    defaultTitle={item.title || item.prompt}
                     onDone={() => void refreshItems()}
                   />
                 ) : null}

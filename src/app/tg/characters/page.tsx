@@ -278,8 +278,12 @@ export default function TgCharactersPage() {
             </>
           )}
           <div className="tg-settings-row">
+            <button type="button" onClick={() => router.push("/tg/partner")}>
+              {u.partner} →
+            </button>
+          </div>
+          <div className="tg-settings-row">
             <div>
-              <div>{u.partner}</div>
               <small style={{ color: "var(--tg-muted)" }}>{u.partnerDesc}</small>
             </div>
           </div>

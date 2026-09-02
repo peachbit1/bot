@@ -43,6 +43,8 @@ model User {
 
   platformAccounts      PlatformAccount[]
   affiliateAttributions AffiliateAttribution[]
+  partnerProfile      PartnerProfile?
+  partnerAttribution  PartnerAttribution?
   characters        Character[]
   scenarios         Scenario[]
   renderJobs        RenderJob[]
@@ -859,6 +861,84 @@ model AffiliateAttribution {
 
   @@unique([userId])
   @@index([affiliateId])
+}
+
+/// TG user partner program (50% commission in 🍑).
+model PartnerProfile {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  code               String   @unique
+  commissionPct      Int      @default(50)
+  balancePeaches     Int      @default(0)
+  totalEarnedPeaches Int      @default(0)
+  status             String   @default("active")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user          User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  links         PartnerLink[]
+  commissions   PartnerCommission[]
+  withdrawals   PartnerWithdrawal[]
+  attributions  PartnerAttribution[]
+}
+
+model PartnerLink {
+  id        String   @id @default(cuid())
+  partnerId String
+  slug      String
+  label     String   @default("")
+  clicks    Int      @default(0)
+  signups   Int      @default(0)
+  createdAt DateTime @default(now())
+
+  partner      PartnerProfile       @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  attributions PartnerAttribution[]
+
+  @@unique([partnerId, slug])
+  @@index([partnerId])
+}
+
+model PartnerAttribution {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  partnerId String
+  linkId    String?
+  createdAt DateTime @default(now())
+
+  user    User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  partner PartnerProfile @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  link    PartnerLink?   @relation(fields: [linkId], references: [id], onDelete: SetNull)
+
+  @@index([partnerId])
+}
+
+model PartnerCommission {
+  id            String   @id @default(cuid())
+  partnerId     String
+  referredUserId String
+  grossPeaches  Int
+  amountPeaches Int
+  kind          String   @default("topup")
+  createdAt     DateTime @default(now())
+
+  partner PartnerProfile @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@index([partnerId, createdAt])
+}
+
+model PartnerWithdrawal {
+  id            String   @id @default(cuid())
+  partnerId     String
+  amountPeaches Int
+  status        String   @default("pending")
+  payoutDetails String   @default("")
+  adminNote     String   @default("")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  partner PartnerProfile @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@index([partnerId, status])
 }
 
 /// Krea Identity Edit photo template for TG / Mini App.

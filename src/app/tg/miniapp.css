@@ -558,3 +558,13 @@
   font-size: 0.68rem;
   color: var(--tg-muted);
 }
+
+.tg-input {
+  display: block;
+  padding: 0.55rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid var(--tg-hairline);
+  background: var(--tg-surface);
+  color: var(--tg-fg);
+  font-size: 0.85rem;
+}

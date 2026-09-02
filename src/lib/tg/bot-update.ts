@@ -855,7 +855,7 @@ export async function handleTgCallbackQuery(cq: TgCallbackQuery) {
   if (data.startsWith("tu:") && data !== "tu:open") {
     await tgAnswerCallbackQuery(cq.id);
     const n = Number(data.slice(3));
-    if (n > 0) await handleTopupAmount(chatId, platformUserId, locale, n);
+    if (n > 0) await handleTopupAmount(chatId, platformUserId, locale, n, user.id);
     return;
   }
 
@@ -976,7 +976,7 @@ export async function handleTgMessage(msg: TgUpdateMessage) {
   if (chatState === "awaiting_topup_amount" && text) {
     const n = Number(text.replace(/\s/g, ""));
     if (Number.isFinite(n)) {
-      await handleTopupAmount(chatId, platformUserId, locale, Math.round(n));
+      await handleTopupAmount(chatId, platformUserId, locale, Math.round(n), user.id);
     } else {
       await sendTopupPrompt(chatId, locale);
     }

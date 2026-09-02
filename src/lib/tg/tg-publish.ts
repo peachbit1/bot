@@ -6,6 +6,7 @@ import path from "path";
 import { prisma } from "@/lib/db";
 import { localPathFromResultUrl } from "@/lib/local-store";
 import { ensureTgCatalog } from "@/lib/tg/tg-catalog";
+import { TG_STUDIO_CAST_TRIGGERS } from "@/lib/tg/tg-launch-constants";
 
 const CATALOG_DIR = path.join(process.cwd(), "public", "tg", "catalog");
 
@@ -180,9 +181,20 @@ export async function updateStudioCastTgCard(
   characterId: string,
   patch: { displayName?: string; coverUrl?: string },
 ) {
-  const ch = await prisma.character.findFirst({
+  let ch = await prisma.character.findFirst({
     where: { id: characterId, isStudioCast: true },
   });
+  if (!ch) {
+    ch = await prisma.character.findFirst({
+      where: { id: characterId, triggerWord: { in: TG_STUDIO_CAST_TRIGGERS } },
+    });
+    if (ch) {
+      await prisma.character.update({
+        where: { id: ch.id },
+        data: { isStudioCast: true },
+      });
+    }
+  }
   if (!ch) throw new Error("Актриса студии не найдена");
 
   const data: { tgDisplayName?: string; tgCoverUrl?: string } = {};

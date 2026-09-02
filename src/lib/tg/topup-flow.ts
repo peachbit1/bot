@@ -9,6 +9,7 @@ import { TOPUP_CB } from "@/lib/tg/generation-flow";
 import { setTgSession } from "@/lib/tg/session";
 import { tgSendMessage } from "@/lib/tg/telegram-api";
 import { tgSendMediaMessage } from "@/lib/tg/media-assets";
+import { creditPeaches } from "@/lib/tg/wallet";
 
 export function topupInlineKeyboard(locale: TgLocale) {
   const rows = TG_QUICK_TOPUP_AMOUNTS.map((n) => [
@@ -30,6 +31,7 @@ export async function handleTopupAmount(
   platformUserId: string,
   locale: TgLocale,
   amount: number,
+  userId?: string,
 ) {
   if (amount < TG_MIN_TOPUP_PEACHES) {
     const usdt = peachesToUsdt(TG_MIN_TOPUP_PEACHES);
@@ -39,6 +41,11 @@ export async function handleTopupAmount(
     return;
   }
   await setTgSession(platformUserId, { chatState: "idle" });
+
+  if (userId && process.env.TG_TOPUP_STUB_CREDIT !== "0") {
+    await creditPeaches(userId, amount, "tg_topup_stub", { amount });
+  }
+
   const { mainMenuExtra } = await import("@/lib/tg/menu");
   await tgSendMessage(
     chatId,

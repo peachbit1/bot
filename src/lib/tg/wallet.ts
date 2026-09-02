@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { creditPartnerCommission } from "@/lib/tg/partner-program";
 
 export async function getBalancePeaches(userId: string): Promise<number> {
   const u = await prisma.user.findUnique({ where: { id: userId } });
@@ -26,6 +27,14 @@ export async function creditPeaches(
       },
     }),
   ]);
+
+  if (/topup|payment|начисл/i.test(reason)) {
+    void creditPartnerCommission({
+      referredUserId: userId,
+      grossPeaches: amount,
+      kind: "topup",
+    }).catch((e) => console.error("[partner] commission:", e));
+  }
 }
 
 export async function debitPeaches(

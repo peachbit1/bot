@@ -5,6 +5,11 @@ import {
   type TelegramWebAppUser,
 } from "@/lib/tg/auth";
 import { normalizeLocale } from "@/lib/tg/i18n";
+import {
+  attributeUserToPartner,
+  parsePartnerRefPayload,
+  recordPartnerClick,
+} from "@/lib/tg/partner-program";
 
 export type TelegramBotUser = {
   id: number;
@@ -19,11 +24,14 @@ const USER_REF_PREFIX = "u_";
 
 export function parseStartPayload(payload: string | undefined): {
   affiliateCode?: string;
+  linkSlug?: string;
   userReferralCode?: string;
 } {
   if (!payload?.trim()) return {};
   const p = payload.trim();
   if (p.startsWith(REF_PREFIX)) {
+    const { code, linkSlug } = parsePartnerRefPayload(p);
+    if (code) return { affiliateCode: code, linkSlug };
     return { affiliateCode: p.slice(REF_PREFIX.length) };
   }
   if (p.startsWith(USER_REF_PREFIX)) {
@@ -71,13 +79,23 @@ export async function findOrCreateTelegramUser(
   const randomSecret = cryptoRandom();
   const passwordHash = await hashPassword(randomSecret);
 
-  const { affiliateCode } = parseStartPayload(startPayload);
+  const { affiliateCode, linkSlug } = parseStartPayload(startPayload);
   let affiliateId: string | undefined;
+  let partnerCode: string | undefined;
+
   if (affiliateCode) {
-    const aff = await prisma.affiliateAccount.findFirst({
+    const partner = await prisma.partnerProfile.findFirst({
       where: { code: affiliateCode, status: "active" },
     });
-    affiliateId = aff?.id;
+    if (partner) {
+      partnerCode = affiliateCode;
+      await recordPartnerClick(affiliateCode, linkSlug);
+    } else {
+      const aff = await prisma.affiliateAccount.findFirst({
+        where: { code: affiliateCode, status: "active" },
+      });
+      affiliateId = aff?.id;
+    }
   }
 
   const displayName =
@@ -116,6 +134,16 @@ export async function findOrCreateTelegramUser(
         : {}),
     },
   });
+
+  if (partnerCode) {
+    await attributeUserToPartner({
+      userId: user.id,
+      code: partnerCode,
+      linkSlug,
+    }).catch(() => {
+      /* already attributed */
+    });
+  }
 
   return user;
 }

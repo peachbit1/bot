@@ -7,6 +7,7 @@ import {
   TG_STUDIO_CAST_TRIGGERS,
 } from "@/lib/tg/tg-launch-constants";
 import { tgCastDisplayName } from "@/lib/tg/tg-publish";
+import { tgAbsoluteUrl } from "@/lib/tg/media-assets";
 import { studioCastCoverUrl } from "@/lib/tg/tg-static-previews";
 
 export { castsMiniAppUrl, tgMiniAppUrl } from "@/lib/tg/miniapp-url";
@@ -27,31 +28,26 @@ export function hasRealCharacterLora(ch: {
 }
 
 async function findStudioCastCandidates() {
+  await ensureStudioCasts();
   const rows = await prisma.character.findMany({
-    where: {
-      loraStatus: "lora_ready",
-      OR: [
-        { name: { in: TG_STUDIO_CAST_NAMES } },
-        ...TG_STUDIO_CAST_SPEC.flatMap((s) =>
-          s.names.map((name) => ({ name: { contains: name } })),
-        ),
-        { triggerWord: { in: TG_STUDIO_CAST_TRIGGERS } },
-      ],
-    },
-    orderBy: { createdAt: "asc" },
+    where: { isStudioCast: true, loraStatus: "lora_ready" },
+    orderBy: { updatedAt: "desc" },
   });
 
   const out: typeof rows = [];
   for (const spec of TG_STUDIO_CAST_SPEC) {
-    const hit =
-      rows.find((r) => spec.names.includes(r.name)) ||
-      rows.find((r) =>
-        spec.names.some((n) => r.name.toLowerCase().includes(n.toLowerCase())),
-      ) ||
-      rows.find(
-        (r) => r.triggerWord && spec.triggers.includes(r.triggerWord),
-      );
-    if (hit && !out.some((x) => x.id === hit.id)) out.push(hit);
+    const matches = rows.filter(
+      (r) => r.triggerWord && spec.triggers.includes(r.triggerWord),
+    );
+    if (!matches.length) continue;
+    const hit = [...matches].sort((a, b) => {
+      const score = (c: typeof a) =>
+        (c.tgDisplayName?.trim() ? 4 : 0) +
+        (c.tgCoverUrl?.trim() ? 2 : 0) +
+        (c.updatedAt.getTime() / 1e12);
+      return score(b) - score(a);
+    })[0]!;
+    if (!out.some((x) => x.id === hit.id)) out.push(hit);
   }
   return out;
 }
@@ -99,16 +95,19 @@ export async function listStudioCasts(_locale: "ru" | "en" = "ru") {
         s.names.includes(ch.name) ||
         (ch.triggerWord && s.triggers.includes(ch.triggerWord)),
     );
+    const rawCover =
+      ch.tgCoverUrl?.trim() ||
+      seedCastCoverUrl(ch.triggerWord) ||
+      studioCastCoverUrl(ch.triggerWord);
+    const coverUrl = rawCover ? tgAbsoluteUrl(rawCover) : null;
+    const version = ch.updatedAt.getTime();
     out.push({
       id: ch.id,
       name: tgCastDisplayName({
         name: spec?.displayName || ch.name,
         tgDisplayName: ch.tgDisplayName,
       }),
-      coverUrl:
-        ch.tgCoverUrl?.trim() ||
-        seedCastCoverUrl(ch.triggerWord) ||
-        studioCastCoverUrl(ch.triggerWord),
+      coverUrl: coverUrl ? `${coverUrl}${coverUrl.includes("?") ? "&" : "?"}v=${version}` : null,
     });
   }
 
