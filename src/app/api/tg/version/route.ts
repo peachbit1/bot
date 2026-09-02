@@ -1,6 +1,18 @@
 import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
+import { useComfy, comfyBaseUrl } from "@/lib/metalnode-config";
+
+async function pingComfy(): Promise<boolean> {
+  try {
+    const res = await fetch(`${comfyBaseUrl()}/system_stats`, {
+      signal: AbortSignal.timeout(4000),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
 
 /** Quick prod deploy check — curl /api/tg/version after Railway deploy. */
 export async function GET() {
@@ -9,8 +21,17 @@ export async function GET() {
     ? fs.readdirSync(catalogDir).sort()
     : [];
 
+  const gpu = {
+    useComfy: useComfy(),
+    comfyUrl: comfyBaseUrl(),
+    comfyUp: await pingComfy(),
+    forceMock: process.env.COMFY_FORCE_MOCK === "1",
+    tunnelConfigured: Boolean(process.env.METALNODE_SSH_KEY?.trim()),
+  };
+
   return NextResponse.json({
-    build: "tg-ready-v2",
+    build: "tg-ready-v3-gpu",
+    gpu,
     catalogFiles,
     features: {
       studioPhoto: fs.existsSync(
