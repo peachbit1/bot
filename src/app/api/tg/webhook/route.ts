@@ -4,6 +4,7 @@ import {
   handleTgCallbackQuery,
   flushTgOutbox,
 } from "@/lib/tg/bot-update";
+import { ensureTgBootstrap } from "@/lib/tg/tg-bootstrap";
 
 /** Telegram webhook (production). Same handlers as `npm run tg:bot`. */
 export async function POST(req: Request) {
@@ -25,6 +26,7 @@ export async function POST(req: Request) {
   }
 
   try {
+    await ensureTgBootstrap();
     if (update.callback_query) {
       await handleTgCallbackQuery(update.callback_query);
     }

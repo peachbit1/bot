@@ -10,47 +10,18 @@ import {
   type PublicQuickVideoTemplate,
 } from "@/lib/quick-video-template";
 import { TG_VIDEO_PEACHES } from "@/lib/tg-pricing";
+import {
+  TG_FEATURED_PHOTO_TITLES,
+  TG_FEATURED_VIDEO_TITLES,
+} from "@/lib/tg/tg-launch-constants";
 
-/** Launch video templates (Ref2V — user supplies face photos). */
-export const TG_FEATURED_VIDEO_TITLES = [
-  "Сосёт + кончает на лицо #1",
-  "Снимает верхнюю одежду",
-] as const;
-
-/** LoRA-only photo template (studio cast or trained user model). */
-export const TG_FEATURED_PHOTO_TITLES = ["Член во рту #1"] as const;
-
-export const TG_STUDIO_CAST_NAMES = (
-  process.env.TG_STUDIO_CAST_NAMES?.trim() ||
-  "Daisy Shtorm,Маша,Лора"
-)
-  .split(",")
-  .map((s) => s.trim())
-  .filter(Boolean);
-
-/** Match by trigger if name differs on prod. */
-export const TG_STUDIO_CAST_TRIGGERS = (
-  process.env.TG_STUDIO_CAST_TRIGGERS?.trim() ||
-  "daisysh,masha1,olh_person"
-)
-  .split(",")
-  .map((s) => s.trim())
-  .filter(Boolean);
-
-/** Per-slot: display name + ways to find character in DB. */
-export const TG_STUDIO_CAST_SPEC: Array<{
-  displayName: string;
-  names: string[];
-  triggers: string[];
-}> = [
-  {
-    displayName: "Daisy Shtorm",
-    names: ["Daisy Shtorm", "Daisy"],
-    triggers: ["daisysh"],
-  },
-  { displayName: "Маша", names: ["Маша", "Masha"], triggers: ["masha1"] },
-  { displayName: "Лора", names: ["Лора", "Lora"], triggers: ["olh_person"] },
-];
+export {
+  TG_FEATURED_PHOTO_TITLES,
+  TG_FEATURED_VIDEO_TITLES,
+  TG_STUDIO_CAST_NAMES,
+  TG_STUDIO_CAST_SPEC,
+  TG_STUDIO_CAST_TRIGGERS,
+} from "@/lib/tg/tg-launch-constants";
 
 function envIds(key: "TG_FEATURED_VIDEO_IDS" | "TG_FEATURED_PHOTO_IDS"): string[] {
   const raw = process.env[key]?.trim();

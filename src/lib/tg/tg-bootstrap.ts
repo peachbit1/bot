@@ -9,7 +9,7 @@ import {
   TG_FEATURED_PHOTO_TITLES,
   TG_FEATURED_VIDEO_TITLES,
   TG_STUDIO_CAST_SPEC,
-} from "@/lib/tg/tg-catalog";
+} from "@/lib/tg/tg-launch-constants";
 
 const STUDIO_OWNER_EMAIL = "tg-studio@peachbitch.internal";
 
