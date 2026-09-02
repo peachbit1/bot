@@ -87,6 +87,10 @@ model Character {
   triggerWord  String?
   /// JSON Lookbook enums (see src/lib/lookbook.ts)
   lookbookJson String   @default("{}")
+  /// TG Mini App / bot display name (studio cast cards)
+  tgDisplayName String  @default("")
+  /// TG Mini App cover image URL
+  tgCoverUrl    String  @default("")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -701,6 +705,11 @@ model QuickVideoTemplate {
   previewPhotoUrl     String   @default("")
   orientation         String   @default("9_16")
   durationSec         Int      @default(6)
+  /// Published to Telegram bot + Mini App catalog
+  tgPublished         Boolean  @default(false)
+  /// Override title shown in TG (empty = use title)
+  tgDisplayTitle      String   @default("")
+  tgSortOrder         Int      @default(0)
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
@@ -709,6 +718,7 @@ model QuickVideoTemplate {
 
   @@index([userId])
   @@index([category, published])
+  @@index([tgPublished, tgSortOrder])
 }
 
 /// One-time template unlock — no per-use template fee after purchase.
@@ -867,10 +877,15 @@ model PhotoTemplate {
   notesEn         String   @default("")
   published       Boolean  @default(true)
   sortOrder       Int      @default(0)
+  /// Published to Telegram bot + Mini App catalog
+  tgPublished     Boolean  @default(false)
+  /// Override title shown in TG (empty = use title)
+  tgDisplayTitle  String   @default("")
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
   @@index([published, sortOrder])
+  @@index([tgPublished, sortOrder])
 }
 
 /// TG delivery queue — bot polls and sends to chat.

@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { MarketplaceCard } from "@/components/marketplace-card";
+import { TgPublishControls } from "@/components/tg-publish-controls";
+import { usePeachUiMode } from "@/components/peach-ui-mode-provider";
 
 export type PeachTemplateItem = {
   id: string;
@@ -75,6 +77,9 @@ export type QuickVideoTemplateItem = PeachTemplateItem & {
   priceCredits?: number;
   owned?: boolean;
   category?: "peach" | "bitch";
+  isAuthor?: boolean;
+  tgPublished?: boolean;
+  tgDisplayTitle?: string;
 };
 
 export function QuickVideoTemplatesMarketplace({
@@ -84,6 +89,8 @@ export function QuickVideoTemplatesMarketplace({
   templates: QuickVideoTemplateItem[];
   category: "peach" | "bitch";
 }) {
+  const { isAdmin } = usePeachUiMode();
+
   if (!templates.length) {
     return (
       <div className="rounded-2xl border border-dashed border-white/12 p-10 text-center text-sm text-zinc-500">
@@ -104,19 +111,29 @@ export function QuickVideoTemplatesMarketplace({
               : `${t.priceCredits} кр.`
             : "Бесплатно";
         return (
-          <MarketplaceCard
-            key={t.id}
-            title={t.title}
-            description={
-              t.notes
-                ? `${t.notes} · ~${t.durationSec}с · ${priceLabel}`
-                : `~${t.durationSec} сек · ${priceLabel}`
-            }
-            previewImage={t.previewPhotoUrl || undefined}
-            previewVideo={t.previewVideoUrl || undefined}
-            badge={t.isJuice ? "juice" : category}
-            href={`/peach/video?tab=create&qvTemplate=${t.id}`}
-          />
+          <div key={t.id} className="flex flex-col">
+            <MarketplaceCard
+              title={t.title}
+              description={
+                t.notes
+                  ? `${t.notes} · ~${t.durationSec}с · ${priceLabel}`
+                  : `~${t.durationSec} сек · ${priceLabel}`
+              }
+              previewImage={t.previewPhotoUrl || undefined}
+              previewVideo={t.previewVideoUrl || undefined}
+              badge={t.isJuice ? "juice" : category}
+              href={`/peach/video?tab=create&qvTemplate=${t.id}`}
+            />
+            {isAdmin && t.isAuthor ? (
+              <TgPublishControls
+                templateId={t.id}
+                kind="video"
+                initialPublished={t.tgPublished}
+                initialDisplayTitle={t.tgDisplayTitle || t.title}
+                defaultTitle={t.title}
+              />
+            ) : null}
+          </div>
         );
       })}
     </div>

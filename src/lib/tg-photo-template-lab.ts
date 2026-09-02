@@ -16,6 +16,8 @@ export type TgPhotoTemplateRow = {
   sceneImageUrl: string;
   published: boolean;
   sortOrder: number;
+  tgPublished: boolean;
+  tgDisplayTitle: string;
 };
 
 export async function listTgPhotoTemplatesForLab(): Promise<TgPhotoTemplateRow[]> {
@@ -33,6 +35,8 @@ export async function listTgPhotoTemplatesForLab(): Promise<TgPhotoTemplateRow[]
     sceneImageUrl: r.sceneImageUrl || r.previewImageUrl,
     published: r.published,
     sortOrder: r.sortOrder,
+    tgPublished: r.tgPublished,
+    tgDisplayTitle: r.tgDisplayTitle,
   }));
 }
 

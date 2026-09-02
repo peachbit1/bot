@@ -72,6 +72,9 @@ export default async function PeachVideoPage() {
     priceCredits: t.priceCredits,
     owned: t.owned,
     category: t.category,
+    isAuthor: t.isAuthor,
+    tgPublished: t.tgPublished,
+    tgDisplayTitle: t.tgDisplayTitle,
   });
 
   return (

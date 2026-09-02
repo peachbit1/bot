@@ -1,15 +1,18 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { TgShell, useTgMiniApp } from "@/lib/tg/miniapp/client";
+
+type CharTab = "showcase" | "personal";
 
 const UI = {
   ru: {
     title: "👤 Персонажи",
-    mine: "Мои модели (LoRA)",
-    mineHint: "Обученные персонажи — для фото и видео",
-    studio: "Актрисы студии",
-    studioHint: "LoRA уже обучена — бесплатный тестовый кадр / сутки",
+    tabShowcase: "Витрина",
+    tabPersonal: "Личные",
+    showcaseHint: "Актрисы студии — LoRA уже обучена",
+    personalHint: "Твои модели после обучения LoRA",
     create: "+ Создать персонажа",
     select: "Выбрать",
     cast: "В кадр",
@@ -26,17 +29,17 @@ const UI = {
     statusReady: "LoRA готова",
     statusTrain: "Обучение…",
     statusLookbook: "Нужно обучение",
-    emptyMine: "Пока нет своих моделей",
+    emptyPersonal: "Пока нет своих моделей — обучи LoRA в боте",
     videoRefs: "Модели для видео 🎬",
     videoRefsHint: "Сохранённые ref-фото — без повторной загрузки",
     promoTest: "Тест: напиши боту «НАЧИСЛИ500» → +500 🍑",
   },
   en: {
     title: "👤 Cast",
-    mine: "My models (LoRA)",
-    mineHint: "Trained characters for photo & video",
-    studio: "Studio actresses",
-    studioHint: "Pre-trained LoRA — daily free test shot",
+    tabShowcase: "Showcase",
+    tabPersonal: "Personal",
+    showcaseHint: "Studio actresses — pre-trained LoRA",
+    personalHint: "Your models after LoRA training",
     create: "+ Create character",
     select: "Select",
     cast: "Use",
@@ -53,7 +56,7 @@ const UI = {
     statusReady: "LoRA ready",
     statusTrain: "Training…",
     statusLookbook: "Needs training",
-    emptyMine: "No custom models yet",
+    emptyPersonal: "No custom models yet — train LoRA in the bot",
     videoRefs: "Video models 🎬",
     videoRefsHint: "Saved ref photos — no re-upload",
     promoTest: "Test: message the bot «НАЧИСЛИ500» → +500 🍑",
@@ -66,15 +69,63 @@ function loraBadge(status: string, u: (typeof UI)["ru"]) {
   return { text: u.statusLookbook, ready: false };
 }
 
+function CharPortraitCard({
+  name,
+  coverUrl,
+  subtitle,
+  actionLabel,
+  ready,
+  onClick,
+}: {
+  name: string;
+  coverUrl?: string | null;
+  subtitle?: string;
+  actionLabel: string;
+  ready?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button type="button" className="tg-portrait-card" onClick={onClick}>
+      <div className="tg-portrait-media">
+        {coverUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={coverUrl} alt="" className="tg-portrait-img" />
+        ) : (
+          <div className="tg-portrait-placeholder" />
+        )}
+        <span className={`tg-portrait-action ${ready ? "ready" : ""}`}>
+          {actionLabel}
+        </span>
+      </div>
+      <div className="tg-portrait-meta">
+        <strong>{name}</strong>
+        {subtitle ? <small>{subtitle}</small> : null}
+      </div>
+    </button>
+  );
+}
+
 export default function TgCharactersPage() {
   const router = useRouter();
-  const { status, error, profile, locale, setLocale, sendAction, refresh } = useTgMiniApp();
+  const { status, error, profile, locale, setLocale, sendAction, refresh } =
+    useTgMiniApp();
   const u = UI[locale];
+  const [tab, setTab] = useState<CharTab>("showcase");
 
   if (status === "loading") return <p className="tg-loading">…</p>;
   if (status === "error") return <p className="tg-error">{error}</p>;
 
-  const mine = profile?.characters.filter((c) => !c.isStudioCast) || [];
+  const personal =
+    profile?.characters.filter(
+      (c) => !c.isStudioCast && c.loraStatus === "lora_ready",
+    ) || [];
+  const training =
+    profile?.characters.filter(
+      (c) =>
+        !c.isStudioCast &&
+        c.loraStatus !== "lora_ready" &&
+        !c.videoRefOnly,
+    ) || [];
   const promos = profile?.promos;
 
   return (
@@ -84,124 +135,110 @@ export default function TgCharactersPage() {
       balance={profile?.balancePeaches}
       onLangToggle={() => setLocale(locale === "ru" ? "en" : "ru")}
     >
-      <div className="tg-section">
-        <h2>{u.mine}</h2>
-        <p className="tg-muted" style={{ padding: "0 0 0.65rem", textAlign: "left" }}>
-          {u.mineHint}
-        </p>
-        <div className="tg-card-list">
-          {mine.length === 0 && (
-            <p className="tg-muted" style={{ padding: "0.5rem 0" }}>
-              {u.emptyMine}
-            </p>
-          )}
-          {mine.map((c) => {
-            const b = loraBadge(c.loraStatus, u);
-            return (
-              <button
-                key={c.id}
-                type="button"
-                className="tg-char-card"
-                onClick={() => sendAction({ action: "select_character", characterId: c.id })}
-              >
-                <div>
-                  <strong>{c.name}</strong>
-                  <small>
-                    📸 {c.photoCount} · {b.text}
-                  </small>
-                </div>
-                <span className={`badge ${b.ready ? "ready" : ""}`}>{u.select}</span>
-              </button>
-            );
-          })}
-        </div>
+      <div className="tg-char-tabs">
         <button
           type="button"
-          className="tg-primary-btn"
-          style={{ marginTop: "0.75rem", width: "100%" }}
-          onClick={() => sendAction({ action: "create_character" })}
+          className={tab === "showcase" ? "active" : ""}
+          onClick={() => setTab("showcase")}
         >
-          {u.create}
+          {u.tabShowcase}
+        </button>
+        <button
+          type="button"
+          className={tab === "personal" ? "active" : ""}
+          onClick={() => setTab("personal")}
+        >
+          {u.tabPersonal}
         </button>
       </div>
+
+      {tab === "showcase" ? (
+        <div className="tg-section">
+          <p className="tg-muted tg-section-hint">{u.showcaseHint}</p>
+          <div className="tg-portrait-grid">
+            {(profile?.casts || []).map((c) => (
+              <CharPortraitCard
+                key={c.id}
+                name={c.name}
+                coverUrl={c.coverUrl}
+                subtitle="PeachBitch Studio"
+                actionLabel={u.cast}
+                onClick={() =>
+                  router.push(
+                    `/tg/studio-photo?castId=${encodeURIComponent(c.id)}&name=${encodeURIComponent(c.name)}`,
+                  )
+                }
+              />
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="tg-section">
+          <p className="tg-muted tg-section-hint">{u.personalHint}</p>
+          <div className="tg-portrait-grid">
+            {personal.length === 0 && training.length === 0 && (
+              <p className="tg-muted tg-empty-grid">{u.emptyPersonal}</p>
+            )}
+            {personal.map((c) => {
+              const b = loraBadge(c.loraStatus, u);
+              return (
+                <CharPortraitCard
+                  key={c.id}
+                  name={c.name}
+                  coverUrl={c.coverUrl}
+                  subtitle={b.text}
+                  actionLabel={u.select}
+                  ready={b.ready}
+                  onClick={() =>
+                    sendAction({ action: "select_character", characterId: c.id })
+                  }
+                />
+              );
+            })}
+            {training.map((c) => {
+              const b = loraBadge(c.loraStatus, u);
+              return (
+                <CharPortraitCard
+                  key={c.id}
+                  name={c.name}
+                  coverUrl={c.coverUrl}
+                  subtitle={b.text}
+                  actionLabel={b.text}
+                  onClick={() =>
+                    sendAction({ action: "select_character", characterId: c.id })
+                  }
+                />
+              );
+            })}
+          </div>
+          <button
+            type="button"
+            className="tg-primary-btn"
+            style={{ marginTop: "0.75rem", width: "100%" }}
+            onClick={() => sendAction({ action: "create_character" })}
+          >
+            {u.create}
+          </button>
+        </div>
+      )}
 
       {(profile?.videoRefs?.length ?? 0) > 0 && (
         <div className="tg-section">
           <h2>{u.videoRefs}</h2>
-          <p className="tg-muted" style={{ padding: "0 0 0.65rem", textAlign: "left" }}>
-            {u.videoRefsHint}
-          </p>
-          <div className="tg-card-list">
+          <p className="tg-muted tg-section-hint">{u.videoRefsHint}</p>
+          <div className="tg-portrait-grid tg-portrait-grid--compact">
             {profile!.videoRefs!.map((c) => (
-              <button
+              <CharPortraitCard
                 key={c.id}
-                type="button"
-                className="tg-char-card"
+                name={`🎬 ${c.name}`}
+                actionLabel={u.select}
+                subtitle={`📸 ${c.photoCount}`}
                 onClick={() => router.push("/tg")}
-              >
-                <div>
-                  <strong>🎬 {c.name}</strong>
-                  <small>📸 {c.photoCount}</small>
-                </div>
-              </button>
+              />
             ))}
           </div>
         </div>
       )}
-
-      <div className="tg-section">
-        <h2>{u.studio}</h2>
-        <p className="tg-muted" style={{ padding: "0 0 0.65rem", textAlign: "left" }}>
-          {u.studioHint}
-        </p>
-        <div className="tg-card-list">
-          {(profile?.casts || []).map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              className="tg-char-card studio"
-              onClick={() =>
-                router.push(
-                  `/tg/studio-photo?castId=${encodeURIComponent(c.id)}&name=${encodeURIComponent(c.name)}`,
-                )
-              }
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                {c.coverUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={c.coverUrl}
-                    alt=""
-                    style={{
-                      width: 48,
-                      height: 48,
-                      borderRadius: 10,
-                      objectFit: "cover",
-                      flexShrink: 0,
-                    }}
-                  />
-                ) : (
-                  <span
-                    style={{
-                      width: 48,
-                      height: 48,
-                      borderRadius: 10,
-                      background: "#222",
-                      display: "inline-block",
-                      flexShrink: 0,
-                    }}
-                  />
-                )}
-                <div>
-                  <strong>{c.name}</strong>
-                  <small>PeachBitch Studio · LoRA</small>
-                </div>
-              </div>
-              <span className="badge">{u.cast}</span>
-            </button>
-          ))}
-        </div>
-      </div>
 
       <div className="tg-section">
         <div className="tg-settings">
@@ -213,12 +250,16 @@ export default function TgCharactersPage() {
             </button>
           </div>
           <div className="tg-settings-row">
-            <span style={{ fontSize: "0.78rem", color: "var(--tg-muted)" }}>{u.promoTest}</span>
+            <span style={{ fontSize: "0.78rem", color: "var(--tg-muted)" }}>
+              {u.promoTest}
+            </span>
           </div>
           {promos && (
             <>
               <div className="tg-settings-row">
-                <span>{promos.studioDailyFreeReady ? u.promoDaily : u.promoDailyWait}</span>
+                <span>
+                  {promos.studioDailyFreeReady ? u.promoDaily : u.promoDailyWait}
+                </span>
               </div>
               {promos.loraWelcomePhotosLeft > 0 && (
                 <div className="tg-settings-row">

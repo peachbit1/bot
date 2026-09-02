@@ -157,6 +157,11 @@ async function syncCharacterFromRemoteProbe(
     void scheduleIdentityPackAfterTrain(updated.userId, characterId).catch((e) =>
       console.error("[peach] identity pack after train:", e),
     );
+    void import("@/lib/tg/lora-onboard").then(({ notifyTgLoraTrainingComplete }) =>
+      notifyTgLoraTrainingComplete(characterId).catch((e) =>
+        console.error("[tg] lora ready notify:", e),
+      ),
+    );
     return { character: updated, train: finished };
   }
 
@@ -785,18 +790,23 @@ export async function refreshKreaLoraTrainStatus(opts: {
         "TRAIN_DONE\nALL_DONE\nPROMOTED",
       );
       writeTrainMeta(character.id, finished);
-      const updated = await prisma.character.update({
-        where: { id: character.id },
-        data: {
-          loraStatus: "lora_ready",
-          loraPath,
-          triggerWord: meta.trigger || character.triggerWord || slug,
-        },
-      });
-      void scheduleIdentityPackAfterTrain(updated.userId, character.id).catch((e) =>
-        console.error("[peach] identity pack after train:", e),
-      );
-      return { character: updated, train: finished };
+    const updated = await prisma.character.update({
+      where: { id: character.id },
+      data: {
+        loraStatus: "lora_ready",
+        loraPath,
+        triggerWord: meta.trigger || character.triggerWord || slug,
+      },
+    });
+    void scheduleIdentityPackAfterTrain(updated.userId, character.id).catch((e) =>
+      console.error("[peach] identity pack after train:", e),
+    );
+    void import("@/lib/tg/lora-onboard").then(({ notifyTgLoraTrainingComplete }) =>
+      notifyTgLoraTrainingComplete(character.id).catch((e) =>
+        console.error("[tg] lora ready notify:", e),
+      ),
+    );
+    return { character: updated, train: finished };
     }
 
     if (failed || (out.includes("DEAD") && !probe.loraInComfy && !probe.running && meta.startedAt)) {

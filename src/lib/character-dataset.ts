@@ -75,6 +75,9 @@ export type CharacterTrainMeta = {
   etaSec?: number;
   /** Short ETA string for UI */
   etaLabel?: string;
+  /** Started from TG bot onboarding — send ready notification */
+  tgNotify?: boolean;
+  tgNotified?: boolean;
 };
 
 export function ensureCharacterDirs(characterId: string) {

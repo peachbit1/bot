@@ -426,8 +426,135 @@
   gap: 0.5rem;
 }
 
-.tg-gen-actions .tg-primary-btn,
-.tg-gen-actions .tg-secondary-btn {
+.tg-gen-actions .tg-primary-btn,.tg-gen-actions .tg-secondary-btn {
   width: 100%;
   padding: 0.75rem;
+}
+
+/* Character tabs + portrait cards (3:4 grid) */
+.tg-char-tabs {
+  display: flex;
+  gap: 0.35rem;
+  padding: 0 1rem 0.75rem;
+}
+
+.tg-char-tabs button {
+  flex: 1;
+  padding: 0.55rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--tg-hairline);
+  background: var(--tg-surface);
+  color: var(--tg-muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.tg-char-tabs button.active {
+  color: var(--tg-fg);
+  border-color: color-mix(in srgb, var(--tg-apricot) 45%, transparent);
+  background: color-mix(in srgb, var(--tg-apricot) 14%, transparent);
+}
+
+.tg-section-hint {
+  padding: 0 0 0.75rem;
+  text-align: left;
+  font-size: 0.78rem;
+}
+
+.tg-empty-grid {
+  grid-column: 1 / -1;
+  padding: 1rem 0;
+}
+
+.tg-portrait-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+  padding: 0 1rem;
+}
+
+@media (min-width: 420px) {
+  .tg-portrait-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.tg-portrait-grid--compact {
+  gap: 0.5rem;
+}
+
+.tg-portrait-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tg-portrait-media {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid var(--tg-hairline);
+  background: var(--tg-surface);
+}
+
+.tg-portrait-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.tg-portrait-placeholder {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    160deg,
+    var(--tg-surface-2) 0%,
+    color-mix(in srgb, var(--tg-apricot) 12%, var(--tg-surface)) 100%
+  );
+}
+
+.tg-portrait-action {
+  position: absolute;
+  left: 50%;
+  bottom: 0.65rem;
+  transform: translateX(-50%);
+  padding: 0.35rem 0.85rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #1a120e;
+  background: var(--tg-grad);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+  white-space: nowrap;
+}
+
+.tg-portrait-action.ready {
+  background: linear-gradient(135deg, #b8ffd4 0%, #7dffb0 100%);
+}
+
+.tg-portrait-meta {
+  padding: 0 0.15rem;
+}
+
+.tg-portrait-meta strong {
+  display: block;
+  font-size: 0.82rem;
+  line-height: 1.25;
+}
+
+.tg-portrait-meta small {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.68rem;
+  color: var(--tg-muted);
 }

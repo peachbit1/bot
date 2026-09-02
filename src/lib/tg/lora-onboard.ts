@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { listCharacterPhotos } from "@/lib/character-dataset";
+import { listCharacterPhotos, readTrainMeta, writeTrainMeta } from "@/lib/character-dataset";
 import { useComfy } from "@/lib/metalnode-config";
 import { TG_PREMIUM } from "@/lib/tg-pricing";
 import { debitPeaches, getBalancePeaches } from "@/lib/tg/wallet";
@@ -11,7 +11,6 @@ import { enqueueTgOutbox } from "@/lib/tg/session";
 import type { TgLocale } from "@/lib/tg/i18n";
 import { t, tFormat } from "@/lib/tg/i18n";
 import { tgSendMessage } from "@/lib/tg/telegram-api";
-import { mainMenuExtra } from "@/lib/tg/menu";
 import { GEN_CB } from "@/lib/tg/generation-flow";
 import { tgMiniAppUrl } from "@/lib/tg/miniapp-url";
 
@@ -63,6 +62,9 @@ export async function tryStartLoraTraining(opts: {
     data: { loraStatus: "lora_training" },
   });
 
+  const prevMeta = readTrainMeta(opts.characterId);
+  writeTrainMeta(opts.characterId, { ...prevMeta, tgNotify: true, tgNotified: false });
+
   await tgSendMessage(
     opts.chatId,
     tFormat("onboard_lora_started", opts.locale, { price }),
@@ -103,40 +105,58 @@ export async function tryStartLoraTraining(opts: {
   return true;
 }
 
-export async function completeLoraTrainingMock(opts: {
-  userId: string;
-  platformUserId: string;
-  characterId: string;
-  locale: TgLocale;
-}) {
-  const ch = await prisma.character.update({
-    where: { id: opts.characterId },
-    data: { loraStatus: "lora_ready", triggerWord: `tg_${opts.characterId.slice(0, 8)}` },
-  });
+/** Notify TG user when LoRA training completes (GPU or mock). Idempotent via train meta. */
+export async function notifyTgLoraTrainingComplete(characterId: string): Promise<void> {
+  const meta = readTrainMeta(characterId);
+  if (!meta.tgNotify || meta.tgNotified) return;
 
-  const user = await prisma.user.findUnique({ where: { id: opts.userId } });
-  let body = tFormat("onboard_lora_ready", opts.locale, { name: ch.name });
-  if ((user?.tgLoraWelcomePhotosLeft ?? 0) > 0) {
-    body += t("onboard_lora_welcome_bonus", opts.locale);
+  const ch = await prisma.character.findUnique({ where: { id: characterId } });
+  if (!ch || ch.loraStatus !== "lora_ready") return;
+
+  const acc = await prisma.platformAccount.findFirst({
+    where: { userId: ch.userId, platform: "telegram" },
+    include: { user: true },
+  });
+  if (!acc) return;
+
+  const locale = acc.user.locale?.startsWith("en") ? "en" : "ru";
+  let body = tFormat("onboard_lora_ready", locale, { name: ch.name });
+  if ((acc.user.tgLoraWelcomePhotosLeft ?? 0) > 0) {
+    body += t("onboard_lora_welcome_bonus", locale);
   }
 
   await enqueueTgOutbox({
-    platformUserId: opts.platformUserId,
-    userId: opts.userId,
+    platformUserId: acc.platformUserId,
+    userId: ch.userId,
     kind: "text",
     payload: {
       text: body,
       reply_markup: {
         inline_keyboard: [
-          [{ text: t("gen_lora_photo_btn", opts.locale), callback_data: GEN_CB.againPhoto }],
+          [{ text: t("gen_lora_photo_btn", locale), callback_data: GEN_CB.againPhoto }],
           [
             {
-              text: t("marketplace_btn", opts.locale),
-              web_app: { url: tgMiniAppUrl() },
+              text: t("marketplace_btn", locale),
+              web_app: { url: tgMiniAppUrl("/tg/characters") },
             },
           ],
         ],
       },
     },
   });
+
+  writeTrainMeta(characterId, { ...meta, tgNotified: true });
+}
+
+export async function completeLoraTrainingMock(opts: {
+  userId: string;
+  platformUserId: string;
+  characterId: string;
+  locale: TgLocale;
+}) {
+  await prisma.character.update({
+    where: { id: opts.characterId },
+    data: { loraStatus: "lora_ready", triggerWord: `tg_${opts.characterId.slice(0, 8)}` },
+  });
+  await notifyTgLoraTrainingComplete(opts.characterId);
 }

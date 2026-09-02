@@ -33,6 +33,8 @@ export type PublicQuickVideoTemplate = {
   durationSec: number;
   owned: boolean;
   isAuthor: boolean;
+  tgPublished?: boolean;
+  tgDisplayTitle?: string;
 };
 
 export type QuickVideoTemplateDetail = PublicQuickVideoTemplate & {
@@ -118,6 +120,8 @@ function toPublic(
     previewPhotoUrl: string;
     orientation: string;
     durationSec: number;
+    tgPublished?: boolean;
+    tgDisplayTitle?: string;
   },
   viewerUserId: string,
   purchased: boolean,
@@ -144,6 +148,8 @@ function toPublic(
     durationSec: row.durationSec,
     owned,
     isAuthor,
+    tgPublished: row.tgPublished,
+    tgDisplayTitle: row.tgDisplayTitle,
   };
 }
 

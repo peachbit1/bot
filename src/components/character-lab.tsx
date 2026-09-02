@@ -29,6 +29,9 @@ type Character = {
   triggerWord: string | null;
   loraPath?: string | null;
   lookbookJson: string;
+  isStudioCast?: boolean;
+  tgDisplayName?: string;
+  tgCoverUrl?: string;
 };
 
 type Photo = { name: string; size: number; url: string };
@@ -81,6 +84,9 @@ export function CharacterLab({ characters }: { characters: Character[] }) {
   const [train, setTrain] = useState<TrainInfo | null>(null);
   const [identityPack, setIdentityPack] = useState<IdentityPackInfo | null>(null);
   const [trainTrigger, setTrainTrigger] = useState("");
+  const [tgDisplayName, setTgDisplayName] = useState("");
+  const [tgCoverPreview, setTgCoverPreview] = useState<string | null>(null);
+  const [tgCoverFile, setTgCoverFile] = useState<File | null>(null);
 
   const selectedGender = (selected?.gender === "male" ? "male" : "female") as Gender;
   const [lookbook, setLookbook] = useState<LookbookValues>(
@@ -160,9 +166,40 @@ export function CharacterLab({ characters }: { characters: Character[] }) {
     const g = (c.gender === "male" ? "male" : "female") as Gender;
     setLookbook(parseLookbook(c.lookbookJson, g));
     setTrainTrigger(c.triggerWord || "");
+    setTgDisplayName(c.tgDisplayName || c.name);
+    setTgCoverPreview(c.tgCoverUrl || null);
+    setTgCoverFile(null);
     setMsg("");
     setError("");
     setMode("pick");
+  }
+
+  async function saveStudioTgCard() {
+    if (!selected?.isStudioCast) return;
+    setBusy(true);
+    setError("");
+    setMsg("");
+    try {
+      const form = new FormData();
+      form.set("displayName", tgDisplayName.trim());
+      if (tgCoverFile) form.set("coverPhoto", tgCoverFile);
+      const res = await fetch(`/api/peach/characters/${selected.id}/tg-card`, {
+        method: "PATCH",
+        body: form,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(String(data.error || "error"));
+      setMsg("Карточка в Telegram обновлена");
+      setTgCoverFile(null);
+      if (data.character?.tgCoverUrl) {
+        setTgCoverPreview(data.character.tgCoverUrl);
+      }
+      router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "error");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function createLookbookOnly() {
@@ -563,7 +600,14 @@ export function CharacterLab({ characters }: { characters: Character[] }) {
                     selectedId === c.id ? "bg-rose-50" : ""
                   }`}
                 >
-                  <div className="font-medium">{c.name}</div>
+                  <div className="font-medium">
+                    {c.name}
+                    {c.isStudioCast ? (
+                      <span className="ml-2 rounded bg-peach/20 px-1.5 py-0.5 text-[10px] text-peach">
+                        TG витрина
+                      </span>
+                    ) : null}
+                  </div>
                   <div className="text-xs text-zinc-500">
                     {c.gender === "male" ? "♂" : "♀"} · {c.loraStatus}
                     {c.triggerWord ? ` · ${c.triggerWord}` : ""}
@@ -734,6 +778,55 @@ export function CharacterLab({ characters }: { characters: Character[] }) {
             </>
           )}
         </div>
+
+        {selected?.isStudioCast ? (
+          <div className="rounded-lg border border-peach/30 bg-peach/5 p-4">
+            <h2 className="font-medium text-peach">Карточка в Telegram</h2>
+            <p className="mt-1 text-sm text-zinc-600">
+              Имя и обложка актрисы в боте и мини-аппе (вкладка «Витрина»).
+            </p>
+            <label className="mt-3 block text-sm">
+              <span className="text-zinc-500">Отображаемое имя</span>
+              <input
+                className="mt-1 w-full rounded-md border px-3 py-2"
+                value={tgDisplayName}
+                onChange={(e) => setTgDisplayName(e.target.value)}
+              />
+            </label>
+            <div className="mt-3 flex items-start gap-3">
+              <label className="flex h-28 w-21 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-lg border border-dashed border-zinc-300 bg-white">
+                {tgCoverPreview ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={tgCoverPreview}
+                    alt=""
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <span className="text-xs text-zinc-400">3:4 фото</span>
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0] || null;
+                    setTgCoverFile(f);
+                    if (f) setTgCoverPreview(URL.createObjectURL(f));
+                  }}
+                />
+              </label>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void saveStudioTgCard()}
+                className="rounded-md bg-peach px-3 py-2 text-sm font-medium text-black disabled:opacity-50"
+              >
+                {busy ? "Сохраняю…" : "Обновить в TG"}
+              </button>
+            </div>
+          </div>
+        ) : null}
 
         <div className="rounded-lg border border-zinc-200 bg-white p-4">
           <h2 className="font-medium">Lookbook</h2>

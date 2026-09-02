@@ -20,6 +20,7 @@ export type TgMiniAppProfile = {
     photoCount: number;
     isStudioCast: boolean;
     videoRefOnly?: boolean;
+    coverUrl?: string | null;
   }>;
   videoRefs?: Array<{ id: string; name: string; photoCount: number; videoRefOnly: boolean }>;
   casts: Array<{ id: string; name: string; coverUrl: string | null }>;

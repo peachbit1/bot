@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { TodayGenerationsStrip } from "@/components/today-generations-strip";
 import { usePeachUiMode } from "@/components/peach-ui-mode-provider";
+import { TgPublishControls } from "@/components/tg-publish-controls";
 import { OrientationSelect } from "@/components/orientation-select";
 import { PhotoEditPromptPicker } from "@/components/photo-edit-prompt-picker";
 import { SKU } from "@/lib/peach-economics";
@@ -17,6 +18,8 @@ type TgTemplate = {
   tier: string;
   editPrompt: string;
   previewImageUrl: string;
+  tgPublished?: boolean;
+  tgDisplayTitle?: string;
 };
 
 async function readJson(res: Response) {
@@ -357,27 +360,43 @@ export function TgPhotoLabClient({ characters }: { characters: Char[] }) {
               {templates.map((t) => {
                 const on = t.id === selectedId;
                 return (
-                  <button
+                  <div
                     key={t.id}
-                    type="button"
-                    onClick={() => setSelectedId(t.id)}
                     className={
                       on
                         ? "overflow-hidden rounded-xl border-2 border-peach ring-2 ring-peach/20"
                         : "overflow-hidden rounded-xl border border-white/10 hover:border-white/25"
                     }
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={t.previewImageUrl}
-                      alt=""
-                      className="aspect-[3/4] w-full object-cover bg-[#0c0c0e]"
-                    />
-                    <div className="px-2 py-1.5 text-left text-xs">
-                      <div className="truncate font-medium">{t.title}</div>
-                      <div className="text-zinc-600">{t.tier}</div>
-                    </div>
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedId(t.id)}
+                      className="block w-full text-left"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={t.previewImageUrl}
+                        alt=""
+                        className="aspect-[3/4] w-full object-cover bg-[#0c0c0e]"
+                      />
+                      <div className="px-2 py-1.5 text-left text-xs">
+                        <div className="truncate font-medium">{t.title}</div>
+                        <div className="text-zinc-600">{t.tier}</div>
+                      </div>
+                    </button>
+                    {isAdmin ? (
+                      <div className="px-2 pb-2">
+                        <TgPublishControls
+                          templateId={t.id}
+                          kind="photo"
+                          initialPublished={t.tgPublished}
+                          initialDisplayTitle={t.tgDisplayTitle || t.title}
+                          defaultTitle={t.title}
+                          onUpdated={() => void loadTemplates()}
+                        />
+                      </div>
+                    ) : null}
+                  </div>
                 );
               })}
             </div>

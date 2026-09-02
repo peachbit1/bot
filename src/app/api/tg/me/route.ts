@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { resolveTgApiUserId } from "@/lib/tg/resolve-api-user";
 import { listTgCharacters, listVideoRefCharacters } from "@/lib/tg/character-service";
 import { listStudioCasts } from "@/lib/tg/studio-cast";
+import { pickCharacterCoverUrl } from "@/lib/tg/tg-catalog";
 import { normalizeLocale } from "@/lib/tg/i18n";
 import { TG_PROMO } from "@/lib/tg-pricing";
 
@@ -27,6 +28,18 @@ export async function GET(req: Request) {
     listVideoRefCharacters(userId),
   ]);
 
+  const charactersWithCovers = await Promise.all(
+    characters.map(async (c) => ({
+      id: c.id,
+      name: c.name,
+      loraStatus: c.loraStatus,
+      photoCount: c.photoCount,
+      isStudioCast: c.isStudioCast,
+      videoRefOnly: false,
+      coverUrl: c.isStudioCast ? null : await pickCharacterCoverUrl(c.id),
+    })),
+  );
+
   return NextResponse.json({
     balancePeaches: user.balancePeaches,
     locale: normalizeLocale(user.locale || locale),
@@ -36,14 +49,7 @@ export async function GET(req: Request) {
       firstVideoDiscountAvailable: !user.tgFirstVideoDiscountUsed,
       firstVideoDiscountPct: TG_PROMO.firstVideoDiscountPct,
     },
-    characters: characters.map((c) => ({
-      id: c.id,
-      name: c.name,
-      loraStatus: c.loraStatus,
-      photoCount: c.photoCount,
-      isStudioCast: c.isStudioCast,
-      videoRefOnly: false,
-    })),
+    characters: charactersWithCovers,
     videoRefs: videoRefs.map((c) => ({
       id: c.id,
       name: c.name,

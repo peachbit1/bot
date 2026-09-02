@@ -4,6 +4,7 @@
  */
 import "dotenv/config";
 import { handleTgMessage, handleTgCallbackQuery, flushTgOutbox } from "../src/lib/tg/bot-update";
+import { pollTgLoraTrainings } from "../src/lib/tg/lora-train-poller";
 import { tgApi } from "../src/lib/tg/telegram-api";
 
 type TgUpdate = {
@@ -17,6 +18,7 @@ async function poll() {
   console.log("[tg-bot] polling…");
   setInterval(() => {
     void flushTgOutbox().catch((e) => console.error("[tg-outbox]", e));
+    void pollTgLoraTrainings().catch((e) => console.error("[tg-lora-poll]", e));
   }, 2000);
 
   for (;;) {

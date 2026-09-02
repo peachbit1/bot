@@ -72,7 +72,9 @@ async function ensureStudioCastCharacters(): Promise<void> {
       if (loraPath && (!hit.loraPath || hit.loraPath.startsWith("mock://"))) {
         patch.loraPath = loraPath;
       }
-      if (hit.name !== spec.displayName) patch.name = spec.displayName;
+      if (hit.name !== spec.displayName && !hit.tgDisplayName?.trim()) {
+        patch.name = spec.displayName;
+      }
       if (hit.loraStatus !== "lora_ready") patch.loraStatus = "lora_ready";
       if (hit.photoCount < 10) patch.photoCount = 25;
       await prisma.character.update({ where: { id: hit.id }, data: patch });

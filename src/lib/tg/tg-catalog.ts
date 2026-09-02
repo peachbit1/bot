@@ -10,9 +10,11 @@ import { ensureTgBootstrap } from "@/lib/tg/tg-bootstrap";
 import { listPublicPhotoTemplates } from "@/lib/photo-template";
 import {
   listPublishedQuickVideoTemplates,
+  userOwnsTemplate,
   type PublicQuickVideoTemplate,
 } from "@/lib/quick-video-template";
 import { TG_VIDEO_PEACHES } from "@/lib/tg-pricing";
+import { tgTemplateDisplayTitle } from "@/lib/tg/tg-publish";
 import {
   TG_FEATURED_PHOTO_TITLES,
   TG_FEATURED_VIDEO_TITLES,
@@ -32,13 +34,14 @@ function envIds(key: "TG_FEATURED_VIDEO_IDS" | "TG_FEATURED_PHOTO_IDS"): string[
   return raw.split(",").map((s) => s.trim()).filter(Boolean);
 }
 
-/** Idempotent DB fixes: rename photo tpl, publish featured videos. */
+/** Idempotent DB fixes: legacy featured titles + tgPublished flags. */
 export async function ensureTgCatalog(): Promise<void> {
   for (const title of TG_FEATURED_VIDEO_TITLES) {
     await prisma.quickVideoTemplate.updateMany({
       where: { title },
       data: {
         published: true,
+        tgPublished: true,
         isJuice: false,
         pricePeaches: 0,
         priceCredits: 0,
@@ -62,6 +65,7 @@ export async function ensureTgCatalog(): Promise<void> {
         data: {
           title: TG_FEATURED_PHOTO_TITLES[0]!,
           published: true,
+          tgPublished: true,
           sortOrder: 0,
         },
       });
@@ -69,7 +73,7 @@ export async function ensureTgCatalog(): Promise<void> {
   } else {
     await prisma.photoTemplate.update({
       where: { id: photoFeatured.id },
-      data: { published: true, sortOrder: 0 },
+      data: { published: true, tgPublished: true, sortOrder: 0 },
     });
   }
 }
@@ -92,11 +96,87 @@ function orderByIds<T extends { id: string }>(rows: T[], ids: string[]): T[] {
     .filter(Boolean) as T[];
 }
 
+async function listTgPublishedVideoRows(userId: string): Promise<PublicQuickVideoTemplate[]> {
+  const rows = await prisma.quickVideoTemplate.findMany({
+    where: { tgPublished: true, published: true },
+    orderBy: [{ tgSortOrder: "asc" }, { updatedAt: "desc" }],
+  });
+  if (!rows.length) return [];
+
+  const ids = rows.map((r) => r.id);
+  const purchases = await prisma.quickVideoTemplatePurchase.findMany({
+    where: { userId, templateId: { in: ids } },
+    select: { templateId: true },
+  });
+  const ownedSet = new Set(purchases.map((p) => p.templateId));
+
+  return rows.map((r) => {
+    const isAuthor = r.userId === userId;
+    const purchased = ownedSet.has(r.id);
+    const owned = userOwnsTemplate({
+      isAuthor,
+      isJuice: r.isJuice,
+      priceCredits: r.priceCredits,
+      purchased,
+    });
+    return {
+      id: r.id,
+      title: tgTemplateDisplayTitle(r),
+      notes: r.notes,
+      category: r.category as PublicQuickVideoTemplate["category"],
+      isJuice: r.isJuice,
+      priceCredits: r.priceCredits,
+      identityPersonCount: r.identityPersonCount,
+      hasLocationSlot: r.hasLocationSlot,
+      previewVideoUrl: r.previewVideoUrl,
+      previewPhotoUrl: r.previewPhotoUrl,
+      orientation: r.orientation,
+      durationSec: r.durationSec,
+      owned,
+      isAuthor,
+    };
+  });
+}
+
+async function listTgPublishedPhotoRows(locale: TgLocale) {
+  const rows = await prisma.photoTemplate.findMany({
+    where: { tgPublished: true, published: true },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
+  });
+  if (!rows.length) return [];
+
+  const { tgPhotoPeaches } = await import("@/lib/tg-pricing");
+  const localizedTitle = (
+    row: { title: string; titleEn: string; tgDisplayTitle: string },
+  ) => {
+    const base =
+      locale === "en" && row.titleEn.trim() ? row.titleEn : row.title;
+    return row.tgDisplayTitle.trim() || base;
+  };
+  const localizedNotes = (row: { notes: string; notesEn: string }) =>
+    locale === "en" && row.notesEn.trim() ? row.notesEn : row.notes;
+
+  return rows.map((r) => ({
+    id: r.id,
+    title: localizedTitle(r),
+    notes: localizedNotes(r),
+    tier: (r.tier === "pose" ? "pose" : "basic") as "basic" | "pose",
+    pricePeaches:
+      r.pricePeaches || tgPhotoPeaches(r.tier === "pose" ? "pose" : "basic"),
+    previewImageUrl: r.previewImageUrl || r.sceneImageUrl,
+    hasSpeech: r.hasSpeech,
+  }));
+}
+
 export async function listTgFeaturedVideoTemplates(
   userId: string,
 ): Promise<PublicQuickVideoTemplate[]> {
   await ensureTgBootstrap();
   await ensureTgCatalog();
+
+  const published = await listTgPublishedVideoRows(userId);
+  if (published.length) return published;
+
   const all = await listPublishedQuickVideoTemplates(userId);
 
   const byEnv = envIds("TG_FEATURED_VIDEO_IDS");
@@ -128,6 +208,10 @@ export async function listTgFeaturedVideoTemplates(
 export async function listTgFeaturedPhotoTemplates(locale: TgLocale = "ru") {
   await ensureTgBootstrap();
   await ensureTgCatalog();
+
+  const published = await listTgPublishedPhotoRows(locale);
+  if (published.length) return published;
+
   const all = await listPublicPhotoTemplates(locale);
 
   const byEnv = envIds("TG_FEATURED_PHOTO_IDS");
@@ -158,8 +242,9 @@ export async function pickCharacterCoverUrl(
 ): Promise<string | null> {
   const ch = await prisma.character.findUnique({
     where: { id: characterId },
-    select: { triggerWord: true, isStudioCast: true },
+    select: { triggerWord: true, isStudioCast: true, tgCoverUrl: true },
   });
+  if (ch?.tgCoverUrl?.trim()) return ch.tgCoverUrl;
   if (ch?.isStudioCast) {
     return (
       seedCastCoverUrl(ch.triggerWord) ||
