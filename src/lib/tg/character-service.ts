@@ -8,6 +8,11 @@ import { emptyLookbook } from "@/lib/lookbook";
 
 export const TG_MIN_CHARACTER_PHOTOS = 3;
 export const TG_MAX_CHARACTER_PHOTOS = 5;
+/** LoRA train in bot onboarding */
+export const TG_MIN_LORA_PHOTOS = 5;
+export const TG_MAX_LORA_PHOTOS = 20;
+/** Video Ref2V — at least one identity ref */
+export const TG_MIN_VIDEO_PHOTOS = 1;
 
 export async function listTgCharacters(userId: string) {
   return prisma.character.findMany({
@@ -37,9 +42,9 @@ export async function getActiveTgCharacter(
   });
   if (acc?.activeCharacterId) {
     const ch = await prisma.character.findFirst({
-      where: { id: acc.activeCharacterId, userId },
+      where: { id: acc.activeCharacterId },
     });
-    if (ch) return ch;
+    if (ch && (ch.userId === userId || ch.isStudioCast)) return ch;
   }
   return getPrimaryTgCharacter(userId);
 }
@@ -124,4 +129,12 @@ export function characterPhotoCount(characterId: string): number {
 
 export function characterReady(characterId: string): boolean {
   return characterPhotoCount(characterId) >= TG_MIN_CHARACTER_PHOTOS;
+}
+
+export function characterReadyForVideo(characterId: string): boolean {
+  return characterPhotoCount(characterId) >= TG_MIN_VIDEO_PHOTOS;
+}
+
+export function characterReadyForLoraTrain(characterId: string): boolean {
+  return characterPhotoCount(characterId) >= TG_MIN_LORA_PHOTOS;
 }

@@ -4,9 +4,12 @@ import { getPhotoTemplate } from "@/lib/photo-template";
 import {
   addCharacterPhotoFromBuffer,
   characterPhotoCount,
-  characterReady,
+  characterReadyForVideo,
   getActiveTgCharacter,
+  setActiveTgCharacter,
   TG_MAX_CHARACTER_PHOTOS,
+  TG_MAX_LORA_PHOTOS,
+  TG_MIN_LORA_PHOTOS,
   TG_MIN_CHARACTER_PHOTOS,
 } from "@/lib/tg/character-service";
 import {
@@ -85,6 +88,8 @@ import {
   type TelegramBotUser,
 } from "@/lib/tg/user";
 import { isTgDevResetMessage, resetTgOnboarding } from "@/lib/tg/dev-reset";
+import { maybeSendWelcomePush } from "@/lib/tg/tg-promo";
+import { isStudioCastCharacter, getStudioCast } from "@/lib/tg/studio-cast";
 
 export type TgUpdateMessage = {
   message_id: number;
@@ -154,10 +159,12 @@ async function handlePhoto(
   }
 
   const before = characterPhotoCount(character.id);
-  if (before >= TG_MAX_CHARACTER_PHOTOS) {
+  const maxPhotos =
+    chatState === "onboarding_awaiting_photos" ? TG_MAX_LORA_PHOTOS : TG_MAX_CHARACTER_PHOTOS;
+  if (before >= maxPhotos) {
     await tgSendMessage(
       chatId,
-      tFormat("photo_max", locale, { max: TG_MAX_CHARACTER_PHOTOS }),
+      tFormat("photo_max", locale, { max: maxPhotos }),
     );
     return;
   }
@@ -174,12 +181,16 @@ async function handlePhoto(
     chatState === "onboarding_awaiting_photos" ||
     (chatState === "awaiting_photos" && pending.onboardingCharacterId)
   ) {
-    await onOnboardPhotoReceived(chatId, platformUserId, locale, character.id);
+    await onOnboardPhotoReceived(chatId, platformUserId, userId, locale, character.id);
     return;
   }
 
   const after = characterPhotoCount(character.id);
-  const need = Math.max(0, TG_MIN_CHARACTER_PHOTOS - after);
+  const minNeeded =
+    chatState === "onboarding_awaiting_photos"
+      ? TG_MIN_LORA_PHOTOS
+      : TG_MIN_CHARACTER_PHOTOS;
+  const need = Math.max(0, minNeeded - after);
   const hint =
     need > 0
       ? tFormat("photo_need_more", locale, { n: need })
@@ -189,10 +200,10 @@ async function handlePhoto(
     chatId,
     tFormat("photo_progress", locale, {
       n: after,
-      max: TG_MAX_CHARACTER_PHOTOS,
+      max: maxPhotos,
       hint,
     }),
-    after >= TG_MIN_CHARACTER_PHOTOS ? mainMenuExtra(locale) : undefined,
+    after >= minNeeded ? mainMenuExtra(locale) : undefined,
   );
 }
 
@@ -246,6 +257,7 @@ async function showTemplateConfirm(
     kind,
     templateId,
     locale,
+    character,
   });
 
   const kindWord = kind === "photo"
@@ -281,6 +293,8 @@ async function showTemplateConfirm(
       pricePeaches: pricing.price,
       discountApplied: pricing.discountApplied,
       freePhoto: pricing.freePhoto,
+      studioDaily: pricing.studioDaily,
+      loraWelcome: pricing.loraWelcome,
     },
   });
 }
@@ -292,15 +306,46 @@ async function beginGeneration(
   locale: TgLocale,
   pending: TgPending,
 ) {
-  const character = await getActiveTgCharacter(userId, platformUserId);
-  if (!character || !characterReady(character.id)) {
+  const kind = pending.templateKind || "video";
+  const templateId = pending.templateId;
+  if (!templateId) return;
+
+  let character = await getActiveTgCharacter(userId, platformUserId);
+  if (!character) {
     await tgSendMessage(chatId, t("need_photos", locale));
     return;
   }
 
-  const kind = pending.templateKind || "video";
-  const templateId = pending.templateId;
-  if (!templateId) return;
+  if (kind === "video") {
+    if (isStudioCastCharacter(character) || !characterReadyForVideo(character.id)) {
+      await tgSendMessage(chatId, t("video_need_photo", locale), {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: t("onboard_create_char_btn", locale), callback_data: OB_CB.uploadChar }],
+          ],
+        },
+      });
+      return;
+    }
+  }
+
+  if (kind === "photo") {
+    if (isStudioCastCharacter(character)) {
+      if (!pending.studioDaily && !pending.freePhoto) {
+        await tgSendMessage(chatId, t("studio_free_not_ready", locale), {
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: t("marketplace_btn", locale), web_app: { url: process.env.TELEGRAM_MINIAPP_URL || "https://bot-production-c305.up.railway.app/tg/templates" } }],
+            ],
+          },
+        });
+        return;
+      }
+    } else if (character.loraStatus !== "lora_ready" && !pending.loraWelcome) {
+      await tgSendMessage(chatId, t("photo_need_lora", locale));
+      return;
+    }
+  }
 
   const price = pending.pricePeaches ?? 0;
   if (price > 0) {
@@ -320,6 +365,8 @@ async function beginGeneration(
         platformUserId,
         templateId,
         characterId: character.id,
+        studioDaily: pending.studioDaily,
+        loraWelcome: pending.loraWelcome,
       });
     } else {
       await startTgVideoGeneration({
@@ -358,12 +405,34 @@ async function handleWebAppData(
     action?: string;
     kind?: "video" | "photo";
     templateId?: string;
+    characterId?: string;
   };
   try {
     data = JSON.parse(raw) as typeof data;
   } catch {
     return;
   }
+  if (data.action === "pick_cast" && data.characterId) {
+    const cast = await getStudioCast(data.characterId);
+    if (!cast) {
+      await tgSendMessage(chatId, tFormat("gen_error", locale, { msg: "cast not found" }));
+      return;
+    }
+    await setActiveTgCharacter(platformUserId, cast.id);
+    await tgSendMessage(
+      chatId,
+      tFormat("studio_cast_picked", locale, { name: cast.name }),
+      {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: t("marketplace_btn", locale), web_app: { url: process.env.TELEGRAM_MINIAPP_URL || "https://bot-production-c305.up.railway.app/tg/templates" } }],
+          ],
+        },
+      },
+    );
+    return;
+  }
+
   if (data.action !== "use_template" || !data.templateId || !data.kind) return;
 
   const meta = await loadTemplateMeta(userId, data.kind, data.templateId);
@@ -561,7 +630,21 @@ export async function handleTgCallbackQuery(cq: TgCallbackQuery) {
 
   if (data === OB_CB.uploadChar) {
     await tgAnswerCallbackQuery(cq.id);
-    await startOnboardCharacter(chatId, platformUserId, locale);
+    await startOnboardCharacter(chatId, platformUserId, locale, user.id);
+    return;
+  }
+
+  if (data.startsWith("ob:sc:")) {
+    await tgAnswerCallbackQuery(cq.id);
+    const castId = data.slice("ob:sc:".length);
+    const cast = await getStudioCast(castId);
+    if (cast) {
+      await setActiveTgCharacter(platformUserId, cast.id);
+      await tgSendMessage(
+        chatId,
+        tFormat("studio_cast_picked", locale, { name: cast.name }),
+      );
+    }
     return;
   }
 
@@ -591,6 +674,10 @@ export async function handleTgCallbackQuery(cq: TgCallbackQuery) {
   }
 
   if (user.ageConfirmed) {
+    await maybeSendWelcomePush(chatId, user.id, locale, (body, extra) =>
+      tgSendMessage(chatId, body, extra),
+    );
+
     if (await handleGenerationCallback(chatId, platformUserId, user.id, locale, data, pending)) {
       await tgAnswerCallbackQuery(cq.id);
       return;
@@ -651,10 +738,9 @@ export async function handleTgMessage(msg: TgUpdateMessage) {
     return;
   }
 
-  if (chatState === "onboarding_awaiting_upload") {
-    await sendWelcomeAfterRules(chatId, platformUserId, locale);
-    return;
-  }
+  await maybeSendWelcomePush(chatId, user.id, locale, (body, extra) =>
+    tgSendMessage(chatId, body, extra),
+  );
 
   if (chatState === "onboarding_awaiting_name" && text) {
     await onOnboardNameEntered(
@@ -800,6 +886,7 @@ export async function flushTgOutbox() {
         mock?: boolean;
         successKind?: "photo" | "video";
         locale?: TgLocale;
+        reply_markup?: unknown;
       };
       const chatId = Number(row.platformUserId);
       const locale = payload.locale || "ru";
@@ -809,7 +896,10 @@ export async function flushTgOutbox() {
       } else if (row.kind === "photo" && payload.url) {
         await tgSendPhoto(chatId, payload.url, payload.caption);
       } else if (row.kind === "text" && payload.text) {
-        await tgSendMessage(chatId, payload.text);
+        const extra = payload.reply_markup
+          ? { reply_markup: payload.reply_markup as Record<string, unknown> }
+          : undefined;
+        await tgSendMessage(chatId, payload.text, extra);
       } else if (row.kind === "error" && payload.text) {
         await tgSendMessage(chatId, payload.text);
         await markTgOutboxSent(row.id);

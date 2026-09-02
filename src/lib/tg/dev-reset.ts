@@ -24,6 +24,13 @@ export async function resetTgOnboarding(
         ageConfirmed: false,
         tgFreePhotoUsed: false,
         tgFirstVideoDiscountUsed: false,
+        tgStudioDailyUsedAt: null,
+        tgLastMiniAppAt: null,
+        tgStudioFreeReady: false,
+        tgLoraBonusExpiresAt: null,
+        tgLoraWelcomePhotosLeft: 0,
+        tgWelcomePushSent: false,
+        tgWelcomePushDueAt: null,
       },
     }),
     prisma.platformAccount.updateMany({

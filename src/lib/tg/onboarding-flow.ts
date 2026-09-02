@@ -1,25 +1,33 @@
+import type { TgLocale } from "@/lib/tg/i18n";
+import { t, tFormat } from "@/lib/tg/i18n";
+import { mainMenuExtra } from "@/lib/tg/menu";
+import { castsMiniAppUrl } from "@/lib/tg/studio-cast";
+import {
+  scheduleWelcomePush,
+  startLoraBonusWindow,
+} from "@/lib/tg/tg-promo";
+import { tgSendMediaMessage } from "@/lib/tg/media-assets";
+import { tgRulesArticleUrl } from "@/lib/tg/rules";
+import { langInlineKeyboard } from "@/lib/tg/character-bot";
+import { setTgSession } from "@/lib/tg/session";
+import { tgSendMessage } from "@/lib/tg/telegram-api";
 import { prisma } from "@/lib/db";
 import {
   characterPhotoCount,
   createTgCharacter,
   renameTgCharacter,
   setActiveTgCharacter,
-  TG_MIN_CHARACTER_PHOTOS,
+  TG_MIN_LORA_PHOTOS,
+  TG_MAX_LORA_PHOTOS,
 } from "@/lib/tg/character-service";
 import {
   genKindInlineKeyboard,
   OB_CB,
-  onboardKindInlineKeyboard,
   sendTemplatePicker,
 } from "@/lib/tg/generation-flow";
-import type { TgLocale } from "@/lib/tg/i18n";
-import { t, tFormat } from "@/lib/tg/i18n";
-import { mainMenuExtra } from "@/lib/tg/menu";
-import { tgSendMediaMessage } from "@/lib/tg/media-assets";
-import { tgRulesArticleUrl } from "@/lib/tg/rules";
-import { langInlineKeyboard } from "@/lib/tg/character-bot";
-import { setTgSession } from "@/lib/tg/session";
-import { tgSendMessage } from "@/lib/tg/telegram-api";
+import { getBalancePeaches } from "@/lib/tg/wallet";
+import { TG_PREMIUM } from "@/lib/tg-pricing";
+import { tryStartLoraTraining } from "@/lib/tg/lora-onboard";
 
 export async function sendStartPitch(chatId: number) {
   await tgSendMediaMessage(chatId, "start", t("start_pitch", "ru"), {
@@ -52,29 +60,41 @@ export async function onLanguagePicked(
   await sendRulesStep(chatId, locale);
 }
 
+function welcomeKeyboard(locale: TgLocale) {
+  return {
+    inline_keyboard: [
+      [
+        {
+          text: t("onboard_pick_studio_btn", locale),
+          web_app: { url: castsMiniAppUrl() },
+        },
+      ],
+      [{ text: t("onboard_create_char_btn", locale), callback_data: OB_CB.uploadChar }],
+    ],
+  };
+}
+
 export async function sendWelcomeAfterRules(
   chatId: number,
   platformUserId: string,
   locale: TgLocale,
+  userId: string,
 ) {
-  await setTgSession(platformUserId, {
-    chatState: "onboarding_awaiting_upload",
-    clearPending: true,
-  });
+  await setTgSession(platformUserId, { chatState: "idle", clearPending: true });
+  await scheduleWelcomePush(userId);
   await tgSendMediaMessage(chatId, "welcome", t("welcome_after_rules", locale), {
-    reply_markup: {
-      inline_keyboard: [
-        [{ text: t("onboard_upload_char_btn", locale), callback_data: OB_CB.uploadChar }],
-      ],
-    },
+    reply_markup: welcomeKeyboard(locale),
   });
+  await tgSendMessage(chatId, "👇", mainMenuExtra(locale));
 }
 
 export async function startOnboardCharacter(
   chatId: number,
   platformUserId: string,
   locale: TgLocale,
+  userId: string,
 ) {
+  await startLoraBonusWindow(userId);
   await setTgSession(platformUserId, { chatState: "onboarding_awaiting_name" });
   await tgSendMessage(chatId, t("onboard_name_prompt", locale));
 }
@@ -99,13 +119,31 @@ export async function onOnboardNameEntered(
     chatState: "onboarding_awaiting_photos",
     pending: { onboardingCharacterId: characterId },
   });
-  await tgSendMediaMessage(chatId, "photo_upload", t("onboard_photo_prompt", locale), {
-    reply_markup: {
-      inline_keyboard: [
-        [{ text: t("onboard_back_name_btn", locale), callback_data: OB_CB.backName }],
-      ],
-    },
+
+  await tgSendMediaMessage(chatId, "photo_upload", t("onboard_photo_prompt", locale));
+
+  const price = TG_PREMIUM.loraTrainPeaches;
+  const balance = await getBalancePeaches(userId);
+  await tgSendMessage(chatId, tFormat("onboard_lora_price", locale, { price, balance }), {
+    reply_markup:
+      balance >= price
+        ? undefined
+        : {
+            inline_keyboard: [
+              [{ text: t("topup_btn", locale), callback_data: "tu:open" }],
+            ],
+          },
   });
+
+  if (balance >= price) {
+    await tgSendMessage(chatId, t("onboard_lora_upload", locale), {
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: t("onboard_back_name_btn", locale), callback_data: OB_CB.backName }],
+        ],
+      },
+    });
+  }
 }
 
 export async function onOnboardBackToName(
@@ -124,18 +162,19 @@ export async function onOnboardBackToName(
 export async function onOnboardPhotoReceived(
   chatId: number,
   platformUserId: string,
+  userId: string,
   locale: TgLocale,
   characterId: string,
 ) {
   const n = characterPhotoCount(characterId);
-  const need = Math.max(0, TG_MIN_CHARACTER_PHOTOS - n);
+  const need = Math.max(0, TG_MIN_LORA_PHOTOS - n);
 
   if (need > 0) {
     await tgSendMessage(
       chatId,
       tFormat("onboard_photo_progress", locale, {
         n,
-        min: TG_MIN_CHARACTER_PHOTOS,
+        min: TG_MIN_LORA_PHOTOS,
         hint: tFormat("onboard_photo_need_more", locale, { n: need }),
       }),
       {
@@ -149,13 +188,17 @@ export async function onOnboardPhotoReceived(
     return;
   }
 
-  await setTgSession(platformUserId, { chatState: "idle" });
-  await tgSendMessage(
+  const started = await tryStartLoraTraining({
     chatId,
-    t("onboard_character_saved", locale),
-    { reply_markup: onboardKindInlineKeyboard(locale) },
-  );
-  await tgSendMessage(chatId, "👇", mainMenuExtra(locale));
+    platformUserId,
+    userId,
+    locale,
+    characterId,
+  });
+
+  if (started) {
+    await setTgSession(platformUserId, { chatState: "idle", clearPending: true });
+  }
 }
 
 export async function onOnboardKindPicked(
@@ -189,7 +232,7 @@ export async function confirmRulesAndWelcome(
     where: { id: userId },
     data: { ageConfirmed: true, locale },
   });
-  await sendWelcomeAfterRules(chatId, platformUserId, locale);
+  await sendWelcomeAfterRules(chatId, platformUserId, locale, userId);
 }
 
 export async function sendGenerationKindPicker(chatId: number, locale: TgLocale) {
@@ -205,3 +248,5 @@ export async function renameOnboardingCharacter(
 ) {
   await renameTgCharacter(userId, characterId, name);
 }
+
+export { TG_MAX_LORA_PHOTOS };

@@ -4,6 +4,10 @@ import type { TgLocale } from "@/lib/tg/i18n";
 import { t, tFormat } from "@/lib/tg/i18n";
 import { resolveTemplatePricePeaches } from "@/lib/tg/generation-service";
 import { tgSendMessage } from "@/lib/tg/telegram-api";
+import { isStudioCastCharacter } from "@/lib/tg/studio-cast";
+import {
+  canUseStudioDailyFree,
+} from "@/lib/tg/tg-promo";
 
 export const GEN_CB = {
   kindPhoto: "g:k:p",
@@ -22,6 +26,7 @@ export const OB_CB = {
   backName: "ob:bn",
   kindPhoto: "ob:kp",
   kindVideo: "ob:kv",
+  pickStudio: (id: string) => `ob:sc:${id}`,
 } as const;
 
 export const TOPUP_CB = {
@@ -171,7 +176,15 @@ export async function templatePriceLabel(opts: {
   kind: "photo" | "video";
   templateId: string;
   locale: TgLocale;
-}): Promise<{ price: number; label: string; discountApplied: boolean; freePhoto: boolean }> {
+  character?: { isStudioCast?: boolean; loraStatus?: string; userId?: string } | null;
+}): Promise<{
+  price: number;
+  label: string;
+  discountApplied: boolean;
+  freePhoto: boolean;
+  studioDaily?: boolean;
+  loraWelcome?: boolean;
+}> {
   const { prisma } = await import("@/lib/db");
   const user = await prisma.user.findUnique({ where: { id: opts.userId } });
   const price = await resolveTemplatePricePeaches({
@@ -180,13 +193,33 @@ export async function templatePriceLabel(opts: {
     userId: opts.userId,
   });
 
-  if (opts.kind === "photo" && user && !user.tgFreePhotoUsed) {
-    return {
-      price: 0,
-      label: t("gen_confirm_free", opts.locale),
-      discountApplied: false,
-      freePhoto: true,
-    };
+  if (opts.kind === "photo" && opts.character) {
+    if (isStudioCastCharacter(opts.character)) {
+      if (await canUseStudioDailyFree(opts.userId)) {
+        return {
+          price: 0,
+          label: t("studio_free_daily", opts.locale),
+          discountApplied: false,
+          freePhoto: true,
+          studioDaily: true,
+        };
+      }
+    } else if (opts.character.loraStatus === "lora_ready") {
+      const left = user?.tgLoraWelcomePhotosLeft ?? 0;
+      if (left > 0) {
+        const leftNote =
+          left > 1
+            ? `\n${tFormat("lora_welcome_photos_left", opts.locale, { n: left })}`
+            : "";
+        return {
+          price: 0,
+          label: t("gen_confirm_free", opts.locale) + leftNote,
+          discountApplied: false,
+          freePhoto: true,
+          loraWelcome: true,
+        };
+      }
+    }
   }
 
   if (opts.kind === "video" && user && !user.tgFirstVideoDiscountUsed && price > 0) {

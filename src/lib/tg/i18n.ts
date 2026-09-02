@@ -62,37 +62,62 @@ Please accept our <a href="{rulesUrl}">Terms of Service</a> and confirm you are 
   },
 
   welcome_after_rules: {
-    ru: `<b>Добро пожаловать в PeachBitch</b> - место, после которого ты забудешь адреса всех сайтов 🔞🍓⬛️🟧 и будешь создавать творения из одной фотографии!
+    ru: `<b>Добро пожаловать в PeachBitch</b> — место, после которого ты забудешь адреса всех сайтов 🔞🍓⬛️🟧 и станешь режиссёром своих удовольствий!
 
 Что можно в этом боте?
 
-<i>1. Создать реалистичную фотографию с твоим персонажем</i>
-<i>2. Оживить созданные фотографии</i>
-<i>3. Сделать видео с нуля с сюжетами, позами, диалогами</i>
+1. <b>Бесплатно</b> сгенерировать фото на актрисах студии — проверить качество
+2. Создать <b>реалистичные фото</b> со своей моделью (после обучения)
+3. <b>Оживить</b> фото или снять <b>видео</b> с сюжетами, позами и диалогами
 
-Тебе достаточно один раз загрузить фотографию своего персонажа, выбрать шаблон в нашем персиковом маркетплейсе и готово!
+📸 <b>Нужны фото?</b> Зайди в маркетплейс персонажей → выбери актрису студии → шаблон → кадр за ~30 секунд. Когда убедишься в качестве — создай <b>свою</b> модель в «Персонажи» (от 5 фото, обучение ~2 часа).
 
-Кстати, тебе доступна 1 пробная генерация фото с твоим персонажем и -20% скидка на генерацию первого видео.
+🎬 <b>Нужно видео?</b> «Генерация» → «Видео» → шаблон → от 1 фото модели → готово через несколько минут. <i>Обучать персонажа для видео не нужно.</i>`,
+    en: `<b>Welcome to PeachBitch</b> — forget every other site 🔞🍓 and become the director of your fantasies!
 
-<b>Для начала, добавь своего персонажа девушку, чтобы она всегда была у тебя под рукой 👇</b>`,
-    en: `<b>Welcome to PeachBitch</b> — the place that makes you forget every other site 🔞🍓⬛️🟧 and create masterpieces from a single photo!
+What you can do:
 
-What can you do here?
+1. <b>Free</b> photos with studio actresses — see the quality
+2. <b>Realistic photos</b> with your own model (after training)
+3. <b>Animate</b> photos or shoot <b>videos</b> with plots, poses & dialogue
 
-<i>1. Create realistic photos with your character</i>
-<i>2. Animate your photos</i>
-<i>3. Make videos from scratch with plots, poses & dialogue</i>
+📸 <b>Photos?</b> Open the cast marketplace → pick a studio actress → template → ~30 sec. When you're sold — create <b>your</b> model in «Characters» (5+ photos, ~2h training).
 
-Upload your character once, pick a template in our peach marketplace — done!
+🎬 <b>Video?</b> «Generation» → «Video» → template → from 1 photo → ready in minutes. <i>No character training required for video.</i>`,
+  },
 
-You get 1 free trial photo and −20% off your first video.
+  welcome_free_push: {
+    ru: `<b>Просто попробуй бесплатно!</b> Фото с актрисами студии 👇
 
-<b>First, add your girl character so she's always at hand 👇</b>`,
+1. Перейди в маркетплейс моделей
+2. Выбери понравившуюся актрису
+3. Выбери позу или действие из шаблона
+4. Получи готовое фото за ~30 секунд
+
+Так ты поймёшь уровень качества PeachBitch — и потом сможешь настроить <b>своего</b> персонажа без ограничений и цензуры.`,
+    en: `<b>Try it free!</b> Photos with studio actresses 👇
+
+1. Open the models marketplace
+2. Pick an actress you like
+3. Choose a pose or scene template
+4. Get your photo in ~30 seconds
+
+See PeachBitch quality first — then set up <b>your own</b> character with no limits.`,
+  },
+
+  onboard_pick_studio_btn: {
+    ru: "🎭 Выбрать актрису студии",
+    en: "🎭 Pick studio actress",
+  },
+
+  onboard_create_char_btn: {
+    ru: "👤 Создать своего персонажа",
+    en: "👤 Create your character",
   },
 
   onboard_upload_char_btn: {
-    ru: "👤 Загрузить первого персонажа",
-    en: "👤 Upload first character",
+    ru: "👤 Создать своего персонажа",
+    en: "👤 Create your character",
   },
 
   onboard_name_prompt: {
@@ -101,18 +126,121 @@ You get 1 free trial photo and −20% off your first video.
   },
 
   onboard_photo_prompt: {
-    ru: `<b>Отлично! Отправь фотографии своего персонажа (минимум 3).</b>
+    ru: `В отличие от других ботов и сервисов, мы создаём фотографии максимально близкие к реальным. Для этого нужно обучить систему внешности твоего персонажа — это занимает от 1 до 2 часов. От тебя нужно <b>от 5 фотографий</b> модели (если больше — ещё лучше).
+
+<i>Важно! Для видео обучать персонажа не нужно — достаточно от 1 фото, и через несколько минут готовое видео.</i>`,
+    en: `Unlike other bots, we aim for photos that look truly real. That requires training your character's look — about 1–2 hours. Send <b>at least 5 photos</b> (more is better).
+
+<i>Important: video doesn't need training — from 1 photo, ready in minutes.</i>`,
+  },
+
+  onboard_lora_price: {
+    ru: `Стоимость обучения персонажа для 18+ фото: <b>{price}🍑</b>
+(обучается один раз — потом генерировать можно всегда)
+
+<b>Акция!</b> Оплати и запусти обучение в течение 30 минут — получи <b>5 генераций фото</b> в подарок.
+
+На балансе должно быть от {price}🍑. У тебя сейчас: <b>{balance}🍑</b>.`,
+    en: `Character training for 18+ photos: <b>{price}🍑</b>
+(one-time — then generate forever)
+
+<b>Promo!</b> Pay and start training within 30 minutes — get <b>5 free photo</b> generations.
+
+You need {price}🍑 on balance. Yours: <b>{balance}🍑</b>.`,
+  },
+
+  onboard_lora_upload: {
+    ru: `<b>Отправь от 5 до 20 фотографий</b> своего персонажа, чтобы начать обучение.
 
 Рекомендации:
-+ Фотография в хорошем качестве
-+ Отчётливо видно лицо, взгляд в камеру, прямой ракурс
-+ Нет посторонних предметов, загораживающих лицо`,
-    en: `<b>Great! Send photos of your character (minimum 3).</b>
++ Фотографии в хорошем качестве
++ Есть фото, где видно лицо, взгляд в камеру, прямой ракурс
++ Внешность на фото сильно не меняется
++ Желательно фотографии в полный рост`,
+    en: `<b>Send 5 to 20 photos</b> of your character to start training.
 
 Tips:
-+ Good quality photos
-+ Face clearly visible, looking at camera, straight angle
-+ No objects blocking the face`,
++ Good quality
++ Face visible, looking at camera
++ Consistent appearance across photos
++ Full-body shots help`,
+  },
+
+  onboard_lora_started: {
+    ru: `<b>✅ Обучение началось.</b>
+С баланса списано {price}🍑
+
+В течение ~2 часов PeachBitch научится делать реалистичные фото с твоей моделью. Мы пришлём уведомление, когда всё будет готово.
+
+А пока можешь снять <b>видео</b> — обучение для этого не нужно.`,
+    en: `<b>✅ Training started.</b>
+{price}🍑 charged.
+
+In ~2 hours you'll get realistic photos with your model. We'll notify you when it's done.
+
+Meanwhile you can generate <b>video</b> — no training required.`,
+  },
+
+  onboard_lora_ready: {
+    ru: `<b>🔥 Обучение завершилось!</b> Теперь ты можешь создавать реалистичные фото со своей моделью и оживлять их!
+
+Модель «{name}» выбрана автоматически. «Генерация» → «Фото» → шаблон — или маркетплейс шаблонов.`,
+    en: `<b>🔥 Training complete!</b> Create realistic photos with your model and animate them!
+
+Model «{name}» is selected. «Generation» → «Photo» → template — or the template marketplace.`,
+  },
+
+  onboard_lora_welcome_bonus: {
+    ru: "\n\nКстати, тебе доступно <b>5 бесплатных</b> генераций фото с новой моделью 🎁",
+    en: "\n\nYou also have <b>5 free</b> photo generations with your new model 🎁",
+  },
+
+  lora_welcome_photos_left: {
+    ru: "Осталось подарочных генераций: <b>{n}</b>",
+    en: "Welcome photo generations left: <b>{n}</b>",
+  },
+
+  studio_cast_picked: {
+    ru: "Актриса студии <b>{name}</b> выбрана ✅\n\nОткрой маркетплейс шаблонов или «Генерация» → «Фото», чтобы снять кадр.",
+    en: "Studio actress <b>{name}</b> selected ✅\n\nOpen the template marketplace or «Generation» → «Photo».",
+  },
+
+  studio_free_daily: {
+    ru: "0 🍑 (ежедневный кадр · актриса студии)",
+    en: "0 🍑 (daily studio shot)",
+  },
+
+  studio_free_not_ready: {
+    ru: `Бесплатный кадр на актрисе студии обновляется раз в сутки.
+
+Загляни в 🍑 <b>Маркетплейс</b>, чтобы активировать следующий — или пополни баланс для платной генерации.`,
+    en: `Your free studio shot refreshes once a day.
+
+Open 🍑 <b>Marketplace</b> to unlock the next one — or top up for a paid generation.`,
+  },
+
+  photo_need_lora: {
+    ru: `Для фото со <b>своей</b> моделью нужно завершить обучение LoRA.
+
+Пока можешь: бесплатный кадр на актрисе студии или видео без обучения.`,
+    en: `Photos with <b>your</b> model require LoRA training.
+
+Try a free studio shot or video without training.`,
+  },
+
+  video_need_photo: {
+    ru: "Для видео нужно хотя бы <b>1 фото</b> модели. Добавь в «Персонажи» или отправь фото в чат после выбора шаблона.",
+    en: "Video needs at least <b>1 photo</b> of your model. Add in «Characters» or send a photo after picking a template.",
+  },
+
+  gen_video_now_btn: {
+    ru: "🎬 Сгенерировать видео сейчас",
+    en: "🎬 Generate video now",
+  },
+
+  gen_lora_photo_btn: {
+    ru: "📸 Сгенерировать фото",
+    en: "📸 Generate photo",
   },
 
   onboard_back_name_btn: {
@@ -147,8 +275,8 @@ Find her in "Characters" in the bottom menu — edit body settings, add more cha
   gen_kind_video_btn: { ru: "Видео 🍓", en: "Video 🍓" },
 
   gen_pick_template: {
-    ru: `Теперь выбери первую позу и сюжет, который хочешь увидеть на {kind}. Ты можешь кликнуть, посмотреть пример и принять решение. А ещё можешь перейти в раздел "Маркетплейс", чтобы наглядно пролистать ленту шаблонов и выбрать тот, что тебе понравится.`,
-    en: `Pick the first pose and scene you want to see on {kind}. Tap to preview and decide. Or open the Marketplace to scroll the template feed and pick what you like.`,
+    ru: `Теперь выбери первую позу и сюжет, который хочешь увидеть на {kind}. Можешь кликнуть, посмотреть пример и принять решение. Или перейди в «Маркетплейс», чтобы пролистать ленту шаблонов.`,
+    en: `Pick the first pose and scene for {kind}. Tap to preview. Or open «Marketplace» to scroll templates.`,
   },
 
   gen_kind_photo_label: { ru: "фотографии", en: "your photo" },
@@ -172,13 +300,13 @@ Start {kind} generation with model «{name}»?`,
   },
 
   gen_confirm_free: {
-    ru: "0 🍑 (первое фото бесплатно)",
-    en: "0 🍑 (first photo free)",
+    ru: "0 🍑 (бесплатно)",
+    en: "0 🍑 (free)",
   },
 
   gen_confirm_discount: {
-    ru: "{price} 🍑 (применена скидка −20%)",
-    en: "{price} 🍑 (−20% discount applied)",
+    ru: "{price} 🍑 (применена скидка −30%)",
+    en: "{price} 🍑 (−30% discount applied)",
   },
 
   gen_confirm_price: {
@@ -362,8 +490,8 @@ Change language with the button below 👇`,
   },
 
   discount_note: {
-    ru: " (со скидкой −20%)",
-    en: " (−20% discount)",
+    ru: " (со скидкой −30%)",
+    en: " (−30% discount)",
   },
 
   free_photo_note: {

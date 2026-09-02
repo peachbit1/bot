@@ -26,7 +26,7 @@ export const TG_TOP_UP_PACKS = [
 ] as const;
 
 export const TG_PREMIUM = {
-  loraTrainPeaches: 990,
+  loraTrainPeaches: 1000,
 } as const;
 
 export const TG_AFFILIATE = {
@@ -36,8 +36,10 @@ export const TG_AFFILIATE = {
 
 /** Promos (approved 2026-09-01). */
 export const TG_PROMO = {
-  freePhotoCount: 1,
-  firstVideoDiscountPct: 20,
+  loraWelcomePhotos: 5,
+  loraBonusWindowMin: 30,
+  studioDailyFreePhotos: 1,
+  firstVideoDiscountPct: 30,
 } as const;
 
 export type TgVideoTier = keyof typeof TG_VIDEO_PEACHES;
@@ -51,7 +53,7 @@ export function tgPhotoPeaches(tier: TgPhotoTier): number {
   return TG_PHOTO_PEACHES[tier];
 }
 
-/** First paid video: −20% once per account. */
+/** First paid video: −30% once per account. */
 export function applyFirstVideoDiscount(
   peaches: number,
   alreadyUsed: boolean,

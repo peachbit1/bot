@@ -56,8 +56,8 @@ export async function POST(req: Request) {
     ageConfirmed: user.ageConfirmed,
     name: user.name,
     promos: {
-      freePhotoAvailable:
-        !user.tgFreePhotoUsed && TG_PROMO.freePhotoCount > 0,
+      studioDailyFreeReady: user.tgStudioFreeReady,
+      loraWelcomePhotosLeft: user.tgLoraWelcomePhotosLeft,
       firstVideoDiscountAvailable: !user.tgFirstVideoDiscountUsed,
       firstVideoDiscountPct: TG_PROMO.firstVideoDiscountPct,
     },

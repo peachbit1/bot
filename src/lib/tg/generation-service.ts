@@ -11,13 +11,13 @@ import {
   startQuickVideoRun,
   type ManualPictureSlotInput,
 } from "@/lib/quick-video";
+import { enqueuePhotoJob } from "@/lib/gallery-jobs";
 import { localBytesFromResultUrl } from "@/lib/peach-lab";
 import { useComfy } from "@/lib/metalnode-config";
 import { GALLERY_PLACEHOLDER_URL } from "@/lib/gallery-meta";
 import { saveGalleryBinary } from "@/lib/local-store";
 import {
   TG_PHOTO_PEACHES,
-  TG_PROMO,
   TG_VIDEO_PEACHES,
   applyFirstVideoDiscount,
 } from "@/lib/tg-pricing";
@@ -25,8 +25,13 @@ import { getPhotoTemplate } from "@/lib/photo-template";
 import { debitPeaches } from "@/lib/tg/wallet";
 import { enqueueTgOutbox } from "@/lib/tg/session";
 import {
-  characterReady,
+  characterReadyForVideo,
 } from "@/lib/tg/character-service";
+import { isStudioCastCharacter } from "@/lib/tg/studio-cast";
+import {
+  consumeLoraWelcomePhoto,
+  consumeStudioDailyFree,
+} from "@/lib/tg/tg-promo";
 
 function injectSpeech(plan: QuickVideoShotsPlan, line: string): QuickVideoShotsPlan {
   const text = line.trim().slice(0, 500);
@@ -89,8 +94,8 @@ export async function startTgVideoGeneration(opts: {
   });
   if (!owned) throw new Error("Сначала купите шаблон");
 
-  if (!characterReady(opts.characterId)) {
-    throw new Error("Нужно минимум 3 фото модели");
+  if (!characterReadyForVideo(opts.characterId)) {
+    throw new Error("Нужно минимум 1 фото модели");
   }
 
   let price = await resolveTemplatePricePeaches({
@@ -190,11 +195,21 @@ export async function startTgPhotoGeneration(opts: {
   platformUserId: string;
   templateId: string;
   characterId: string;
+  studioDaily?: boolean;
+  loraWelcome?: boolean;
 }): Promise<TgGenerateResult> {
   const row = await getPhotoTemplate(opts.templateId);
   if (!row) throw new Error("Шаблон не найден");
-  if (!characterReady(opts.characterId)) {
-    throw new Error("Нужно минимум 3 фото модели");
+
+  const character = await prisma.character.findFirst({
+    where: { id: opts.characterId },
+  });
+  if (!character) throw new Error("Персонаж не найден");
+
+  if (isStudioCastCharacter(character)) {
+    // studio cast — no lora required
+  } else if (character.loraStatus !== "lora_ready") {
+    throw new Error("Для фото со своей моделью нужно завершить обучение");
   }
 
   const user = await prisma.user.findUnique({ where: { id: opts.userId } });
@@ -205,13 +220,15 @@ export async function startTgPhotoGeneration(opts: {
     TG_PHOTO_PEACHES[row.tier === "pose" ? "pose" : "basic"];
   let freePhoto = false;
 
-  if (!user.tgFreePhotoUsed && TG_PROMO.freePhotoCount > 0) {
+  if (opts.studioDaily) {
     price = 0;
     freePhoto = true;
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { tgFreePhotoUsed: true },
-    });
+    await consumeStudioDailyFree(opts.userId);
+  } else if (opts.loraWelcome) {
+    const w = await consumeLoraWelcomePhoto(opts.userId);
+    if (!w.used) throw new Error("Подарочные генерации закончились");
+    price = 0;
+    freePhoto = true;
   } else if (price > 0) {
     const paid = await debitPeaches(opts.userId, price, "tg_photo", {
       templateId: opts.templateId,
@@ -221,23 +238,18 @@ export async function startTgPhotoGeneration(opts: {
     }
   }
 
-  const item = await prisma.galleryItem.create({
-    data: {
-      userId: opts.userId,
-      characterId: opts.characterId,
-      kind: "photo",
-      title: row.title,
-      prompt: row.editPrompt,
-      resultUrl: GALLERY_PLACEHOLDER_URL,
-      metaJson: JSON.stringify({
-        status: useComfy() ? "pending" : "ready",
-        tgPhotoTemplateId: opts.templateId,
-        mock: !useComfy(),
-      }),
-    },
-  });
-
   if (!useComfy()) {
+    const mockItem = await prisma.galleryItem.create({
+      data: {
+        userId: opts.userId,
+        characterId: opts.characterId,
+        kind: "photo",
+        title: row.title,
+        prompt: row.editPrompt,
+        resultUrl: GALLERY_PLACEHOLDER_URL,
+        metaJson: JSON.stringify({ status: "pending", mock: true }),
+      },
+    });
     const saved = saveGalleryBinary(
       opts.userId,
       "png",
@@ -245,10 +257,10 @@ export async function startTgPhotoGeneration(opts: {
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z/C/HwAHggJ/PdIqQQAAAABJRU5ErkJggg==",
         "base64",
       ),
-      `tg_photo_${item.id}`,
+      `tg_photo_${mockItem.id}`,
     );
     await prisma.galleryItem.update({
-      where: { id: item.id },
+      where: { id: mockItem.id },
       data: {
         resultUrl: saved.publicUrl,
         metaJson: JSON.stringify({ status: "ready", mock: true }),
@@ -265,7 +277,24 @@ export async function startTgPhotoGeneration(opts: {
         locale: user.locale?.startsWith("en") ? "en" : "ru",
       },
     });
+    return {
+      galleryItemId: mockItem.id,
+      chargedPeaches: price,
+      freePhoto,
+    };
   }
+
+  const item = await enqueuePhotoJob(opts.userId, {
+    userId: opts.userId,
+    tgPhotoTemplateId: opts.templateId,
+    characterIds: [opts.characterId],
+    characterId: opts.characterId,
+    composedPrompt: row.editPrompt,
+    useIdentityDualRef: true,
+    title: row.title,
+    width: 888,
+    height: 1176,
+  });
 
   return {
     galleryItemId: item.id,

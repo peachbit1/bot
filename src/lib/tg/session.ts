@@ -29,6 +29,8 @@ export type TgPending = {
   lookbookFieldId?: string;
   discountApplied?: boolean;
   freePhoto?: boolean;
+  studioDaily?: boolean;
+  loraWelcome?: boolean;
 };
 
 export async function getTgSession(platformUserId: string) {

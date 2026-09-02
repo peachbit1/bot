@@ -104,6 +104,7 @@ export default function TgTemplatesPage() {
     }
     const data = (await res.json()) as { locale?: string };
     if (data.locale === "en" || data.locale === "ru") setLocale(data.locale);
+    await fetch("/api/tg/miniapp-heartbeat", { method: "POST" });
     return true;
   }, [locale, u.authErr]);
 
