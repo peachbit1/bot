@@ -3,6 +3,7 @@
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { TgShell, useTgMiniApp } from "@/lib/tg/miniapp/client";
+import { TgGenerationProgress } from "@/lib/tg/miniapp/generation-view";
 
 type PhotoTpl = {
   id: string;
@@ -41,13 +42,13 @@ function StudioPhotoPageInner() {
   const castId = params.get("castId") || "";
   const castName = params.get("name") || "";
 
-  const { status, error, profile, locale, apiFetch } = useTgMiniApp();
+  const { status, error, profile, locale, apiFetch, refresh } = useTgMiniApp();
   const u = UI[locale];
 
   const [templates, setTemplates] = useState<PhotoTpl[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
-  const [done, setDone] = useState("");
+  const [generatingId, setGeneratingId] = useState<string | null>(null);
   const [err, setErr] = useState("");
 
   const load = useCallback(async () => {
@@ -82,27 +83,26 @@ function StudioPhotoPageInner() {
       setErr(j.error || u.err);
       return;
     }
-    const j = (await res.json()) as { message?: string };
-    setDone(j.message || u.done);
+    const j = (await res.json()) as { galleryItemId?: string };
+    if (j.galleryItemId) {
+      setGeneratingId(j.galleryItemId);
+      void refresh();
+    }
   };
 
   if (status === "loading") return <p className="tg-loading">…</p>;
   if (status === "error") return <p className="tg-error">{error}</p>;
 
-  if (done) {
+  if (generatingId) {
     return (
       <TgShell locale={locale} title={u.title} balance={profile?.balancePeaches}>
-        <div className="tg-section" style={{ padding: "1rem" }}>
-          <p>{done}</p>
-          <button
-            type="button"
-            className="tg-primary-btn"
-            style={{ marginTop: "1rem", width: "100%" }}
-            onClick={() => window.Telegram?.WebApp?.close()}
-          >
-            {u.close}
-          </button>
-        </div>
+        <TgGenerationProgress
+          galleryItemId={generatingId}
+          locale={locale}
+          apiFetch={apiFetch}
+          onBalanceRefresh={refresh}
+          onGoGallery={() => router.push("/tg/gallery")}
+        />
       </TgShell>
     );
   }

@@ -10,7 +10,7 @@ export async function GET() {
     : [];
 
   return NextResponse.json({
-    build: "64ff084-catalog",
+    build: "tg-gallery-promo-v1",
     catalogFiles,
     features: {
       studioPhoto: fs.existsSync(

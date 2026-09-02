@@ -75,7 +75,7 @@ export async function POST(req: Request) {
     pricing.studioDaily || (await canUseStudioDailyFree(userId));
 
   try {
-    await startTgPhotoGeneration({
+    const result = await startTgPhotoGeneration({
       userId,
       platformUserId,
       templateId: body.templateId,
@@ -85,6 +85,7 @@ export async function POST(req: Request) {
     });
     return NextResponse.json({
       ok: true,
+      galleryItemId: result.galleryItemId,
       message: locale === "en" ? "Generation started" : "Генерация запущена",
       price: pricing.price,
     });

@@ -93,6 +93,7 @@ import {
 } from "@/lib/tg/user";
 import { isTgDevResetMessage, resetTgOnboarding } from "@/lib/tg/dev-reset";
 import { maybeSendWelcomePush } from "@/lib/tg/tg-promo";
+import { isTestPromoMessage, redeemTestPromo } from "@/lib/tg/test-promo";
 import { goToMainMenu, routeMenuText } from "@/lib/tg/menu-routing";
 import { tgMiniAppUrl } from "@/lib/tg/miniapp-url";
 import { isStudioCastCharacter, getStudioCast, characterUsesLoraPhoto } from "@/lib/tg/studio-cast";
@@ -870,6 +871,22 @@ export async function handleTgMessage(msg: TgUpdateMessage) {
     return;
   }
 
+  if (text && isTestPromoMessage(text)) {
+    const result = await redeemTestPromo(user.id, locale);
+    if (result.ok) {
+      await tgSendMessage(
+        chatId,
+        locale === "en"
+          ? `🍑 <b>+500 peaches</b> added!\nBalance: <b>${result.balance}</b> 🍑`
+          : `🍑 <b>+500 персиков</b> начислено!\nБаланс: <b>${result.balance}</b> 🍑`,
+        mainMenuExtra(locale),
+      );
+    } else {
+      await tgSendMessage(chatId, result.message, mainMenuExtra(locale));
+    }
+    return;
+  }
+
   if (text.startsWith("/start")) {
     const payload = text.split(/\s+/)[1];
     await handleStart(chatId, from, payload);
@@ -937,7 +954,7 @@ export async function handleTgMessage(msg: TgUpdateMessage) {
   }
 
   if (chatState === "awaiting_video_ref_name" && text && pending.renameCharacterId) {
-    await renameTgCharacter(userId, pending.renameCharacterId, text);
+    await renameTgCharacter(user.id, pending.renameCharacterId, text);
     await setTgSession(platformUserId, { chatState: "idle", clearPending: true });
     await tgSendMessage(
       chatId,

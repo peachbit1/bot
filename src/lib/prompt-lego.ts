@@ -116,6 +116,40 @@ export async function compileLegoToKreaPrompt(opts: {
   return { prompt, meta };
 }
 
+/** Scene / pose / light only — no identity lock (face comes from Krea person ref). */
+export function stripLegoCharacterNames(
+  query: string,
+  names: string[],
+): string {
+  let q = query;
+  for (const name of names) {
+    const trimmed = name.trim();
+    if (!trimmed) continue;
+    const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    q = q.replace(new RegExp(`\\[${escaped}\\]`, "gi"), "");
+  }
+  return q.replace(/\s{2,}/g, " ").trim();
+}
+
+export async function compileLegoSceneOnlyPrompt(opts: {
+  query: string;
+  characters: LegoCharacterRef[];
+}): Promise<{ prompt: string; meta: CompiledLegoKrea }> {
+  const catalog = listLegoCatalog(opts.characters);
+  const stripped = stripLegoCharacterNames(
+    opts.query,
+    opts.characters.map((c) => c.name),
+  );
+  const tokens = parseLegoQuery(stripped, catalog);
+  const sceneTokens = tokens.filter((t) => t.kind !== "character");
+  const meta = analyzeLegoTokens(sceneTokens, opts.characters, catalog);
+  const prompt =
+    meta.scene?.trim() ||
+    stripped.replace(/\[[^\]]+\]/g, " ").replace(/\s+/g, " ").trim() ||
+    "photorealistic adult scene";
+  return { prompt, meta };
+}
+
 export {
   LEGO_PLUS_MENU,
   LEGO_VIDEO_PLUS_MENU,

@@ -9,6 +9,11 @@ const REQUIRED_DELEGATES = [
   "motionRun",
   "socialTemplate",
   "socialRef2VRun",
+  "quickVideoRun",
+  "quickVideoTemplate",
+  "quickVideoTemplatePurchase",
+  "peachPhotoTemplate",
+  "peachPhotoTemplatePurchase",
 ] as const;
 
 function hasDelegates(client: PrismaClient | undefined): boolean {

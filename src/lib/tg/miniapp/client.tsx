@@ -32,6 +32,7 @@ const UI = {
     loading: "Загрузка…",
     feed: "Лента",
     chars: "Персонажи",
+    gallery: "Галерея",
     balance: "Баланс",
   },
   en: {
@@ -40,6 +41,7 @@ const UI = {
     loading: "Loading…",
     feed: "Feed",
     chars: "Cast",
+    gallery: "Gallery",
     balance: "Balance",
   },
 } as const;
@@ -107,8 +109,8 @@ export function useTgMiniApp() {
     void (async () => {
       window.Telegram?.WebApp?.ready();
       window.Telegram?.WebApp?.expand();
-      window.Telegram?.WebApp?.setHeaderColor?.("#0a0a0f");
-      window.Telegram?.WebApp?.setBackgroundColor?.("#0a0a0f");
+      window.Telegram?.WebApp?.setHeaderColor?.("#070708");
+      window.Telegram?.WebApp?.setBackgroundColor?.("#070708");
 
       const initData = await waitInitData();
       initDataRef.current = initData;
@@ -160,12 +162,17 @@ export function TgTabBar({ locale }: { locale: "ru" | "en" }) {
   const u = UI[locale];
   const feedActive = path === "/tg" || path === "/tg/templates";
   const charsActive = path === "/tg/characters" || path === "/tg/casts";
+  const galleryActive = path === "/tg/gallery";
 
   return (
     <nav className="tg-tabbar">
       <Link href="/tg" className={feedActive ? "active" : ""}>
         <span>🎬</span>
         {u.feed}
+      </Link>
+      <Link href="/tg/gallery" className={galleryActive ? "active" : ""}>
+        <span>🖼</span>
+        {u.gallery}
       </Link>
       <Link href="/tg/characters" className={charsActive ? "active" : ""}>
         <span>👤</span>

@@ -231,6 +231,16 @@ async function runPhotoJob(itemId: string, userId: string, opts: PhotoPayload) {
         sourceUrl: out.sourceUrl,
         meta: { ...out.meta, localKey: saved.relKey, engine: out.engine },
       });
+      if (photoOpts.tgPhotoTemplateId) {
+        const user = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { source: true },
+        });
+        if (user?.source === "telegram") {
+          const { notifyTgPhotoReady } = await import("@/lib/tg/generation-service");
+          await notifyTgPhotoReady(userId, saved.publicUrl, out.title || "Photo");
+        }
+      }
       if (opts.templateRunFrameId) {
         await prisma.templateRunFrame.updateMany({
           where: { id: opts.templateRunFrameId },

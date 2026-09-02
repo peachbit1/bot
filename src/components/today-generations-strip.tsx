@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { RestoreToEditorButton } from "@/components/restore-to-editor-button";
 import { ImageGeneration } from "@/components/image-generation";
+import { PhotoSaveTemplateModal } from "@/components/photo-save-template-modal";
 
 export type TodayItem = {
   id: string;
@@ -17,6 +18,41 @@ export type TodayItem = {
   height?: number | null;
   meta?: Record<string, unknown>;
 };
+
+export function SavePhotoTemplateButton({
+  item,
+  compact,
+}: {
+  item: TodayItem;
+  compact?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+
+  if (item.status !== "ready" || item.kind !== "photo") return null;
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className={
+          compact
+            ? "rounded-full border border-white/20 bg-black/40 px-2 py-1 text-[10px] text-white"
+            : "rounded-lg border border-white/15 px-2 py-1 text-xs hover:border-peach/40"
+        }
+        title="Сохранить рецепт сцены как шаблон"
+      >
+        Шаблон
+      </button>
+      <PhotoSaveTemplateModal
+        open={open}
+        sourceGalleryId={item.id}
+        defaultTitle={item.title || "Photo template"}
+        onClose={() => setOpen(false)}
+      />
+    </>
+  );
+}
 
 function isTodayLocal(iso: string): boolean {
   const d = new Date(iso);
@@ -141,6 +177,9 @@ export function TodayGenerationsStrip({
             )}
             <div className="absolute inset-x-0 bottom-0 flex gap-1 bg-gradient-to-t from-black/80 to-transparent p-2 opacity-0 transition group-hover:opacity-100">
               <RestoreToEditorButton item={item} editor={editor} compact />
+              {kind === "photo" ? (
+                <SavePhotoTemplateButton item={item} compact />
+              ) : null}
             </div>
           </div>
         ))}

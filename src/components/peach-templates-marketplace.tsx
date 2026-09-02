@@ -14,6 +14,63 @@ export type PeachTemplateItem = {
   isJuice?: boolean;
 };
 
+export type PeachPhotoTemplateItem = {
+  id: string;
+  title: string;
+  notes: string;
+  previewImageUrl: string;
+  orientation: string;
+  isJuice?: boolean;
+  priceCredits?: number;
+  owned?: boolean;
+  category?: "peach" | "bitch";
+};
+
+export function PeachPhotoTemplatesMarketplace({
+  templates,
+  category,
+}: {
+  templates: PeachPhotoTemplateItem[];
+  category: "peach" | "bitch";
+}) {
+  if (!templates.length) {
+    return (
+      <div className="rounded-2xl border border-dashed border-white/12 p-10 text-center text-sm text-zinc-500">
+        {category === "bitch"
+          ? "Пока нет Bitch-шаблонов фото."
+          : "Пока нет Peach-шаблонов фото. Сохрани готовое фото как шаблон."}
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {templates.map((t) => {
+        const priceLabel =
+          t.isJuice && t.priceCredits
+            ? t.owned
+              ? "Куплено"
+              : `${t.priceCredits} кр.`
+            : "Бесплатно";
+        return (
+          <MarketplaceCard
+            key={t.id}
+            title={t.title}
+            description={
+              t.notes
+                ? `${t.notes} · ${priceLabel}`
+                : priceLabel
+            }
+            previewImage={t.previewImageUrl || undefined}
+            badge={t.isJuice ? "juice" : category}
+            href={`/peach/photo?photoTemplate=${t.id}`}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
 export type QuickVideoTemplateItem = PeachTemplateItem & {
   priceCredits?: number;
   owned?: boolean;

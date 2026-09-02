@@ -15,7 +15,7 @@ import {
   comfyI2VTimeoutMs,
   comfyStitchTimeoutMs,
 } from "@/lib/comfy-client";
-import { buildKreaEditGraph, buildKreaT2IGraph } from "@/lib/krea-graphs";
+import { buildKreaDualRefEditGraph, buildKreaEditGraph, buildKreaT2IGraph } from "@/lib/krea-graphs";
 import { resolveSkinDetail } from "@/lib/krea-skin-lora";
 import {
   buildAceStepGraph,
@@ -282,6 +282,14 @@ export async function generatePhotoBytes(opts: {
   never?: string;
   /** LEGO tab query — deterministic compile, skips LLM */
   legoQuery?: string;
+  /** Krea dual-ref: person identity photo */
+  dualRefPersonBuffer?: Buffer;
+  /** Template preview locks pose; else T2I plate from scene-only prompt */
+  dualRefSceneBuffer?: Buffer;
+  useIdentityDualRef?: boolean;
+  photoTemplateId?: string;
+  /** TG PhotoTemplate — scene preview + face ref, scene-grounded dual-ref */
+  tgPhotoTemplateId?: string;
 }) {
   const width = opts.width ?? 888;
   const height = opts.height ?? 1176;
@@ -301,8 +309,21 @@ export async function generatePhotoBytes(opts: {
   }> = [];
   let conceptMatched: string[] = [];
 
-  if (opts.legoQuery?.trim()) {
-    const { compileLegoToKreaPrompt } = await import("@/lib/prompt-lego");
+  if (opts.tgPhotoTemplateId) {
+    const tpl = await import("@/lib/tg-photo-template-lab").then((m) =>
+      m.getTgPhotoTemplateForGeneration(opts.tgPhotoTemplateId!),
+    );
+    const raw =
+      opts.composedPrompt?.trim() ||
+      tpl?.editPrompt?.trim() ||
+      tpl?.title ||
+      "photorealistic adult scene";
+    prompt = raw;
+  } else if (opts.legoQuery?.trim()) {
+    const {
+      compileLegoToKreaPrompt,
+      compileLegoSceneOnlyPrompt,
+    } = await import("@/lib/prompt-lego");
     const {
       injectKreaConceptTriggers,
       resolveKreaConceptLoras,
@@ -316,13 +337,22 @@ export async function generatePhotoBytes(opts: {
       gender: c.gender,
       triggerWord: c.triggerWord,
     }));
-    const compiled = await compileLegoToKreaPrompt({
-      query: opts.legoQuery.trim(),
-      characters: refs,
-      characterIds,
-    });
+    const compiled = opts.useIdentityDualRef || opts.photoTemplateId
+      ? await compileLegoSceneOnlyPrompt({
+          query: opts.legoQuery.trim(),
+          characters: refs,
+        })
+      : await compileLegoToKreaPrompt({
+          query: opts.legoQuery.trim(),
+          characters: refs,
+          characterIds,
+        });
     prompt = compiled.prompt;
-    if (compiled.meta.characterIdsInOrder.length) {
+    if (
+      !opts.useIdentityDualRef &&
+      !opts.photoTemplateId &&
+      compiled.meta.characterIdsInOrder.length
+    ) {
       characterIds = compiled.meta.characterIdsInOrder;
     }
     if (compiled.meta.poseId) opts.poseId = compiled.meta.poseId;
@@ -350,7 +380,11 @@ export async function generatePhotoBytes(opts: {
     );
   } else if (opts.composedPrompt?.trim()) {
     prompt = opts.composedPrompt.trim();
-    if (!/IDENTITY LOCK/i.test(prompt) && characterIds.length) {
+    if (
+      !opts.tgPhotoTemplateId &&
+      !/IDENTITY LOCK/i.test(prompt) &&
+      characterIds.length
+    ) {
       const identity = await characterIdentityLock(characterIds, {
         skipIntimate: clothed,
       });
@@ -421,7 +455,90 @@ export async function generatePhotoBytes(opts: {
   let bytes: Buffer;
   let engine: string;
 
-  if (opts.editPrompt?.trim() && opts.editOfId) {
+  const dualPerson = opts.dualRefPersonBuffer;
+
+  if (
+    (opts.useIdentityDualRef ||
+      opts.photoTemplateId ||
+      opts.tgPhotoTemplateId) &&
+    dualPerson?.length &&
+    !opts.editOfId
+  ) {
+    let dualScene = opts.dualRefSceneBuffer;
+    if (!dualScene?.length && opts.tgPhotoTemplateId) {
+      const { resolveTgPhotoTemplateSceneBuffer } = await import(
+        "@/lib/tg-photo-template-lab"
+      );
+      dualScene =
+        (await resolveTgPhotoTemplateSceneBuffer(opts.tgPhotoTemplateId)) ||
+        undefined;
+    }
+    if (!dualScene?.length && opts.photoTemplateId) {
+      const { resolvePhotoTemplateSceneBuffer } = await import("@/lib/photo-refs");
+      dualScene =
+        (await resolvePhotoTemplateSceneBuffer(
+          opts.userId,
+          opts.photoTemplateId,
+        )) || undefined;
+    }
+    if (!dualScene?.length) {
+      const idRows = await loadIdentityCharacters(characterIds);
+      const sceneGraph = buildKreaT2IGraph({
+        prompt,
+        width,
+        height,
+        seed,
+        useCharacterLora: false,
+        useNsfwLora: clothed ? false : true,
+        skinDetail: skin.enabled,
+        skinDetailStrength: skin.enabled ? skin.strength : undefined,
+        extraLoras: conceptLoras,
+        negativePrompt: opts.negativePrompt || wardrobeNegative(clothed, pokies),
+        extraNegative: [
+          cleanShavenNegative(idRows),
+          shavedPubicNegative(idRows),
+          opts.extraNegativeAppend,
+          locationFurnitureNegative(opts.userNote),
+        ]
+          .filter(Boolean)
+          .join(", "),
+        filenamePrefix: "peach/dual_scene_plate",
+      });
+      dualScene = await runComfyAndDownload(sceneGraph, "peach-scene-plate");
+    }
+    const sceneUp = await comfyUploadImage(
+      `peach_dual_scene_${Date.now()}.png`,
+      dualScene,
+    );
+    const personUp = await comfyUploadImage(
+      `peach_dual_person_${Date.now()}.png`,
+      dualPerson,
+    );
+    const isTgFace = !!opts.tgPhotoTemplateId;
+    const graph = buildKreaDualRefEditGraph({
+      sceneImageName: sceneUp,
+      personImageName: personUp,
+      editPrompt: prompt,
+      width,
+      height,
+      seed,
+      grounding: isTgFace ? "scene_pose" : "person_identity",
+      refBoost: isTgFace ? 5.0 : opts.photoTemplateId ? 5.0 : 4.0,
+      refBoostA: isTgFace ? 1.2 : opts.photoTemplateId ? 0.85 : 1.0,
+      refBoostB: isTgFace ? 1.45 : opts.photoTemplateId ? 1.35 : 1.0,
+      useNsfwLora: !clothed,
+      extraLoras: conceptLoras,
+    });
+    bytes = await runComfyAndDownload(graph, "peach-dual-edit");
+    const conceptTag = conceptMatched.length
+      ? `+concept(${conceptMatched.join(",")})`
+      : "";
+    engine = isTgFace
+      ? `krea2_tg_face_template+nsfw${conceptTag}`
+      : opts.photoTemplateId
+        ? `krea2_dual_edit+template_pose${conceptTag}`
+        : `krea2_dual_edit+prompt_scene${conceptTag}`;
+  } else if (opts.editPrompt?.trim() && opts.editOfId) {
     const src = await prisma.galleryItem.findFirst({
       where: { id: opts.editOfId, userId: opts.userId },
     });
@@ -524,6 +641,8 @@ export async function generatePhotoBytes(opts: {
       skinDetail: skin.enabled,
       skinDetailStrength: skin.enabled ? skin.strength : undefined,
       conceptLoras: conceptMatched,
+      photoTemplateId: opts.photoTemplateId || null,
+      tgPhotoTemplateId: opts.tgPhotoTemplateId || null,
       galleryDir: galleryRoot(),
     },
   };

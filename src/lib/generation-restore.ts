@@ -1,12 +1,22 @@
 import type { QuickVideoImageSlot } from "@/lib/quick-video-prompt";
-import type { QuickVideoTemplateApplyPayload } from "@/lib/quick-video-template";
+import type { PeachPhotoTemplateApplyPayload } from "@/lib/peach-photo-template-shared";
+import type { QuickVideoTemplateApplyPayload } from "@/lib/quick-video-template-shared";
 
 const PHOTO_KEY = "peach-restore-photo";
 
 export const PEACH_VIDEO_RESTORE_EVENT = "peach-video-restore";
 export const PEACH_VIDEO_TEMPLATE_APPLY_EVENT = "peach-video-template-apply";
+export const PEACH_PHOTO_TEMPLATE_APPLY_EVENT = "peach-photo-template-apply";
 
 export type QuickVideoTemplateUsePayload = QuickVideoTemplateApplyPayload & {
+  identityMode: "character" | "custom";
+  characterIds?: string[];
+  customName?: string;
+  identityFiles?: File[];
+  locationFile?: File | null;
+};
+
+export type PeachPhotoTemplateUsePayload = PeachPhotoTemplateApplyPayload & {
   identityMode: "character" | "custom";
   characterIds?: string[];
   customName?: string;
@@ -18,6 +28,10 @@ export type PhotoRestorePayload = {
   legoQuery: string;
   characterIds: string[];
   orientationId: string;
+  poseId?: string;
+  styleId?: string;
+  skinDetail?: boolean;
+  skinDetailStrength?: number;
 };
 
 export type VideoRestorePayload = {
@@ -98,6 +112,16 @@ export function requestVideoTemplateApply(payload: QuickVideoTemplateUsePayload)
   window.dispatchEvent(
     new CustomEvent<QuickVideoTemplateUsePayload>(
       PEACH_VIDEO_TEMPLATE_APPLY_EVENT,
+      { detail: payload },
+    ),
+  );
+}
+
+export function requestPhotoTemplateApply(payload: PeachPhotoTemplateUsePayload) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(
+    new CustomEvent<PeachPhotoTemplateUsePayload>(
+      PEACH_PHOTO_TEMPLATE_APPLY_EVENT,
       { detail: payload },
     ),
   );

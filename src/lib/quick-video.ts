@@ -391,7 +391,8 @@ async function runQuickVideoJob(runId: string, userId: string) {
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (user?.source === "telegram") {
     const { notifyTgVideoReady } = await import("@/lib/tg/generation-service");
-    await notifyTgVideoReady(userId, saved.publicUrl, run.title);
+    const charIds = JSON.parse(run.characterIdsJson || "[]") as string[];
+    await notifyTgVideoReady(userId, saved.publicUrl, run.title, charIds[0]);
   }
 }
 

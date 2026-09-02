@@ -79,7 +79,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    await startTgVideoGeneration({
+    const result = await startTgVideoGeneration({
       userId,
       platformUserId,
       templateId: body.templateId,
@@ -87,6 +87,8 @@ export async function POST(req: Request) {
     });
     return NextResponse.json({
       ok: true,
+      galleryItemId: result.galleryItemId,
+      runId: result.runId,
       message: locale === "en" ? "Video started" : "Видео генерируется",
       characterId,
     });

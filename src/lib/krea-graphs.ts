@@ -303,13 +303,29 @@ export function buildKreaDualRefEditGraph(opts: {
   height: number;
   seed?: number;
   refBoost?: number;
+  refBoostA?: number;
+  refBoostB?: number;
   groundingPx?: number;
+  /** TG face template: positive on scene (pose). Default: person (legacy peach). */
+  grounding?: "scene_pose" | "person_identity";
+  useNsfwLora?: boolean;
+  extraLoras?: Array<{
+    name: string;
+    strength: number;
+    strengthClip?: number;
+  }>;
 }) {
   const seed = opts.seed ?? Math.floor(Math.random() * 1e15);
   const refBoost = opts.refBoost ?? 4.0;
+  const refBoostA = opts.refBoostA ?? 1.0;
+  const refBoostB = opts.refBoostB ?? 1.0;
   const groundingPx = opts.groundingPx ?? 768;
+  const scenePose = opts.grounding === "scene_pose";
+  const positiveImage = scenePose ? ["4", 0] : ["5", 0];
+  const negativeImage = scenePose ? ["5", 0] : ["4", 0];
+  const useNsfw = opts.useNsfwLora !== false;
 
-  return {
+  const graph: Record<string, unknown> = {
     "1": {
       class_type: "UNETLoader",
       inputs: {
@@ -331,14 +347,6 @@ export function buildKreaDualRefEditGraph(opts: {
     },
     "4": { class_type: "LoadImage", inputs: { image: opts.sceneImageName } },
     "5": { class_type: "LoadImage", inputs: { image: opts.personImageName } },
-    "6": {
-      class_type: "LoraLoaderModelOnly",
-      inputs: {
-        model: ["1", 0],
-        lora_name: "krea2/krea2_identity_edit_v1_2.safetensors",
-        strength_model: 1.0,
-      },
-    },
     "7": {
       class_type: "VAEEncode",
       inputs: { pixels: ["4", 0], vae: ["3", 0] },
@@ -351,67 +359,116 @@ export function buildKreaDualRefEditGraph(opts: {
       class_type: "EmptySD3LatentImage",
       inputs: { width: opts.width, height: opts.height, batch_size: 1 },
     },
-    "10": {
-      class_type: "Krea2EditModelPatch",
+  };
+
+  let clipRef: [string, number] = ["2", 0];
+  let modelRef: [string, number] = ["1", 0];
+  let nextId = 20;
+
+  const stackLora = (
+    loraName: string,
+    strengthModel: number,
+    strengthClip: number,
+  ) => {
+    const id = String(nextId++);
+    graph[id] = {
+      class_type: "LoraLoader",
       inputs: {
-        model: ["6", 0],
-        source_latent: ["7", 0],
-        source_latent_b: ["8", 0],
-        ref_boost: refBoost,
-        ref_boost_a: 1.0,
-        ref_boost_b: 1.0,
-        fit_mode: "fit",
-        vae: ["3", 0],
-        source_image: ["4", 0],
-        source_image_b: ["5", 0],
-        target_latent: ["9", 0],
+        model: modelRef,
+        clip: clipRef,
+        lora_name: loraName,
+        strength_model: strengthModel,
+        strength_clip: strengthClip,
       },
-    },
-    "11": {
-      class_type: "Krea2EditGroundedEncode",
-      inputs: {
-        clip: ["2", 0],
-        prompt: opts.editPrompt,
-        image: ["5", 0],
-        grounding_px: groundingPx,
-        system_prompt: "",
-      },
-    },
-    "12": {
-      class_type: "Krea2EditGroundedEncode",
-      inputs: {
-        clip: ["2", 0],
-        prompt: "",
-        image: ["4", 0],
-        grounding_px: groundingPx,
-        system_prompt: "",
-      },
-    },
-    "13": {
-      class_type: "KSampler",
-      inputs: {
-        model: ["10", 0],
-        positive: ["11", 0],
-        negative: ["12", 0],
-        latent_image: ["9", 0],
-        seed,
-        steps: 10,
-        cfg: 1.0,
-        sampler_name: "euler",
-        scheduler: "simple",
-        denoise: 1.0,
-      },
-    },
-    "14": {
-      class_type: "VAEDecode",
-      inputs: { samples: ["13", 0], vae: ["3", 0] },
-    },
-    "15": {
-      class_type: "SaveImage",
-      inputs: {
-        images: ["14", 0],
-        filename_prefix: "peach/krea_dual_edit",
-      },
+    };
+    modelRef = [id, 0];
+    clipRef = [id, 1];
+  };
+
+  if (useNsfw) {
+    stackLora("krea2/KNPV4.1_pre.safetensors", 1.0, 1.0);
+  }
+
+  for (const lora of opts.extraLoras || []) {
+    const name = lora.name?.trim();
+    if (!name) continue;
+    const sm = lora.strength;
+    const sc =
+      typeof lora.strengthClip === "number" ? lora.strengthClip : Math.abs(sm);
+    stackLora(name, sm, sc);
+  }
+
+  graph["6"] = {
+    class_type: "LoraLoaderModelOnly",
+    inputs: {
+      model: modelRef,
+      lora_name: "krea2/krea2_identity_edit_v1_2.safetensors",
+      strength_model: 1.0,
     },
   };
+
+  graph["10"] = {
+    class_type: "Krea2EditModelPatch",
+    inputs: {
+      model: ["6", 0],
+      source_latent: ["7", 0],
+      source_latent_b: ["8", 0],
+      ref_boost: refBoost,
+      ref_boost_a: refBoostA,
+      ref_boost_b: refBoostB,
+      fit_mode: "fit",
+      vae: ["3", 0],
+      source_image: ["4", 0],
+      source_image_b: ["5", 0],
+      target_latent: ["9", 0],
+    },
+  };
+  graph["11"] = {
+    class_type: "Krea2EditGroundedEncode",
+    inputs: {
+      clip: clipRef,
+      prompt: opts.editPrompt,
+      image: positiveImage,
+      grounding_px: groundingPx,
+      system_prompt: "",
+    },
+  };
+  graph["12"] = {
+    class_type: "Krea2EditGroundedEncode",
+    inputs: {
+      clip: clipRef,
+      prompt: "",
+      image: negativeImage,
+      grounding_px: groundingPx,
+      system_prompt: "",
+    },
+  };
+  graph["13"] = {
+    class_type: "KSampler",
+    inputs: {
+      model: ["10", 0],
+      positive: ["11", 0],
+      negative: ["12", 0],
+      latent_image: ["9", 0],
+      seed,
+      steps: 10,
+      cfg: 1.0,
+      sampler_name: "euler",
+      scheduler: "simple",
+      denoise: 1.0,
+    },
+  };
+  graph["14"] = {
+    class_type: "VAEDecode",
+    inputs: { samples: ["13", 0], vae: ["3", 0] },
+  };
+  graph["15"] = {
+    class_type: "SaveImage",
+    inputs: {
+      images: ["14", 0],
+      filename_prefix: "peach/krea_dual_edit",
+    },
+  };
+
+  return graph;
 }

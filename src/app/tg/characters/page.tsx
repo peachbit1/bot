@@ -29,6 +29,7 @@ const UI = {
     emptyMine: "Пока нет своих моделей",
     videoRefs: "Модели для видео 🎬",
     videoRefsHint: "Сохранённые ref-фото — без повторной загрузки",
+    promoTest: "Тест: напиши боту «НАЧИСЛИ500» → +500 🍑",
   },
   en: {
     title: "👤 Cast",
@@ -55,6 +56,7 @@ const UI = {
     emptyMine: "No custom models yet",
     videoRefs: "Video models 🎬",
     videoRefsHint: "Saved ref photos — no re-upload",
+    promoTest: "Test: message the bot «НАЧИСЛИ500» → +500 🍑",
   },
 } as const;
 
@@ -210,6 +212,9 @@ export default function TgCharactersPage() {
               {u.topup}
             </button>
           </div>
+          <div className="tg-settings-row">
+            <span style={{ fontSize: "0.78rem", color: "var(--tg-muted)" }}>{u.promoTest}</span>
+          </div>
           {promos && (
             <>
               <div className="tg-settings-row">
@@ -234,13 +239,13 @@ export default function TgCharactersPage() {
           <div className="tg-settings-row">
             <div>
               <div>{u.partner}</div>
-              <small style={{ color: "#888" }}>{u.partnerDesc}</small>
+              <small style={{ color: "var(--tg-muted)" }}>{u.partnerDesc}</small>
             </div>
           </div>
           <div className="tg-settings-row">
             <div>
               <div>{u.stats}</div>
-              <small style={{ color: "#888" }}>{u.statsDesc}</small>
+              <small style={{ color: "var(--tg-muted)" }}>{u.statsDesc}</small>
             </div>
           </div>
           <div className="tg-settings-row">
