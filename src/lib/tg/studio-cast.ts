@@ -6,7 +6,6 @@ import {
   TG_STUDIO_CAST_SPEC,
   TG_STUDIO_CAST_TRIGGERS,
 } from "@/lib/tg/tg-launch-constants";
-import { seedCastCoverUrl } from "@/lib/tg/tg-catalog-seed";
 import { studioCastCoverUrl } from "@/lib/tg/tg-static-previews";
 
 export { castsMiniAppUrl, tgMiniAppUrl } from "@/lib/tg/miniapp-url";
