@@ -5,12 +5,16 @@ import {
   addCharacterPhotoFromBuffer,
   characterPhotoCount,
   characterReadyForVideo,
+  createVideoRefCharacter,
   getActiveTgCharacter,
+  listVideoRefCharacters,
+  renameTgCharacter,
   setActiveTgCharacter,
   TG_MAX_CHARACTER_PHOTOS,
   TG_MAX_LORA_PHOTOS,
   TG_MIN_LORA_PHOTOS,
   TG_MIN_CHARACTER_PHOTOS,
+  TG_MIN_VIDEO_PHOTOS,
 } from "@/lib/tg/character-service";
 import {
   handleCharacterCallback,
@@ -22,6 +26,7 @@ import {
 import {
   GEN_CB,
   OB_CB,
+  VID_CB,
   resolvePickIndex,
   sendTemplatePicker,
   successInlineKeyboard,
@@ -148,7 +153,11 @@ async function handlePhoto(
   chatState: string,
   pending: TgPending,
 ) {
-  let character = await getActiveTgCharacter(userId, platformUserId);
+  let character = pending.videoUploadCharacterId
+    ? await prisma.character.findFirst({
+        where: { id: pending.videoUploadCharacterId, userId },
+      })
+    : await getActiveTgCharacter(userId, platformUserId);
   if (!character && pending.onboardingCharacterId) {
     character = await prisma.character.findFirst({
       where: { id: pending.onboardingCharacterId, userId },
@@ -187,10 +196,34 @@ async function handlePhoto(
   }
 
   const after = characterPhotoCount(character.id);
+
+  if (
+    pending.templateKind === "video" &&
+    pending.templateId &&
+    pending.videoUploadCharacterId === character.id &&
+    after >= TG_MIN_VIDEO_PHOTOS
+  ) {
+    await tgSendMessage(
+      chatId,
+      tFormat("photo_progress", locale, {
+        n: after,
+        max: maxPhotos,
+        hint: t("gen_starting", locale),
+      }),
+    );
+    await beginGeneration(chatId, platformUserId, userId, locale, {
+      ...pending,
+      videoUploadCharacterId: character.id,
+    });
+    return;
+  }
+
   const minNeeded =
     chatState === "onboarding_awaiting_photos"
       ? TG_MIN_LORA_PHOTOS
-      : TG_MIN_CHARACTER_PHOTOS;
+      : pending.templateKind === "video"
+        ? TG_MIN_VIDEO_PHOTOS
+        : TG_MIN_CHARACTER_PHOTOS;
   const need = Math.max(0, minNeeded - after);
   const hint =
     need > 0
@@ -252,25 +285,34 @@ async function showTemplateConfirm(
   hasSpeech: boolean,
 ) {
   const character = await getActiveTgCharacter(userId, platformUserId);
-  const name = character?.name || (locale === "en" ? "Model" : "Модель");
   const pricing = await templatePriceLabel({
     userId,
     kind,
     templateId,
     locale,
-    character,
+    character: kind === "photo" ? character : null,
   });
 
   const kindWord = kind === "photo"
     ? (locale === "en" ? "photo" : "фото")
     : (locale === "en" ? "video" : "видео");
 
-  const caption = tFormat("gen_confirm_pose", locale, {
-    title,
-    price: pricing.label,
-    kind: kindWord,
-    name,
-  });
+  let caption: string;
+  if (kind === "video") {
+    caption = tFormat("gen_confirm_video_pose", locale, {
+      title,
+      price: pricing.label,
+    });
+  } else {
+    const name = character?.name || (locale === "en" ? "Model" : "Модель");
+    caption = tFormat("gen_confirm_pose", locale, {
+      title,
+      price: pricing.label,
+      kind: kindWord,
+      name,
+    });
+  }
+
   const markup = {
     reply_markup: {
       inline_keyboard: [
@@ -300,6 +342,37 @@ async function showTemplateConfirm(
   });
 }
 
+async function beginVideoUploadFlow(
+  chatId: number,
+  platformUserId: string,
+  userId: string,
+  locale: TgLocale,
+  pending: TgPending,
+) {
+  const refs = (await listVideoRefCharacters(userId)).filter((c) =>
+    characterReadyForVideo(c.id),
+  );
+
+  if (refs.length) {
+    const rows: Array<Array<{ text: string; callback_data: string }>> = refs.map((r) => [
+      { text: `🎬 ${r.name}`, callback_data: VID_CB.pickRef(r.id) },
+    ]);
+    rows.push([{ text: t("video_ref_upload_new", locale), callback_data: VID_CB.uploadNew }]);
+    await tgSendMessage(chatId, t("video_pick_ref_title", locale), {
+      reply_markup: { inline_keyboard: rows },
+    });
+    await setTgSession(platformUserId, { chatState: "idle", pending });
+    return;
+  }
+
+  const ch = await createVideoRefCharacter(userId, "Модель");
+  await setTgSession(platformUserId, {
+    chatState: "awaiting_photos",
+    pending: { ...pending, videoUploadCharacterId: ch.id },
+  });
+  await tgSendMessage(chatId, t("video_upload_prompt", locale));
+}
+
 async function beginGeneration(
   chatId: number,
   platformUserId: string,
@@ -311,26 +384,34 @@ async function beginGeneration(
   const templateId = pending.templateId;
   if (!templateId) return;
 
-  let character = await getActiveTgCharacter(userId, platformUserId);
-  if (!character) {
-    await tgSendMessage(chatId, t("need_photos", locale));
-    return;
-  }
+  let character =
+    pending.videoUploadCharacterId
+      ? await prisma.character.findFirst({
+          where: { id: pending.videoUploadCharacterId, userId },
+        })
+      : await getActiveTgCharacter(userId, platformUserId);
 
   if (kind === "video") {
-    if (isStudioCastCharacter(character) || !characterReadyForVideo(character.id)) {
-      await tgSendMessage(chatId, t("video_need_photo", locale), {
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: t("onboard_create_char_btn", locale), callback_data: OB_CB.uploadChar }],
-          ],
-        },
-      });
+    if (!character?.videoRefOnly) {
+      if (!character || isStudioCastCharacter(character)) {
+        await beginVideoUploadFlow(chatId, platformUserId, userId, locale, pending);
+        return;
+      }
+      if (!characterReadyForVideo(character.id)) {
+        await beginVideoUploadFlow(chatId, platformUserId, userId, locale, pending);
+        return;
+      }
+    } else if (!characterReadyForVideo(character.id)) {
+      await beginVideoUploadFlow(chatId, platformUserId, userId, locale, pending);
       return;
     }
   }
 
   if (kind === "photo") {
+    if (!character) {
+      await tgSendMessage(chatId, t("need_photos", locale));
+      return;
+    }
     if (isStudioCastCharacter(character)) {
       if (!pending.studioDaily && !pending.freePhoto) {
         await tgSendMessage(chatId, t("studio_free_not_ready", locale), {
@@ -349,6 +430,11 @@ async function beginGeneration(
   }
 
   const price = pending.pricePeaches ?? 0;
+  if (!character) {
+    await tgSendMessage(chatId, t("need_photos", locale));
+    return;
+  }
+
   if (price > 0) {
     const bal = await getBalancePeaches(userId);
     if (bal < price) {
@@ -542,7 +628,52 @@ async function handleGenerationCallback(
       await tgSendMessage(chatId, t("speech_prompt", locale));
       return true;
     }
+    if (pending.templateKind === "video") {
+      await beginVideoUploadFlow(chatId, platformUserId, userId, locale, pending);
+      return true;
+    }
     await beginGeneration(chatId, platformUserId, userId, locale, pending);
+    return true;
+  }
+
+  if (data === VID_CB.uploadNew) {
+    const ch = await createVideoRefCharacter(userId, "Модель");
+    await setTgSession(platformUserId, {
+      chatState: "awaiting_photos",
+      pending: { ...pending, videoUploadCharacterId: ch.id },
+    });
+    await tgSendMessage(chatId, t("video_upload_prompt", locale));
+    return true;
+  }
+
+  if (data.startsWith("vid:ref:")) {
+    const refId = data.slice("vid:ref:".length);
+    const ref = await prisma.character.findFirst({
+      where: { id: refId, userId, videoRefOnly: true },
+    });
+    if (!ref || !characterReadyForVideo(ref.id)) {
+      await tgSendMessage(chatId, t("video_upload_prompt", locale));
+      return true;
+    }
+    await beginGeneration(chatId, platformUserId, userId, locale, {
+      ...pending,
+      videoUploadCharacterId: ref.id,
+    });
+    return true;
+  }
+
+  if (data.startsWith("vid:save:")) {
+    const charId = data.slice("vid:save:".length);
+    await setTgSession(platformUserId, {
+      chatState: "awaiting_video_ref_name",
+      pending: { renameCharacterId: charId },
+    });
+    await tgSendMessage(chatId, t("video_ref_name_prompt", locale));
+    return true;
+  }
+
+  if (data === VID_CB.saveSkip) {
+    await setTgSession(platformUserId, { chatState: "idle", clearPending: true });
     return true;
   }
 
@@ -805,6 +936,17 @@ export async function handleTgMessage(msg: TgUpdateMessage) {
     return;
   }
 
+  if (chatState === "awaiting_video_ref_name" && text && pending.renameCharacterId) {
+    await renameTgCharacter(userId, pending.renameCharacterId, text);
+    await setTgSession(platformUserId, { chatState: "idle", clearPending: true });
+    await tgSendMessage(
+      chatId,
+      tFormat("char_selected", locale, { name: text.trim().slice(0, 40) }),
+      mainMenuExtra(locale),
+    );
+    return;
+  }
+
   if (
     await handleCharacterTextInput(
       chatId,
@@ -844,7 +986,11 @@ export async function handleTgMessage(msg: TgUpdateMessage) {
         await tgSendMessage(chatId, t("speech_prompt", locale));
         return;
       }
-      await beginGeneration(chatId, platformUserId, user.id, locale, pending);
+      if (pending.templateKind === "video") {
+        await beginVideoUploadFlow(chatId, platformUserId, user.id, locale, pending);
+      } else {
+        await beginGeneration(chatId, platformUserId, user.id, locale, pending);
+      }
       return;
     }
     const line = text.slice(0, 500);
@@ -907,6 +1053,28 @@ export async function flushTgOutbox() {
           tFormat("gen_success", locale, { kind: kindLabel }),
           { reply_markup: successInlineKeyboard(locale) },
         );
+
+        const saveId = (payload as { offerSaveCharacterId?: string }).offerSaveCharacterId;
+        if (saveId && row.kind === "video") {
+          const ch = await prisma.character.findFirst({
+            where: { id: saveId, videoRefOnly: true },
+          });
+          if (ch && (ch.name === "Модель" || ch.name === "Model")) {
+            await tgSendMessage(chatId, t("video_save_prompt", locale), {
+              reply_markup: {
+                inline_keyboard: [
+                  [
+                    {
+                      text: t("video_save_yes", locale),
+                      callback_data: VID_CB.saveYes(saveId),
+                    },
+                  ],
+                  [{ text: t("video_save_skip", locale), callback_data: VID_CB.saveSkip }],
+                ],
+              },
+            });
+          }
+        }
       }
 
       await markTgOutboxSent(row.id);

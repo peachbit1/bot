@@ -20,6 +20,13 @@ export const GEN_CB = {
   toHub: "g:hub",
 } as const;
 
+export const VID_CB = {
+  pickRef: (id: string) => `vid:ref:${id}`,
+  uploadNew: "vid:new",
+  saveYes: (id: string) => `vid:save:${id}`,
+  saveSkip: "vid:skip",
+} as const;
+
 export const OB_CB = {
   uploadChar: "ob:up",
   backName: "ob:bn",

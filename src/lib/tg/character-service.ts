@@ -16,7 +16,7 @@ export const TG_MIN_VIDEO_PHOTOS = 1;
 
 export async function listTgCharacters(userId: string) {
   return prisma.character.findMany({
-    where: { userId },
+    where: { userId, videoRefOnly: false },
     orderBy: { createdAt: "asc" },
   });
 }
@@ -79,6 +79,32 @@ export async function createTgCharacter(userId: string, name: string) {
   });
   ensureCharacterDirs(character.id);
   return character;
+}
+
+/** Ref2V video identity — saved refs with 🎬, no LoRA training. */
+export async function createVideoRefCharacter(userId: string, name: string) {
+  const character = await prisma.character.create({
+    data: {
+      userId,
+      name: name.trim().slice(0, 40) || "Модель",
+      gender: "female",
+      consentGiven: true,
+      photoCount: 0,
+      status: "ready",
+      loraStatus: "lookbook_ready",
+      videoRefOnly: true,
+      lookbookJson: JSON.stringify(emptyLookbook("female")),
+    },
+  });
+  ensureCharacterDirs(character.id);
+  return character;
+}
+
+export async function listVideoRefCharacters(userId: string) {
+  return prisma.character.findMany({
+    where: { userId, videoRefOnly: true },
+    orderBy: { createdAt: "desc" },
+  });
 }
 
 export async function renameTgCharacter(

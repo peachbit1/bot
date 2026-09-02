@@ -82,6 +82,8 @@ model Character {
   loraStatus   String   @default("lookbook")
   /// Shared PeachBitch studio model (free daily photo tier)
   isStudioCast Boolean  @default(false)
+  /// Ref2V identity only — no LoRA photo train (TG video)
+  videoRefOnly Boolean  @default(false)
   triggerWord  String?
   /// JSON Lookbook enums (see src/lib/lookbook.ts)
   lookbookJson String   @default("{}")

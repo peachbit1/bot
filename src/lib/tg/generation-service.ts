@@ -358,20 +358,12 @@ async function mockCompleteVideoRun(opts: {
     data: { galleryItemId: item.id },
   });
 
-  await enqueueTgOutbox({
-    platformUserId: opts.platformUserId,
-    userId: opts.userId,
-    kind: "video",
-    payload: {
-      url: saved.publicUrl,
-      caption: opts.title,
-      mock: true,
-      successKind: "video",
-      locale: (await prisma.user.findUnique({ where: { id: opts.userId } }))?.locale?.startsWith("en")
-        ? "en"
-        : "ru",
-    },
-  });
+  await notifyTgVideoReady(
+    opts.userId,
+    saved.publicUrl,
+    opts.title,
+    opts.characterId,
+  );
 
   return { runId: run.id, galleryItemId: item.id };
 }
@@ -380,12 +372,24 @@ export async function notifyTgVideoReady(
   userId: string,
   videoUrl: string,
   title: string,
+  characterId?: string,
 ) {
   const acc = await prisma.platformAccount.findFirst({
     where: { userId, platform: "telegram" },
     include: { user: true },
   });
   if (!acc) return;
+
+  let offerSaveCharacterId: string | undefined;
+  if (characterId) {
+    const ch = await prisma.character.findFirst({
+      where: { id: characterId, userId, videoRefOnly: true },
+    });
+    if (ch && (ch.name === "Модель" || ch.name === "Model")) {
+      offerSaveCharacterId = characterId;
+    }
+  }
+
   await enqueueTgOutbox({
     platformUserId: acc.platformUserId,
     userId,
@@ -395,6 +399,7 @@ export async function notifyTgVideoReady(
       caption: title,
       successKind: "video",
       locale: acc.user.locale?.startsWith("en") ? "en" : "ru",
+      offerSaveCharacterId,
     },
   });
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { TgShell, useTgMiniApp } from "@/lib/tg/miniapp/client";
 
 const UI = {
@@ -26,6 +27,8 @@ const UI = {
     statusTrain: "Обучение…",
     statusLookbook: "Нужно обучение",
     emptyMine: "Пока нет своих моделей",
+    videoRefs: "Модели для видео 🎬",
+    videoRefsHint: "Сохранённые ref-фото — без повторной загрузки",
   },
   en: {
     title: "👤 Cast",
@@ -50,6 +53,8 @@ const UI = {
     statusTrain: "Training…",
     statusLookbook: "Needs training",
     emptyMine: "No custom models yet",
+    videoRefs: "Video models 🎬",
+    videoRefsHint: "Saved ref photos — no re-upload",
   },
 } as const;
 
@@ -60,6 +65,7 @@ function loraBadge(status: string, u: (typeof UI)["ru"]) {
 }
 
 export default function TgCharactersPage() {
+  const router = useRouter();
   const { status, error, profile, locale, setLocale, sendAction, refresh } = useTgMiniApp();
   const u = UI[locale];
 
@@ -117,6 +123,30 @@ export default function TgCharactersPage() {
         </button>
       </div>
 
+      {(profile?.videoRefs?.length ?? 0) > 0 && (
+        <div className="tg-section">
+          <h2>{u.videoRefs}</h2>
+          <p className="tg-muted" style={{ padding: "0 0 0.65rem", textAlign: "left" }}>
+            {u.videoRefsHint}
+          </p>
+          <div className="tg-card-list">
+            {profile!.videoRefs!.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                className="tg-char-card"
+                onClick={() => router.push("/tg")}
+              >
+                <div>
+                  <strong>🎬 {c.name}</strong>
+                  <small>📸 {c.photoCount}</small>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="tg-section">
         <h2>{u.studio}</h2>
         <p className="tg-muted" style={{ padding: "0 0 0.65rem", textAlign: "left" }}>
@@ -128,7 +158,11 @@ export default function TgCharactersPage() {
               key={c.id}
               type="button"
               className="tg-char-card studio"
-              onClick={() => sendAction({ action: "pick_cast", characterId: c.id })}
+              onClick={() =>
+                router.push(
+                  `/tg/studio-photo?castId=${encodeURIComponent(c.id)}&name=${encodeURIComponent(c.name)}`,
+                )
+              }
             >
               <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
                 {c.coverUrl ? (

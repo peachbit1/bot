@@ -19,7 +19,9 @@ export type TgMiniAppProfile = {
     loraStatus: string;
     photoCount: number;
     isStudioCast: boolean;
+    videoRefOnly?: boolean;
   }>;
+  videoRefs?: Array<{ id: string; name: string; photoCount: number; videoRefOnly: boolean }>;
   casts: Array<{ id: string; name: string; coverUrl: string | null }>;
 };
 

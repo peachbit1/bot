@@ -12,7 +12,8 @@ export type TgChatState =
   | "awaiting_character_name"
   | "awaiting_character_rename"
   | "awaiting_topup_amount"
-  | "awaiting_lookbook_custom";
+  | "awaiting_lookbook_custom"
+  | "awaiting_video_ref_name";
 
 export type TgPending = {
   templateId?: string;
@@ -31,6 +32,10 @@ export type TgPending = {
   freePhoto?: boolean;
   studioDaily?: boolean;
   loraWelcome?: boolean;
+  /** Temp character for video ref photo upload */
+  videoUploadCharacterId?: string;
+  /** Studio cast id when generating photo from mini app */
+  studioCastId?: string;
 };
 
 export async function getTgSession(platformUserId: string) {

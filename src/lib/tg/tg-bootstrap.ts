@@ -10,6 +10,10 @@ import {
   TG_FEATURED_VIDEO_TITLES,
   TG_STUDIO_CAST_SPEC,
 } from "@/lib/tg/tg-launch-constants";
+import {
+  photoTemplatePreview,
+  videoTemplatePreviewByIndex,
+} from "@/lib/tg/tg-static-previews";
 
 const STUDIO_OWNER_EMAIL = "tg-studio@peachbitch.internal";
 
@@ -133,15 +137,33 @@ async function ensureStudioCastCharacters(): Promise<void> {
 async function ensureFeaturedTemplates(): Promise<void> {
   const ownerId = await ensureStudioOwnerUserId();
 
-  for (const tpl of BOOTSTRAP_VIDEOS) {
+  for (let i = 0; i < BOOTSTRAP_VIDEOS.length; i++) {
+    const tpl = BOOTSTRAP_VIDEOS[i]!;
+    const previewVideo = videoTemplatePreviewByIndex(i);
     const existing = await prisma.quickVideoTemplate.findFirst({
       where: { title: tpl.title },
     });
     if (existing) {
+      const patch: {
+        published?: boolean;
+        pricePeaches?: number;
+        priceCredits?: number;
+        previewVideoUrl?: string;
+        previewPhotoUrl?: string;
+      } = {};
       if (!existing.published) {
+        patch.published = true;
+        patch.pricePeaches = 0;
+        patch.priceCredits = 0;
+      }
+      if (!existing.previewVideoUrl?.trim()) {
+        patch.previewVideoUrl = previewVideo;
+        patch.previewPhotoUrl = previewVideo;
+      }
+      if (Object.keys(patch).length) {
         await prisma.quickVideoTemplate.update({
           where: { id: existing.id },
-          data: { published: true, pricePeaches: 0, priceCredits: 0 },
+          data: patch,
         });
       }
       continue;
@@ -161,6 +183,8 @@ async function ensureFeaturedTemplates(): Promise<void> {
         identityPersonCount: tpl.identityPersonCount,
         durationSec: tpl.durationSec,
         orientation: "9_16",
+        previewVideoUrl: previewVideo,
+        previewPhotoUrl: previewVideo,
       },
     });
   }
@@ -185,6 +209,10 @@ async function ensureFeaturedTemplates(): Promise<void> {
         published: true,
         sortOrder: 0,
         editPrompt: photoExisting.editPrompt || BOOTSTRAP_PHOTO.editPrompt,
+        previewImageUrl:
+          photoExisting.previewImageUrl?.trim() || photoTemplatePreview(),
+        sceneImageUrl:
+          photoExisting.sceneImageUrl?.trim() || photoTemplatePreview(),
       },
     });
     return;
@@ -198,6 +226,8 @@ async function ensureFeaturedTemplates(): Promise<void> {
       published: true,
       sortOrder: 0,
       pricePeaches: 54,
+      previewImageUrl: photoTemplatePreview(),
+      sceneImageUrl: photoTemplatePreview(),
     },
   });
 }

@@ -299,6 +299,47 @@ Generation cost: {price}
 Start {kind} generation with model «{name}»?`,
   },
 
+  gen_confirm_video_pose: {
+    ru: `Выбранная поза: <b>{title}</b>
+
+Стоимость: {price}
+
+Дальше загрузи фото модели (или выбери сохранённую 🎬) — LoRA не нужна.`,
+    en: `Selected pose: <b>{title}</b>
+
+Cost: {price}
+
+Next upload model photos (or pick a saved 🎬) — no LoRA needed.`,
+  },
+
+  video_upload_prompt: {
+    ru: "Отправь <b>1–5 фото</b> лица модели в этот чат. Можно сразу несколько.",
+    en: "Send <b>1–5 photos</b> of the model's face to this chat.",
+  },
+
+  video_pick_ref_title: {
+    ru: "Выбери сохранённую 🎬 модель или загрузи новые фото:",
+    en: "Pick a saved 🎬 model or upload new photos:",
+  },
+
+  video_ref_upload_new: {
+    ru: "📷 Загрузить новые фото",
+    en: "📷 Upload new photos",
+  },
+
+  video_save_prompt: {
+    ru: "Сохранить модель, чтобы без загрузки фото генерировать с ней новые видео?",
+    en: "Save this model to generate new videos without re-uploading photos?",
+  },
+
+  video_save_yes: { ru: "✅ Да, сохранить", en: "✅ Yes, save" },
+  video_save_skip: { ru: "Пропустить", en: "Skip" },
+
+  video_ref_name_prompt: {
+    ru: "Как назвать модель для видео? (будет 🎬 в списке)",
+    en: "Name this video model? (shown with 🎬 in the list)",
+  },
+
   gen_confirm_free: {
     ru: "0 🍑 (бесплатно)",
     en: "0 🍑 (free)",

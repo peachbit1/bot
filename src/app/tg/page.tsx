@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { TgShell, useTgMiniApp } from "@/lib/tg/miniapp/client";
 
 type VideoTpl = {
@@ -48,6 +49,7 @@ const UI = {
 } as const;
 
 export default function TgFeedPage() {
+  const router = useRouter();
   const { status, error, profile, locale, setLocale, sendAction, apiFetch } =
     useTgMiniApp();
   const [tab, setTab] = useState<"all" | "video" | "photo">("all");
@@ -160,6 +162,7 @@ export default function TgFeedPage() {
                 muted
                 playsInline
                 preload="metadata"
+                poster={item.preview.endsWith(".mp4") ? undefined : item.preview}
               />
             ) : (
               // eslint-disable-next-line @next/next/no-img-element
@@ -179,14 +182,20 @@ export default function TgFeedPage() {
                 <button
                   type="button"
                   className="tg-use-btn"
-                  onClick={() =>
+                  onClick={() => {
+                    if (item.kind === "video") {
+                      router.push(
+                        `/tg/video-flow?templateId=${encodeURIComponent(item.id)}`,
+                      );
+                      return;
+                    }
                     sendAction({
                       action: "use_template",
                       kind: item.kind,
                       templateId: item.id,
                       price: item.price,
-                    })
-                  }
+                    });
+                  }}
                 >
                   {u.use}
                 </button>

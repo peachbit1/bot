@@ -7,6 +7,10 @@ import {
   videoTemplatePricePeaches,
 } from "@/lib/tg/tg-catalog";
 import { normalizeLocale, type TgLocale } from "@/lib/tg/i18n";
+import {
+  photoTemplatePreview,
+  videoTemplatePreviewByIndex,
+} from "@/lib/tg/tg-static-previews";
 
 function videoTitle(
   row: { title: string; titleEn?: string },
@@ -33,15 +37,27 @@ export async function GET(req: Request) {
     kind === "video" ? Promise.resolve([]) : listTgFeaturedPhotoTemplates(locale),
   ]);
 
-  const video = videoRaw.map((t) => {
+  const video = videoRaw.map((t, i) => {
     const row = t as typeof t & { titleEn?: string; hasSpeech?: boolean };
+    const previewVideo =
+      t.previewVideoUrl?.trim() ||
+      t.previewPhotoUrl?.trim() ||
+      videoTemplatePreviewByIndex(i);
+    const previewPhoto = t.previewPhotoUrl?.trim() || previewVideo;
     return {
       ...t,
       title: videoTitle(row, locale),
       pricePeaches: videoTemplatePricePeaches(t),
       hasSpeech: Boolean(row.hasSpeech),
+      previewVideoUrl: previewVideo,
+      previewPhotoUrl: previewPhoto,
     };
   });
 
-  return NextResponse.json({ video, photo, locale });
+  const photoMapped = photo.map((p, i) => ({
+    ...p,
+    previewImageUrl: p.previewImageUrl?.trim() || photoTemplatePreview(),
+  }));
+
+  return NextResponse.json({ video, photo: photoMapped, locale });
 }

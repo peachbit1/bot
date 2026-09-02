@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { resolveTgApiUserId } from "@/lib/tg/resolve-api-user";
-import { listTgCharacters } from "@/lib/tg/character-service";
+import { listTgCharacters, listVideoRefCharacters } from "@/lib/tg/character-service";
 import { listStudioCasts } from "@/lib/tg/studio-cast";
 import { normalizeLocale } from "@/lib/tg/i18n";
 import { TG_PROMO } from "@/lib/tg-pricing";
@@ -21,9 +21,10 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
 
-  const [characters, casts] = await Promise.all([
+  const [characters, casts, videoRefs] = await Promise.all([
     listTgCharacters(userId),
     listStudioCasts(locale),
+    listVideoRefCharacters(userId),
   ]);
 
   return NextResponse.json({
@@ -41,6 +42,13 @@ export async function GET(req: Request) {
       loraStatus: c.loraStatus,
       photoCount: c.photoCount,
       isStudioCast: c.isStudioCast,
+      videoRefOnly: false,
+    })),
+    videoRefs: videoRefs.map((c) => ({
+      id: c.id,
+      name: c.name,
+      photoCount: c.photoCount,
+      videoRefOnly: true,
     })),
     casts,
   });
