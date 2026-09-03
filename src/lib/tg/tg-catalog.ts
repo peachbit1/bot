@@ -36,6 +36,13 @@ function envIds(key: "TG_FEATURED_VIDEO_IDS" | "TG_FEATURED_PHOTO_IDS"): string[
 
 /** Idempotent DB fixes: legacy featured titles + tgPublished flags. */
 export async function ensureTgCatalog(): Promise<void> {
+  const { migrateTemplateIdentityHygiene } = await import(
+    "@/lib/tg/migrate-template-identity"
+  );
+  await migrateTemplateIdentityHygiene().catch((e) =>
+    console.error("[peach] template identity migrate:", e),
+  );
+
   for (const title of TG_FEATURED_VIDEO_TITLES) {
     await prisma.quickVideoTemplate.updateMany({
       where: { title },

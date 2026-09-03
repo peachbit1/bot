@@ -58,12 +58,22 @@ export async function POST(req: NextRequest) {
       : "9_16",
   );
 
+  const { composePhotoTemplatePromptForCharacter } = await import(
+    "@/lib/tg/template-prompt"
+  );
+  const composedPrompt = await composePhotoTemplatePromptForCharacter({
+    templateEditPrompt: tpl.editPrompt,
+    characterIds,
+    // Face upload / character dual-ref — scene text only.
+    sceneOnly: true,
+  });
+
   const item = await enqueuePhotoJob(user.id, {
     userId: user.id,
     tgPhotoTemplateId,
     characterIds,
     characterId: characterIds[0] || null,
-    composedPrompt: tpl.editPrompt,
+    composedPrompt,
     manualSlots: manualSlots.length ? manualSlots : undefined,
     useIdentityDualRef: true,
     title: `TG: ${tpl.title}`,

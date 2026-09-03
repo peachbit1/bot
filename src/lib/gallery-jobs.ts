@@ -177,22 +177,25 @@ async function runPhotoJob(itemId: string, userId: string, opts: PhotoPayload) {
         dualRefPersonBuffer = person;
 
         if (isTgTemplate && photoOpts.tgPhotoTemplateId) {
-          const {
-            resolveTgPhotoTemplateSceneBuffer,
-            getTgPhotoTemplateForGeneration,
-          } = await import("@/lib/tg-photo-template-lab");
-          dualRefSceneBuffer =
-            (await resolveTgPhotoTemplateSceneBuffer(
-              photoOpts.tgPhotoTemplateId,
-            )) || undefined;
-          if (!dualRefSceneBuffer?.length) {
-            throw new Error("Шаблон без превью-сцены — пересохрани шаблон");
-          }
+          // Do NOT use the author's preview RGB as the dual-ref scene — it
+          // bakes hair/body identity. peach-lab will synthesize a scene plate
+          // from the sanitized scene-only prompt, then lock the viewer's face.
+          const { getTgPhotoTemplateForGeneration } = await import(
+            "@/lib/tg-photo-template-lab"
+          );
           const tpl = await getTgPhotoTemplateForGeneration(
             photoOpts.tgPhotoTemplateId,
           );
           if (tpl?.editPrompt && !photoOpts.composedPrompt?.trim()) {
-            photoOpts.composedPrompt = tpl.editPrompt;
+            const { composePhotoTemplatePromptForCharacter } = await import(
+              "@/lib/tg/template-prompt"
+            );
+            photoOpts.composedPrompt =
+              await composePhotoTemplatePromptForCharacter({
+                templateEditPrompt: tpl.editPrompt,
+                characterIds: castIds.length ? castIds : characterIds,
+                sceneOnly: useDual,
+              });
           }
         } else if (isTemplate && photoOpts.photoTemplateId) {
           const { resolvePhotoTemplateSceneBuffer } = await import(

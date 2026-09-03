@@ -135,6 +135,34 @@ export async function startTgVideoGeneration(opts: {
   let shotsPlan = parseQuickVideoShotsPlan(detail.shotsJson);
   if (!shotsPlan) throw new Error("Битый шаблон (shots)");
 
+  const cast = await prisma.character.findFirst({
+    where: { id: opts.characterId },
+    select: { name: true },
+  });
+  const tplMeta = await prisma.quickVideoTemplate.findFirst({
+    where: { id: opts.templateId },
+    select: { userId: true, slotBlueprintJson: true },
+  });
+  const authorCasts = tplMeta?.userId
+    ? await prisma.character.findMany({
+        where: { userId: tplMeta.userId },
+        select: { name: true },
+      })
+    : [];
+  const foreignNames = [
+    ...authorCasts.map((c) => c.name),
+    ...detail.slotBlueprint.map((s) => s.label || ""),
+  ];
+  const { bindQuickVideoShotsToCharacter } = await import(
+    "@/lib/quick-video-template"
+  );
+  const boundJson = bindQuickVideoShotsToCharacter(
+    detail.shotsJson,
+    cast?.name || "Subject",
+    foreignNames,
+  );
+  shotsPlan = parseQuickVideoShotsPlan(boundJson) || shotsPlan;
+
   if (opts.speechLine?.trim()) {
     shotsPlan = injectSpeech(shotsPlan, opts.speechLine);
   }
@@ -302,12 +330,22 @@ export async function startTgPhotoGeneration(opts: {
 
   const loraPhoto = characterUsesLoraPhoto(character);
 
+  const { composePhotoTemplatePromptForCharacter } = await import(
+    "@/lib/tg/template-prompt"
+  );
+  const composedPrompt = await composePhotoTemplatePromptForCharacter({
+    templateEditPrompt: row.editPrompt,
+    characterIds: [opts.characterId],
+    // Dual-ref: person image carries identity. LoRA/T2I: inject lookbook+trigger.
+    sceneOnly: !loraPhoto,
+  });
+
   const item = await enqueuePhotoJob(opts.userId, {
     userId: opts.userId,
     tgPhotoTemplateId: opts.templateId,
     characterIds: [opts.characterId],
     characterId: opts.characterId,
-    composedPrompt: row.editPrompt,
+    composedPrompt,
     useIdentityDualRef: !loraPhoto,
     studioCastLora: loraPhoto,
     title: row.title,

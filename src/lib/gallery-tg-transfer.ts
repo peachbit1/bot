@@ -11,8 +11,21 @@ import {
   publishQuickVideoTemplateToTg,
 } from "@/lib/tg/tg-publish";
 import { saveGalleryBinary } from "@/lib/local-store";
+import { sanitizeTemplateScenePrompt } from "@/lib/template-scene";
 
 export type GalleryTransferMode = "both" | "tg";
+
+async function authorIdentityHints(userId: string, characterId: string | null) {
+  if (!characterId) return { names: [] as string[], triggers: [] as string[] };
+  const ch = await prisma.character.findFirst({
+    where: { id: characterId, userId },
+    select: { name: true, triggerWord: true },
+  });
+  return {
+    names: ch?.name ? [ch.name] : [],
+    triggers: ch?.triggerWord ? [ch.triggerWord] : [],
+  };
+}
 
 export async function transferGalleryItem(opts: {
   userId: string;
@@ -75,10 +88,15 @@ export async function transferGalleryItem(opts: {
     if (!bytes?.length) throw new Error("Не удалось прочитать файл фото");
     const ext = item.resultUrl.split(".").pop()?.split("?")[0] || "jpg";
     const saved = saveGalleryBinary(opts.userId, ext, bytes, "tg_gallery_tpl");
-    const editPrompt =
-      item.editPrompt?.trim() ||
-      item.prompt?.trim() ||
-      "Same person, cinematic photo, preserve face identity";
+    const hints = await authorIdentityHints(opts.userId, item.characterId);
+    const editPrompt = sanitizeTemplateScenePrompt(
+      item.editPrompt?.trim() || item.prompt?.trim() || "",
+      {
+        authorNames: hints.names,
+        authorTriggers: hints.triggers,
+        fallback: "cinematic photo, match pose and setting only",
+      },
+    );
     const row = await prisma.photoTemplate.create({
       data: {
         title,

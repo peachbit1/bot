@@ -4,10 +4,12 @@
 import { prisma } from "@/lib/db";
 import {
   parseQuickVideoShotsPlan,
+  serializeQuickVideoShotsPlan,
   type QuickVideoImageSlot,
   type QuickVideoSlotRole,
 } from "@/lib/quick-video-prompt";
 import { filterDbCharacterIds } from "@/lib/quick-video-custom-character";
+import { sanitizeVideoLegoQuery } from "@/lib/template-scene";
 
 export type TemplateCategory = "peach" | "bitch";
 
@@ -74,9 +76,10 @@ function buildBlueprintFromRun(
     const role = slotRoleOf(slot);
     const url = refImageUrls[i] || "";
     if (role === "identity") {
+      // Never bake author name/face into the template — consumer supplies cast.
       blueprint.push({
         role: "identity",
-        label: slot.characterName || slot.label,
+        label: "Subject",
       });
       continue;
     }
@@ -87,6 +90,69 @@ function buildBlueprintFromRun(
     });
   }
   return blueprint;
+}
+
+function authorNamesFromRun(
+  characterRows: Array<{ name: string }>,
+  refSlots: QuickVideoImageSlot[],
+): string[] {
+  const names = new Set<string>();
+  for (const c of characterRows) {
+    if (c.name.trim()) names.add(c.name.trim());
+  }
+  for (const slot of refSlots) {
+    if (slotRoleOf(slot) !== "identity") continue;
+    const n = (slot.characterName || slot.label || "").trim();
+    if (n) names.add(n);
+  }
+  return [...names];
+}
+
+function sanitizeShotsJsonForTemplate(
+  shotsJson: string,
+  authorNames: string[],
+): string {
+  const plan = parseQuickVideoShotsPlan(shotsJson);
+  if (!plan) return shotsJson;
+  const list = authorNames.map((n) => n.trim()).filter(Boolean);
+  if (!list.length) return shotsJson;
+  plan.shots = plan.shots.map((s) => ({
+    ...s,
+    legoQuery: sanitizeVideoLegoQuery(s.legoQuery, list),
+  }));
+  return serializeQuickVideoShotsPlan(plan);
+}
+
+/** Bind viewer's cast into template shots (strip foreign cast names, inject selected). */
+export function bindQuickVideoShotsToCharacter(
+  shotsJson: string,
+  characterName: string,
+  foreignCastNames: string[] = [],
+): string {
+  const plan = parseQuickVideoShotsPlan(shotsJson);
+  if (!plan) return shotsJson;
+  const selected = characterName.trim();
+  const list = foreignCastNames
+    .map((n) => n.trim())
+    .filter(
+      (n) =>
+        n &&
+        n !== "Subject" &&
+        n.toLowerCase() !== selected.toLowerCase(),
+    );
+  const tag = selected ? `[${selected}]` : "";
+  plan.shots = plan.shots.map((s) => {
+    let q = sanitizeVideoLegoQuery(s.legoQuery, list);
+    if (tag && !new RegExp(`\\[${escapeRegExp(selected)}\\]`, "i").test(q)) {
+      q = `${tag}${q}`.trim();
+    }
+    return { ...s, legoQuery: q };
+  });
+  return serializeQuickVideoShotsPlan(plan);
+}
+
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function identityPersonCountFromRun(characterIds: string[]): number {
@@ -257,6 +323,15 @@ export async function createQuickVideoTemplateFromRun(opts: {
     characterIds = [];
   }
 
+  const authorChars = characterIds.length
+    ? await prisma.character.findMany({
+        where: { id: { in: characterIds } },
+        select: { name: true, triggerWord: true },
+      })
+    : [];
+  const authorNames = authorNamesFromRun(authorChars, refSlots);
+  const shotsJson = sanitizeShotsJsonForTemplate(run.prompt, authorNames);
+
   const blueprint = buildBlueprintFromRun(refSlots, refImageUrls);
   const locationSlot = blueprint.find((s) => s.role === "location");
   const priceCredits = opts.isJuice
@@ -273,14 +348,18 @@ export async function createQuickVideoTemplateFromRun(opts: {
       priceCredits,
       published: opts.published !== false,
       sourceRunId: run.id,
-      shotsJson: run.prompt,
+      shotsJson,
       slotBlueprintJson: JSON.stringify(blueprint),
       identityPersonCount: identityPersonCountFromRun(characterIds),
       hasLocationSlot: !!locationSlot,
       defaultLocationUrl: locationSlot?.bakedRefUrl || "",
       refVideoUrl: run.refVideoUrl || "",
       previewVideoUrl: run.resultVideoUrl || "",
-      previewPhotoUrl: refImageUrls.find((_, i) => slotRoleOf(refSlots[i]) === "identity") || refImageUrls[0] || "",
+      // Prefer a non-identity baked preview if present; else first frame thumb.
+      previewPhotoUrl:
+        refImageUrls.find((_, i) => slotRoleOf(refSlots[i]) !== "identity") ||
+        refImageUrls[0] ||
+        "",
       orientation: run.orientation,
       durationSec: run.durationSec,
     },

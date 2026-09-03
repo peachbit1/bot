@@ -22,7 +22,7 @@ export type TgPhotoTemplateRow = {
 
 const usablePhotoWhere = {
   OR: [{ published: true }, { tgPublished: true }],
-} as const;
+};
 
 export async function listTgPhotoTemplatesForLab(): Promise<TgPhotoTemplateRow[]> {
   const rows = await prisma.photoTemplate.findMany({
@@ -91,12 +91,16 @@ export async function createTgPhotoTemplateFromUpload(opts: {
     opts.sceneBytes,
     "tg_photo_tpl",
   );
+  const { sanitizeTemplateScenePrompt } = await import("@/lib/template-scene");
+  const editPrompt = sanitizeTemplateScenePrompt(opts.editPrompt.trim(), {
+    fallback: opts.editPrompt.trim(),
+  });
   const row = await prisma.photoTemplate.create({
     data: {
       title: opts.title.trim().slice(0, 120) || "Photo template",
       notes: (opts.notes || "").trim().slice(0, 500),
       tier: opts.tier === "pose" ? "pose" : "basic",
-      editPrompt: opts.editPrompt.trim(),
+      editPrompt,
       sceneImageUrl: saved.publicUrl,
       previewImageUrl: saved.publicUrl,
       published: true,

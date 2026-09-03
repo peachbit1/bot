@@ -318,12 +318,30 @@ export async function generatePhotoBytes(opts: {
     const tpl = await import("@/lib/tg-photo-template-lab").then((m) =>
       m.getTgPhotoTemplateForGeneration(opts.tgPhotoTemplateId!),
     );
+    const { composePhotoTemplatePromptForCharacter } = await import(
+      "@/lib/tg/template-prompt"
+    );
     const raw =
       opts.composedPrompt?.trim() ||
       tpl?.editPrompt?.trim() ||
       tpl?.title ||
       "photorealistic adult scene";
-    prompt = raw;
+    // If caller already composed with the selected character, keep it.
+    // Otherwise rebuild: scene-only for dual-ref, full lock for LoRA/T2I.
+    if (
+      opts.composedPrompt?.trim() &&
+      (/IDENTITY LOCK/i.test(opts.composedPrompt) ||
+        /SCENE LOCK/i.test(opts.composedPrompt))
+    ) {
+      prompt = opts.composedPrompt.trim();
+    } else {
+      prompt = await composePhotoTemplatePromptForCharacter({
+        templateEditPrompt: raw,
+        characterIds,
+        sceneOnly: !!opts.useIdentityDualRef,
+        clothed,
+      });
+    }
   } else if (opts.legoQuery?.trim()) {
     const {
       compileLegoToKreaPrompt,
@@ -384,22 +402,23 @@ export async function generatePhotoBytes(opts: {
       concept.promptBoosts,
     );
   } else if (opts.composedPrompt?.trim()) {
-    prompt = opts.composedPrompt.trim();
-    if (
-      !opts.tgPhotoTemplateId &&
-      !/IDENTITY LOCK/i.test(prompt) &&
-      characterIds.length
-    ) {
+    const raw = opts.composedPrompt.trim();
+    if (/IDENTITY LOCK/i.test(raw) || /SCENE LOCK/i.test(raw)) {
+      // Already assembled for a specific character / dual-ref scene — keep.
+      prompt = raw;
+    } else if (characterIds.length) {
       const identity = await characterIdentityLock(characterIds, {
         skipIntimate: clothed,
       });
       prompt = assembleLockedStillPrompt({
         identity,
-        scene: prompt,
+        scene: raw,
         wardrobeLine: wardrobePositive(clothed, pokies),
       });
-    } else if (clothed && !/WARDROBE LOCK/i.test(prompt)) {
-      prompt = `${wardrobePositive(clothed, pokies)} ${prompt}`.trim();
+    } else if (clothed && !/WARDROBE LOCK/i.test(raw)) {
+      prompt = `${wardrobePositive(clothed, pokies)} ${raw}`.trim();
+    } else {
+      prompt = raw;
     }
   } else if (opts.editPrompt?.trim() && opts.editOfId) {
     const src = await prisma.galleryItem.findFirst({
