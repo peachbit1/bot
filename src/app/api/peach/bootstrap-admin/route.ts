@@ -35,9 +35,31 @@ export async function POST(req: NextRequest) {
   const contentType = req.headers.get("content-type") || "";
 
   // Multipart: field "db" = sqlite file to replace production DB.
+  // Multipart: action=upload_gallery + fields relKey,file
   if (contentType.includes("multipart/form-data")) {
     const form = await req.formData();
     const action = String(form.get("action") || "import_db");
+
+    if (action === "upload_gallery") {
+      const relKey = String(form.get("relKey") || "").replace(/\\/g, "/").replace(/\.\./g, "");
+      const file = form.get("file");
+      if (!relKey || !(file instanceof File) || file.size < 1) {
+        return NextResponse.json({ error: "relKey+file required" }, { status: 400 });
+      }
+      if (file.size > 80 * 1024 * 1024) {
+        return NextResponse.json({ error: "file too large" }, { status: 400 });
+      }
+      const { galleryRoot, ensureDataDirs } = await import("@/lib/paths");
+      ensureDataDirs();
+      const abs = path.join(galleryRoot(), ...relKey.split("/").filter(Boolean));
+      if (!abs.startsWith(galleryRoot())) {
+        return NextResponse.json({ error: "bad path" }, { status: 400 });
+      }
+      fs.mkdirSync(path.dirname(abs), { recursive: true });
+      fs.writeFileSync(abs, Buffer.from(await file.arrayBuffer()));
+      return NextResponse.json({ ok: true, action: "upload_gallery", relKey, bytes: file.size });
+    }
+
     if (action !== "import_db") {
       return NextResponse.json({ error: "unsupported multipart action" }, { status: 400 });
     }
