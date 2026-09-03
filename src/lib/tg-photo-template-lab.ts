@@ -20,9 +20,13 @@ export type TgPhotoTemplateRow = {
   tgDisplayTitle: string;
 };
 
+const usablePhotoWhere = {
+  OR: [{ published: true }, { tgPublished: true }],
+} as const;
+
 export async function listTgPhotoTemplatesForLab(): Promise<TgPhotoTemplateRow[]> {
   const rows = await prisma.photoTemplate.findMany({
-    where: { published: true },
+    where: usablePhotoWhere,
     orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
   });
   return rows.map((r) => ({
@@ -44,7 +48,7 @@ export async function getTgPhotoTemplateForGeneration(
   templateId: string,
 ): Promise<TgPhotoTemplateRow | null> {
   const row = await prisma.photoTemplate.findFirst({
-    where: { id: templateId, published: true },
+    where: { id: templateId, ...usablePhotoWhere },
   });
   if (!row) return null;
   return {
@@ -57,6 +61,8 @@ export async function getTgPhotoTemplateForGeneration(
     sceneImageUrl: row.sceneImageUrl || row.previewImageUrl,
     published: row.published,
     sortOrder: row.sortOrder,
+    tgPublished: row.tgPublished,
+    tgDisplayTitle: row.tgDisplayTitle,
   };
 }
 
@@ -94,6 +100,8 @@ export async function createTgPhotoTemplateFromUpload(opts: {
       sceneImageUrl: saved.publicUrl,
       previewImageUrl: saved.publicUrl,
       published: true,
+      // Ready for lab test immediately; admin still toggles TG catalog explicitly.
+      tgPublished: false,
     },
   });
   return getTgPhotoTemplateForGeneration(row.id);

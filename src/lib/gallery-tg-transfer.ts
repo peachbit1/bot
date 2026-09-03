@@ -67,12 +67,6 @@ export async function transferGalleryItem(opts: {
     });
     if (!tpl) throw new Error("Не удалось создать видео-шаблон");
     await publishQuickVideoTemplateToTg(tpl.id, { displayTitle });
-    if (!peachPublished) {
-      await prisma.quickVideoTemplate.update({
-        where: { id: tpl.id },
-        data: { published: false },
-      });
-    }
     return { kind: "video" as const, templateId: tpl.id, mode: opts.mode };
   }
 
@@ -98,12 +92,6 @@ export async function transferGalleryItem(opts: {
       },
     });
     await publishPhotoTemplateToTg(row.id, { displayTitle });
-    if (!peachPublished) {
-      await prisma.photoTemplate.update({
-        where: { id: row.id },
-        data: { published: false },
-      });
-    }
     return { kind: "photo" as const, templateId: row.id, mode: opts.mode };
   }
 

@@ -182,7 +182,11 @@ export async function getQuickVideoTemplateDetail(
   templateId: string,
 ): Promise<QuickVideoTemplateDetail | null> {
   const row = await prisma.quickVideoTemplate.findFirst({
-    where: { id: templateId, published: true },
+    where: {
+      id: templateId,
+      // Same split as photo: TG catalog uses tgPublished; Peach uses published.
+      OR: [{ published: true }, { tgPublished: true }],
+    },
   });
   if (!row) return null;
   const purchase = await prisma.quickVideoTemplatePurchase.findUnique({

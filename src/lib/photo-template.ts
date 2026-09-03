@@ -46,8 +46,14 @@ export async function listPublicPhotoTemplates(
   }));
 }
 
+/** Load a photo template usable for TG/bot generation (Peach and/or TG catalog). */
 export async function getPhotoTemplate(id: string) {
   return prisma.photoTemplate.findFirst({
-    where: { id, published: true },
+    where: {
+      id,
+      // TG feed uses tgPublished; Peach marketplace uses published.
+      // TG-only transfers set published=false — must still generate.
+      OR: [{ published: true }, { tgPublished: true }],
+    },
   });
 }

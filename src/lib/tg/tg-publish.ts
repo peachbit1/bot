@@ -129,7 +129,7 @@ export async function publishQuickVideoTemplateToTg(
     where: { id: templateId },
     data: {
       tgPublished: true,
-      published: true,
+      // Do not force Peach `published` — TG-only templates stay off marketplace.
       tgDisplayTitle: displayTitle,
       previewVideoUrl: previewVideoUrl || row.previewVideoUrl,
       previewPhotoUrl: previewPhotoUrl || row.previewPhotoUrl,
@@ -189,7 +189,7 @@ export async function publishPhotoTemplateToTg(
     where: { id: templateId },
     data: {
       tgPublished: true,
-      published: true,
+      // Do not force Peach `published` — TG-only templates stay off marketplace.
       tgDisplayTitle: displayTitle,
       previewImageUrl: previewImageUrl || row.previewImageUrl,
       sceneImageUrl: sceneImageUrl || row.sceneImageUrl,
