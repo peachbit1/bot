@@ -84,13 +84,36 @@ function watchBot() {
 
 async function main() {
   const needTunnel = NEED_WEB || NEED_BOT;
+
+  function scheduleGpuRetry() {
+    const retryMs = 30_000;
+    const tick = async () => {
+      if (shuttingDown) return;
+      try {
+        const again = await ensureComfyTunnel();
+        if (again.ok) {
+          console.log(`[railway] GPU Comfy recovered (${again.reason})`);
+          return;
+        }
+      } catch (e) {
+        console.error(
+          "[railway] GPU retry failed:",
+          e instanceof Error ? e.message : e,
+        );
+      }
+      setTimeout(() => void tick(), retryMs);
+    };
+    setTimeout(() => void tick(), retryMs);
+  }
+
   if (needTunnel) {
     try {
       const tunnel = await ensureComfyTunnel();
       if (tunnel.ok) {
         console.log(`[railway] GPU Comfy ready (${tunnel.reason})`);
       } else {
-        console.log("[railway] running without GPU tunnel (mock mode)");
+        console.log(`[railway] running without GPU tunnel (${tunnel.reason})`);
+        scheduleGpuRetry();
       }
     } catch (err) {
       // Never take down web/bot because Metalnode SSH blips — retry in background.
@@ -98,24 +121,7 @@ async function main() {
         "[railway] GPU tunnel failed (continuing without GPU):",
         err instanceof Error ? err.message : err,
       );
-      const retryMs = 30_000;
-      const tick = async () => {
-        if (shuttingDown) return;
-        try {
-          const again = await ensureComfyTunnel();
-          if (again.ok) {
-            console.log(`[railway] GPU Comfy recovered (${again.reason})`);
-            return;
-          }
-        } catch (e) {
-          console.error(
-            "[railway] GPU retry failed:",
-            e instanceof Error ? e.message : e,
-          );
-        }
-        setTimeout(() => void tick(), retryMs);
-      };
-      setTimeout(() => void tick(), retryMs);
+      scheduleGpuRetry();
     }
   }
 
