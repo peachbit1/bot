@@ -630,6 +630,48 @@
   cursor: pointer;
 }
 
+.tg-portrait-card--static {
+  cursor: default;
+}
+
+.tg-fav-star {
+  position: absolute;
+  top: 0.45rem;
+  right: 0.45rem;
+  z-index: 3;
+  width: 2rem;
+  height: 2rem;
+  border: none;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  color: rgba(244, 241, 236, 0.85);
+  font-size: 1.05rem;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.tg-fav-star.is-on {
+  color: #ffd56a;
+}
+
+.tg-char-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem;
+}
+
+.tg-char-action {
+  border: 1px solid var(--tg-hairline-strong);
+  background: var(--tg-surface);
+  color: var(--tg-peach);
+  border-radius: 10px;
+  padding: 0.45rem 0.3rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
 .tg-portrait-media {
   position: relative;
   width: 100%;
