@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { TgShell, useTgMiniApp } from "@/lib/tg/miniapp/client";
-import { orderFeedSmart } from "@/lib/tg/feed-order";
+import { orderFeedMixed, orderFeedNewest } from "@/lib/tg/feed-order";
 
 type VideoTpl = {
   id: string;
@@ -65,6 +65,7 @@ const UI = {
     makePhoto: "Сделать фото",
     empty: "Шаблоны скоро появятся",
     speech: "🗣 речь",
+    newest: "Новое",
   },
   en: {
     title: "Feed",
@@ -75,6 +76,7 @@ const UI = {
     makePhoto: "Make photo",
     empty: "Templates coming soon",
     speech: "🗣 speech",
+    newest: "New",
   },
 } as const;
 
@@ -83,6 +85,8 @@ export default function TgFeedPage() {
   const { status, error, profile, locale, setLocale, apiFetch } = useTgMiniApp();
   const [tab, setTab] = useState<"all" | "video" | "photo">("all");
   const [items, setItems] = useState<FeedItem[]>([]);
+  const [pool, setPool] = useState<FeedItem[]>([]);
+  const [newest, setNewest] = useState(false);
   const [loadErr, setLoadErr] = useState("");
   const reelRef = useRef<HTMLDivElement>(null);
 
@@ -130,13 +134,21 @@ export default function TgFeedPage() {
         });
       }
     }
-    setItems(orderFeedSmart(feed));
+    setPool(feed);
   }, [tab, locale, apiFetch]);
 
   useEffect(() => {
     if (status !== "ready") return;
     void load();
   }, [status, load]);
+
+  useEffect(() => {
+    if (!pool.length) {
+      setItems([]);
+      return;
+    }
+    setItems(newest ? orderFeedNewest(pool) : orderFeedMixed(pool));
+  }, [pool, newest]);
 
   useEffect(() => {
     const root = reelRef.current;
@@ -178,6 +190,14 @@ export default function TgFeedPage() {
             {t === "all" ? u.all : t === "video" ? u.video : u.photo}
           </button>
         ))}
+        <label className={`tg-new-toggle${newest ? " is-on" : ""}`}>
+          {u.newest}
+          <input
+            type="checkbox"
+            checked={newest}
+            onChange={(e) => setNewest(e.target.checked)}
+          />
+        </label>
       </nav>
 
       {loadErr && <p className="tg-error">Не удалось загрузить</p>}
@@ -186,9 +206,23 @@ export default function TgFeedPage() {
       <div className="tg-reels" ref={reelRef}>
         {items.map((item) => (
           <article key={`${item.kind}-${item.id}`} className="tg-reel">
+            <div className="tg-reel-stage">
+              {item.isVideo ? (
+                <video
+                  src={item.preview}
+                  className="tg-reel-media"
+                  loop
+                  muted
+                  playsInline
+                  preload="metadata"
+                />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={item.preview} alt="" className="tg-reel-media" />
+              )}
+            </div>
             <div className="tg-reel-dock">
               <strong>{item.title}</strong>
-              {item.notes ? <p>{item.notes}</p> : null}
               <div className="tg-reel-meta">
                 <span className="tg-price">
                   {item.price} 🍑
@@ -215,21 +249,6 @@ export default function TgFeedPage() {
                   {item.kind === "video" ? u.shootVideo : u.makePhoto}
                 </button>
               </div>
-            </div>
-            <div className="tg-reel-stage">
-              {item.isVideo ? (
-                <video
-                  src={item.preview}
-                  className="tg-reel-media"
-                  loop
-                  muted
-                  playsInline
-                  preload="metadata"
-                />
-              ) : (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={item.preview} alt="" className="tg-reel-media" />
-              )}
             </div>
           </article>
         ))}

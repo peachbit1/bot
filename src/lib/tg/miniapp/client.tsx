@@ -264,7 +264,7 @@ export function TgShell({
       <header className="tg-header">
         <div className="tg-brand">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/tg/peach-logo.svg" alt="Peach Bitch" className="tg-logo" />
+          <img src="/tg/peach-logo.png" alt="Peach Bitch" className="tg-logo" />
         </div>
         <div className="tg-header-row">
           {hideTitle ? <span /> : <h1>{title}</h1>}

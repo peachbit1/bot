@@ -19,20 +19,46 @@ export function guessPhotoSceneCategory(title: string): PhotoSceneCategoryId | "
   return "";
 }
 
-/** Newest first; never two consecutive items with the same identity when alternatives exist. */
-export function orderFeedSmart<T extends { createdAt: number; identityKey: string }>(
+export function shuffleInPlace<T>(arr: T[]): T[] {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j]!, arr[i]!];
+  }
+  return arr;
+}
+
+/**
+ * Random order each visit: mix photo/video (video, photo, video…)
+ * and avoid two consecutive items with the same identity when possible.
+ */
+export function orderFeedMixed<T extends { kind: string; identityKey: string }>(
   items: T[],
 ): T[] {
-  const remaining = [...items].sort((a, b) => b.createdAt - a.createdAt);
+  const photos = shuffleInPlace(items.filter((i) => i.kind === "photo"));
+  const videos = shuffleInPlace(items.filter((i) => i.kind === "video"));
   const out: T[] = [];
-  while (remaining.length) {
-    const last = out[out.length - 1]?.identityKey;
-    const idx =
-      last && remaining.length > 1
-        ? remaining.findIndex((x) => x.identityKey && x.identityKey !== last)
-        : 0;
-    const pickAt = idx >= 0 ? idx : 0;
-    out.push(remaining.splice(pickAt, 1)[0]!);
+  let wantVideo = Math.random() < 0.5;
+
+  const take = (arr: T[], lastId?: string) => {
+    if (!arr.length) return undefined;
+    const idx = lastId
+      ? arr.findIndex((x) => x.identityKey && x.identityKey !== lastId)
+      : 0;
+    return arr.splice(idx >= 0 ? idx : 0, 1)[0];
+  };
+
+  while (photos.length || videos.length) {
+    const primary = wantVideo ? videos : photos;
+    const other = wantVideo ? photos : videos;
+    const lastId = out[out.length - 1]?.identityKey;
+    const picked = take(primary, lastId) || take(other, lastId);
+    if (picked) out.push(picked);
+    wantVideo = !wantVideo;
   }
   return out;
+}
+
+/** Newest first, top → bottom. */
+export function orderFeedNewest<T extends { createdAt: number }>(items: T[]): T[] {
+  return [...items].sort((a, b) => b.createdAt - a.createdAt);
 }
