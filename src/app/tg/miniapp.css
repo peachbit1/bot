@@ -39,14 +39,14 @@
 .tg-tabbar a {
   flex: 1;
   text-align: center;
-  padding: 0.4rem 0.1rem;
+  padding: 0.35rem 0.05rem;
   border-radius: 12px;
   color: var(--tg-muted);
   text-decoration: none;
-  font-size: 0.58rem;
+  font-size: 0.52rem;
   font-weight: 600;
   letter-spacing: 0;
-  line-height: 1.15;
+  line-height: 1.1;
 }
 
 .tg-tabbar a span {

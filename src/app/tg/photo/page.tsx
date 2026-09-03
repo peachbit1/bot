@@ -53,6 +53,7 @@ function PhotoPageInner() {
   const router = useRouter();
   const params = useSearchParams();
   const presetTpl = params.get("templateId") || "";
+  const presetCharacterId = params.get("characterId") || params.get("castId") || "";
 
   const { status, error, profile, locale, apiFetch, refresh, sendAction } =
     useTgMiniApp();
@@ -81,15 +82,21 @@ function PhotoPageInner() {
     (t) => !category || t.sceneCategory === category,
   );
   const selected = templates.find((t) => t.id === templateId);
+  const lockedCharacter =
+    presetCharacterId &&
+    ([
+      ...(profile?.casts || []).map((c) => ({ id: c.id, name: c.name })),
+      ...(profile?.characters || []).map((c) => ({ id: c.id, name: c.name })),
+    ].find((c) => c.id === presetCharacterId) || { id: presetCharacterId, name: "" });
 
-  const onGenerate = async (characterId: string) => {
-    if (!templateId) return;
-    setBusy(characterId);
+  const onGenerate = async (characterId: string, tplId = templateId) => {
+    if (!tplId) return;
+    setBusy(presetCharacterId ? tplId : characterId);
     setErr("");
     const res = await apiFetch("/api/tg/generate/photo", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ templateId, characterId, locale }),
+      body: JSON.stringify({ templateId: tplId, characterId, locale }),
     });
     setBusy(null);
     if (!res.ok) {
@@ -113,6 +120,14 @@ function PhotoPageInner() {
     router.push("/tg/gallery");
   };
 
+  const pickTemplate = (id: string) => {
+    if (presetCharacterId) {
+      void onGenerate(presetCharacterId, id);
+      return;
+    }
+    setTemplateId(id);
+  };
+
   if (status === "loading") return <p className="tg-loading">…</p>;
   if (status === "error") return <p className="tg-error">{error}</p>;
 
@@ -126,7 +141,12 @@ function PhotoPageInner() {
       {!templateId || !selected ? (
         <>
           <div className="tg-toolbar">
-            <h2 style={{ margin: 0, fontSize: "0.95rem" }}>{u.pickTpl}</h2>
+            <h2 style={{ margin: 0, fontSize: "0.95rem" }}>
+              {u.pickTpl}
+              {lockedCharacter && lockedCharacter.name
+                ? ` · ${lockedCharacter.name}`
+                : ""}
+            </h2>
             <button
               type="button"
               className="tg-filter-btn"
@@ -170,7 +190,8 @@ function PhotoPageInner() {
                 key={t.id}
                 type="button"
                 className="tg-portrait-card"
-                onClick={() => setTemplateId(t.id)}
+                disabled={!!busy}
+                onClick={() => pickTemplate(t.id)}
               >
                 <div className="tg-portrait-media">
                   {t.previewImageUrl ? (
@@ -179,7 +200,9 @@ function PhotoPageInner() {
                   ) : (
                     <div className="tg-portrait-placeholder" />
                   )}
-                  <span className="tg-portrait-action ready">{u.generate}</span>
+                  <span className="tg-portrait-action ready">
+                    {busy === t.id ? u.starting : u.generate}
+                  </span>
                 </div>
                 <div className="tg-portrait-meta">
                   <strong>{t.title}</strong>

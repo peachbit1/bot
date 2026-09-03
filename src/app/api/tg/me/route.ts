@@ -5,6 +5,7 @@ import { listTgCharacters, listVideoRefCharacters } from "@/lib/tg/character-ser
 import { listStudioCasts } from "@/lib/tg/studio-cast";
 import { pickCharacterCoverUrl } from "@/lib/tg/tg-catalog";
 import { normalizeLocale } from "@/lib/tg/i18n";
+import { listFavoriteCastIds } from "@/lib/tg/cast-favorites";
 import { TG_PROMO } from "@/lib/tg-pricing";
 
 /** Mini App profile: balance, characters, studio cast, promos. */
@@ -22,10 +23,11 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
 
-  const [characters, casts, videoRefs] = await Promise.all([
+  const [characters, casts, videoRefs, favoriteCastIds] = await Promise.all([
     listTgCharacters(userId),
     listStudioCasts(locale),
     listVideoRefCharacters(userId),
+    listFavoriteCastIds(userId),
   ]);
 
   // Covers: only for a few personal cards — avoid N gallery scans on every open.
@@ -62,5 +64,6 @@ export async function GET(req: Request) {
       videoRefOnly: true,
     })),
     casts,
+    favoriteCastIds,
   });
 }

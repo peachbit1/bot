@@ -24,6 +24,7 @@ export type TgMiniAppProfile = {
   }>;
   videoRefs?: Array<{ id: string; name: string; photoCount: number; videoRefOnly: boolean }>;
   casts: Array<{ id: string; name: string; coverUrl: string | null }>;
+  favoriteCastIds?: string[];
 };
 
 const UI = {
@@ -34,9 +35,10 @@ const UI = {
     busyErr: "Сервер перезапускается — подожди 5 сек и открой снова",
     loading: "Загрузка…",
     feed: "Лента",
-    photo: "Сделать фото",
-    video: "Сделать видео",
     gallery: "Галерея",
+    chars: "Персонажи",
+    photo: "Фото",
+    video: "Видео",
     profile: "Профиль",
     balance: "Баланс",
   },
@@ -47,9 +49,10 @@ const UI = {
     busyErr: "Server is restarting — wait 5s and open again",
     loading: "Loading…",
     feed: "Feed",
-    photo: "Make photo",
-    video: "Make video",
     gallery: "Gallery",
+    chars: "Cast",
+    photo: "Photo",
+    video: "Video",
     profile: "Profile",
     balance: "Balance",
   },
@@ -208,11 +211,10 @@ export function TgTabBar({ locale }: { locale: "ru" | "en" }) {
   const path = usePathname();
   const u = UI[locale];
   const feedActive = path === "/tg" || path === "/tg/templates";
+  const charsActive =
+    path.startsWith("/tg/characters") || path === "/tg/casts";
   const photoActive =
-    path.startsWith("/tg/photo") ||
-    path === "/tg/characters" ||
-    path === "/tg/studio-photo" ||
-    path === "/tg/casts";
+    path.startsWith("/tg/photo") || path === "/tg/studio-photo";
   const videoActive = path.startsWith("/tg/video");
   const galleryActive = path === "/tg/gallery";
   const profileActive = path.startsWith("/tg/profile") || path.startsWith("/tg/partner");
@@ -226,6 +228,10 @@ export function TgTabBar({ locale }: { locale: "ru" | "en" }) {
       <Link href="/tg/gallery" className={galleryActive ? "active" : ""}>
         <span>🖼</span>
         {u.gallery}
+      </Link>
+      <Link href="/tg/characters" className={charsActive ? "active" : ""}>
+        <span>⭐</span>
+        {u.chars}
       </Link>
       <Link href="/tg/photo" className={photoActive ? "active" : ""}>
         <span>📸</span>

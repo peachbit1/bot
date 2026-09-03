@@ -67,6 +67,7 @@ model User {
   peachPhotoTemplates PeachPhotoTemplate[]
   peachPhotoTemplatePurchases PeachPhotoTemplatePurchase[]
   testGalleryFolders TestGalleryFolder[]
+  tgCastFavorites   TgCastFavorite[]
 }
 
 model Character {
@@ -99,6 +100,21 @@ model Character {
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   renderJobs   RenderJob[]
   galleryItems GalleryItem[]
+  tgFavorites  TgCastFavorite[]
+}
+
+/// Mini App: user favorited a studio cast actress.
+model TgCastFavorite {
+  id          String   @id @default(cuid())
+  userId      String
+  characterId String
+  createdAt   DateTime @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, characterId])
+  @@index([userId])
 }
 
 model GalleryItem {

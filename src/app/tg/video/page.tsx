@@ -47,6 +47,7 @@ function VideoPageInner() {
   const router = useRouter();
   const params = useSearchParams();
   const presetId = params.get("templateId") || "";
+  const presetCharacterId = params.get("characterId") || "";
 
   const { status, error, profile, locale, apiFetch, refresh } = useTgMiniApp();
   const u = UI[locale];
@@ -54,7 +55,9 @@ function VideoPageInner() {
   const [templates, setTemplates] = useState<VideoTpl[]>([]);
   const [templateId, setTemplateId] = useState(presetId);
   const [refs, setRefs] = useState<VideoRef[]>([]);
-  const [characterId, setCharacterId] = useState<string | null>(null);
+  const [characterId, setCharacterId] = useState<string | null>(
+    presetCharacterId || null,
+  );
   const [photoCount, setPhotoCount] = useState(0);
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -76,8 +79,16 @@ function VideoPageInner() {
     if (rRes.ok) {
       const data = (await rRes.json()) as { refs: VideoRef[] };
       setRefs(data.refs || []);
+      if (presetCharacterId) {
+        const hit = (data.refs || []).find((r) => r.id === presetCharacterId);
+        if (hit?.ready) {
+          setCharacterId(hit.id);
+          setPhotoCount(hit.photoCount);
+          setReady(true);
+        }
+      }
     }
-  }, [apiFetch, locale, presetId]);
+  }, [apiFetch, locale, presetId, presetCharacterId]);
 
   useEffect(() => {
     if (status !== "ready") return;
