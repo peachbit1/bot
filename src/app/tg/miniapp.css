@@ -76,9 +76,9 @@
 }
 
 .tg-logo {
-  height: 16px;
-  width: auto;
-  max-width: 132px;
+  width: 40%;
+  max-width: 40%;
+  height: auto;
   object-fit: contain;
   object-position: center;
   display: block;
@@ -240,14 +240,15 @@
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 0;
+  top: 0;
+  bottom: auto;
   z-index: 2;
-  padding: 2.4rem 0.9rem 0.7rem;
+  padding: 0.7rem 0.9rem 2.4rem;
   background: linear-gradient(
     180deg,
-    rgba(0, 0, 0, 0) 0%,
-    rgba(0, 0, 0, 0.18) 38%,
-    rgba(0, 0, 0, 0.72) 100%
+    rgba(0, 0, 0, 0.72) 0%,
+    rgba(0, 0, 0, 0.18) 62%,
+    rgba(0, 0, 0, 0) 100%
   );
   border: none;
 }
