@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { resolveTgApiUserId } from "@/lib/tg/resolve-api-user";
-import { getStudioCast } from "@/lib/tg/studio-cast";
 import { setActiveTgCharacter } from "@/lib/tg/character-service";
 import { startTgPhotoGeneration } from "@/lib/tg/generation-service";
 import { templatePriceLabel } from "@/lib/tg/generation-flow";
@@ -28,17 +27,27 @@ export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as {
     templateId?: string;
     castId?: string;
+    characterId?: string;
     locale?: string;
   };
 
-  if (!body.templateId || !body.castId) {
-    return NextResponse.json({ error: "templateId and castId required" }, { status: 400 });
+  const characterId = body.characterId || body.castId;
+  if (!body.templateId || !characterId) {
+    return NextResponse.json(
+      { error: "templateId and characterId required" },
+      { status: 400 },
+    );
   }
 
   const locale = normalizeLocale(body.locale);
-  const cast = await getStudioCast(body.castId);
-  if (!cast) {
-    return NextResponse.json({ error: "Cast not found" }, { status: 404 });
+  const character = await prisma.character.findFirst({
+    where: {
+      id: characterId,
+      OR: [{ userId }, { isStudioCast: true }],
+    },
+  });
+  if (!character) {
+    return NextResponse.json({ error: "Character not found" }, { status: 404 });
   }
 
   const tpl = await getPhotoTemplate(body.templateId);
@@ -51,14 +60,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "No Telegram account" }, { status: 400 });
   }
 
-  await setActiveTgCharacter(platformUserId, cast.id);
+  await setActiveTgCharacter(platformUserId, character.id);
 
   const pricing = await templatePriceLabel({
     userId,
     kind: "photo",
     templateId: body.templateId,
     locale,
-    character: cast,
+    character,
   });
 
   if (pricing.price > 0) {
@@ -79,7 +88,7 @@ export async function POST(req: Request) {
       userId,
       platformUserId,
       templateId: body.templateId,
-      characterId: cast.id,
+      characterId: character.id,
       studioDaily: Boolean(studioDaily && pricing.freePhoto),
       loraWelcome: false,
     });

@@ -18,6 +18,9 @@ export async function GET(req: Request) {
     label: l.label,
     clicks: l.clicks,
     signups: l.signups,
+    purchases: l.purchases ?? 0,
+    purchaseGrossPeaches: l.purchaseGrossPeaches ?? 0,
+    commissionPeaches: l.commissionPeaches ?? 0,
     url: partnerStartLink(
       dash.botUsername,
       dash.profile.code,
@@ -31,6 +34,9 @@ export async function GET(req: Request) {
     commissionPct: dash.profile.commissionPct,
     code: dash.profile.code,
     referrals: dash.referrals,
+    purchases: dash.purchases ?? 0,
+    purchaseGrossPeaches: dash.purchaseGrossPeaches ?? 0,
+    commissionPeaches: dash.commissionPeaches ?? dash.profile.totalEarnedPeaches,
     links,
     mainUrl: partnerStartLink(dash.botUsername, dash.profile.code),
     commissions: dash.commissions.map((c) => ({

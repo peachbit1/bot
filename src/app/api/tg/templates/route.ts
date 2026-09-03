@@ -53,6 +53,8 @@ export async function GET(req: Request) {
       hasSpeech: Boolean(row.hasSpeech),
       previewVideoUrl: previewVideo,
       previewPhotoUrl: previewPhoto,
+      createdAt: (t as { createdAt?: string }).createdAt || new Date(0).toISOString(),
+      identityKey: (t as { identityKey?: string }).identityKey || t.id,
     };
   });
 
@@ -62,6 +64,9 @@ export async function GET(req: Request) {
       p.previewImageUrl?.trim() ||
       seedPreviewForPhoto(p.title) ||
       "",
+    createdAt: (p as { createdAt?: string }).createdAt || new Date(0).toISOString(),
+    identityKey: (p as { identityKey?: string }).identityKey || p.id,
+    sceneCategory: (p as { sceneCategory?: string }).sceneCategory || "",
   }));
 
   return NextResponse.json({ video, photo: photoMapped, locale });

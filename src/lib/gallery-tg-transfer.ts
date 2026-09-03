@@ -12,6 +12,7 @@ import {
 } from "@/lib/tg/tg-publish";
 import { saveGalleryBinary } from "@/lib/local-store";
 import { sanitizeTemplateScenePrompt } from "@/lib/template-scene";
+import { guessPhotoSceneCategory } from "@/lib/tg/feed-order";
 
 export type GalleryTransferMode = "both" | "tg";
 
@@ -107,6 +108,8 @@ export async function transferGalleryItem(opts: {
         previewImageUrl: saved.publicUrl,
         published: peachPublished,
         tgPublished: false,
+        previewIdentityKey: item.characterId || "",
+        sceneCategory: guessPhotoSceneCategory(title),
       },
     });
     await publishPhotoTemplateToTg(row.id, { displayTitle });

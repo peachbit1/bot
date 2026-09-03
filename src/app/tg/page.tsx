@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { TgShell, useTgMiniApp } from "@/lib/tg/miniapp/client";
+import { orderFeedSmart } from "@/lib/tg/feed-order";
 
 type VideoTpl = {
   id: string;
@@ -13,6 +14,8 @@ type VideoTpl = {
   durationSec: number;
   pricePeaches: number;
   hasSpeech?: boolean;
+  createdAt?: string;
+  identityKey?: string;
 };
 
 type PhotoTpl = {
@@ -21,28 +24,55 @@ type PhotoTpl = {
   notes: string;
   pricePeaches: number;
   previewImageUrl: string;
+  createdAt?: string;
+  identityKey?: string;
 };
 
 type FeedItem =
-  | { kind: "video"; id: string; title: string; notes: string; preview: string; isVideo: true; price: number; durationSec: number; hasSpeech?: boolean }
-  | { kind: "photo"; id: string; title: string; notes: string; preview: string; isVideo: false; price: number; durationSec: number };
+  | {
+      kind: "video";
+      id: string;
+      title: string;
+      notes: string;
+      preview: string;
+      isVideo: true;
+      price: number;
+      durationSec: number;
+      hasSpeech?: boolean;
+      createdAt: number;
+      identityKey: string;
+    }
+  | {
+      kind: "photo";
+      id: string;
+      title: string;
+      notes: string;
+      preview: string;
+      isVideo: false;
+      price: number;
+      durationSec: number;
+      createdAt: number;
+      identityKey: string;
+    };
 
 const UI = {
   ru: {
-    title: "🍑 Студия",
+    title: "Лента",
     all: "Все",
     video: "Видео",
     photo: "Фото",
-    use: "Повторить позу",
+    shootVideo: "Снять видео",
+    makePhoto: "Сделать фото",
     empty: "Шаблоны скоро появятся",
     speech: "🗣 речь",
   },
   en: {
-    title: "🍑 Studio",
+    title: "Feed",
     all: "All",
     video: "Video",
     photo: "Photo",
-    use: "Repeat pose",
+    shootVideo: "Shoot video",
+    makePhoto: "Make photo",
     empty: "Templates coming soon",
     speech: "🗣 speech",
   },
@@ -50,8 +80,7 @@ const UI = {
 
 export default function TgFeedPage() {
   const router = useRouter();
-  const { status, error, profile, locale, setLocale, sendAction, apiFetch } =
-    useTgMiniApp();
+  const { status, error, profile, locale, setLocale, apiFetch } = useTgMiniApp();
   const [tab, setTab] = useState<"all" | "video" | "photo">("all");
   const [items, setItems] = useState<FeedItem[]>([]);
   const [loadErr, setLoadErr] = useState("");
@@ -61,8 +90,7 @@ export default function TgFeedPage() {
 
   const load = useCallback(async () => {
     setLoadErr("");
-    const kind = tab;
-    const res = await apiFetch(`/api/tg/templates?kind=${kind}&locale=${locale}`);
+    const res = await apiFetch(`/api/tg/templates?kind=${tab}&locale=${locale}`);
     if (!res.ok) {
       setLoadErr("load");
       return;
@@ -81,6 +109,8 @@ export default function TgFeedPage() {
           price: v.pricePeaches || 142,
           durationSec: v.durationSec,
           hasSpeech: v.hasSpeech,
+          createdAt: Date.parse(v.createdAt || "") || 0,
+          identityKey: v.identityKey || v.id,
         });
       }
     }
@@ -95,10 +125,12 @@ export default function TgFeedPage() {
           isVideo: false,
           price: p.pricePeaches,
           durationSec: 0,
+          createdAt: Date.parse(p.createdAt || "") || 0,
+          identityKey: p.identityKey || p.id,
         });
       }
     }
-    setItems(feed);
+    setItems(orderFeedSmart(feed));
   }, [tab, locale, apiFetch]);
 
   useEffect(() => {
@@ -131,10 +163,11 @@ export default function TgFeedPage() {
     <TgShell
       locale={locale}
       title={u.title}
+      hideTitle
       balance={profile?.balancePeaches}
       onLangToggle={() => setLocale(locale === "ru" ? "en" : "ru")}
     >
-      <nav className="tg-tabs" style={{ padding: "0 1rem 0.65rem" }}>
+      <nav className="tg-tabs tg-tabs--sticky">
         {(["all", "video", "photo"] as const).map((t) => (
           <button
             key={t}
@@ -148,28 +181,11 @@ export default function TgFeedPage() {
       </nav>
 
       {loadErr && <p className="tg-error">Не удалось загрузить</p>}
-
       {!loadErr && items.length === 0 && <p className="tg-muted">{u.empty}</p>}
 
       <div className="tg-reels" ref={reelRef}>
         {items.map((item) => (
           <article key={`${item.kind}-${item.id}`} className="tg-reel">
-            <div className="tg-reel-stage">
-              {item.isVideo ? (
-                <video
-                  src={item.preview}
-                  className="tg-reel-media"
-                  loop
-                  muted
-                  playsInline
-                  preload="metadata"
-                  poster={item.preview.endsWith(".mp4") ? undefined : item.preview}
-                />
-              ) : (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={item.preview} alt="" className="tg-reel-media" />
-              )}
-            </div>
             <div className="tg-reel-dock">
               <strong>{item.title}</strong>
               {item.notes ? <p>{item.notes}</p> : null}
@@ -187,16 +203,33 @@ export default function TgFeedPage() {
                   onClick={() => {
                     if (item.kind === "video") {
                       router.push(
-                        `/tg/video-flow?templateId=${encodeURIComponent(item.id)}`,
+                        `/tg/video?templateId=${encodeURIComponent(item.id)}`,
                       );
                       return;
                     }
-                    router.push("/tg/characters");
+                    router.push(
+                      `/tg/photo?templateId=${encodeURIComponent(item.id)}`,
+                    );
                   }}
                 >
-                  {u.use}
+                  {item.kind === "video" ? u.shootVideo : u.makePhoto}
                 </button>
               </div>
+            </div>
+            <div className="tg-reel-stage">
+              {item.isVideo ? (
+                <video
+                  src={item.preview}
+                  className="tg-reel-media"
+                  loop
+                  muted
+                  playsInline
+                  preload="metadata"
+                />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={item.preview} alt="" className="tg-reel-media" />
+              )}
             </div>
           </article>
         ))}

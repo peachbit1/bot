@@ -712,6 +712,7 @@ model QuickVideoTemplate {
   /// Override title shown in TG (empty = use title)
   tgDisplayTitle      String   @default("")
   tgSortOrder         Int      @default(0)
+  previewIdentityKey  String   @default("")
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
@@ -883,13 +884,17 @@ model PartnerProfile {
 }
 
 model PartnerLink {
-  id        String   @id @default(cuid())
-  partnerId String
-  slug      String
-  label     String   @default("")
-  clicks    Int      @default(0)
-  signups   Int      @default(0)
-  createdAt DateTime @default(now())
+  id                 String   @id @default(cuid())
+  partnerId          String
+  slug               String
+  label              String   @default("")
+  clicks             Int      @default(0)
+  signups            Int      @default(0)
+  /// Paid topups attributed to this link
+  purchases          Int      @default(0)
+  purchaseGrossPeaches Int    @default(0)
+  commissionPeaches  Int      @default(0)
+  createdAt          DateTime @default(now())
 
   partner      PartnerProfile       @relation(fields: [partnerId], references: [id], onDelete: Cascade)
   attributions PartnerAttribution[]
@@ -916,6 +921,8 @@ model PartnerCommission {
   id            String   @id @default(cuid())
   partnerId     String
   referredUserId String
+  /// Attribution link at purchase time (admin / per-link stats)
+  linkId        String?
   grossPeaches  Int
   amountPeaches Int
   kind          String   @default("topup")
@@ -961,6 +968,10 @@ model PhotoTemplate {
   tgPublished     Boolean  @default(false)
   /// Override title shown in TG (empty = use title)
   tgDisplayTitle  String   @default("")
+  /// sex | display | dirt | public | humiliation | empty = uncategorized
+  sceneCategory   String   @default("")
+  /// Author character id (feed: don't show same identity twice in a row)
+  previewIdentityKey String @default("")
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

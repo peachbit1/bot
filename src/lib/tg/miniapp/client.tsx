@@ -34,8 +34,10 @@ const UI = {
     busyErr: "Сервер перезапускается — подожди 5 сек и открой снова",
     loading: "Загрузка…",
     feed: "Лента",
-    chars: "Персонажи",
+    photo: "Сделать фото",
+    video: "Сделать видео",
     gallery: "Галерея",
+    profile: "Профиль",
     balance: "Баланс",
   },
   en: {
@@ -45,8 +47,10 @@ const UI = {
     busyErr: "Server is restarting — wait 5s and open again",
     loading: "Loading…",
     feed: "Feed",
-    chars: "Cast",
+    photo: "Make photo",
+    video: "Make video",
     gallery: "Gallery",
+    profile: "Profile",
     balance: "Balance",
   },
 } as const;
@@ -204,8 +208,14 @@ export function TgTabBar({ locale }: { locale: "ru" | "en" }) {
   const path = usePathname();
   const u = UI[locale];
   const feedActive = path === "/tg" || path === "/tg/templates";
-  const charsActive = path === "/tg/characters" || path === "/tg/casts";
+  const photoActive =
+    path.startsWith("/tg/photo") ||
+    path === "/tg/characters" ||
+    path === "/tg/studio-photo" ||
+    path === "/tg/casts";
+  const videoActive = path.startsWith("/tg/video");
   const galleryActive = path === "/tg/gallery";
+  const profileActive = path.startsWith("/tg/profile") || path.startsWith("/tg/partner");
 
   return (
     <nav className="tg-tabbar">
@@ -217,9 +227,17 @@ export function TgTabBar({ locale }: { locale: "ru" | "en" }) {
         <span>🖼</span>
         {u.gallery}
       </Link>
-      <Link href="/tg/characters" className={charsActive ? "active" : ""}>
+      <Link href="/tg/photo" className={photoActive ? "active" : ""}>
+        <span>📸</span>
+        {u.photo}
+      </Link>
+      <Link href="/tg/video" className={videoActive ? "active" : ""}>
+        <span>🎥</span>
+        {u.video}
+      </Link>
+      <Link href="/tg/profile" className={profileActive ? "active" : ""}>
         <span>👤</span>
-        {u.chars}
+        {u.profile}
       </Link>
     </nav>
   );
@@ -231,19 +249,25 @@ export function TgShell({
   balance,
   title,
   onLangToggle,
+  hideTitle,
 }: {
   children: React.ReactNode;
   locale: "ru" | "en";
   balance?: number;
   title: string;
   onLangToggle?: () => void;
+  hideTitle?: boolean;
 }) {
   const u = UI[locale];
   return (
     <div className="tg-shell">
       <header className="tg-header">
+        <div className="tg-brand">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/tg/peach-logo.svg" alt="Peach Bitch" className="tg-logo" />
+        </div>
         <div className="tg-header-row">
-          <h1>{title}</h1>
+          {hideTitle ? <span /> : <h1>{title}</h1>}
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
             {typeof balance === "number" && (
               <span className="tg-balance">

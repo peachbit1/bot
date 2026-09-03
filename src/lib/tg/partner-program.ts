@@ -138,24 +138,35 @@ export async function creditPartnerCommission(opts: {
   const amount = Math.floor((opts.grossPeaches * pct) / 100);
   if (amount <= 0) return;
 
-  await prisma.$transaction([
-    prisma.partnerProfile.update({
+  await prisma.$transaction(async (tx) => {
+    await tx.partnerProfile.update({
       where: { id: attr.partnerId },
       data: {
         balancePeaches: { increment: amount },
         totalEarnedPeaches: { increment: amount },
       },
-    }),
-    prisma.partnerCommission.create({
+    });
+    await tx.partnerCommission.create({
       data: {
         partnerId: attr.partnerId,
         referredUserId: opts.referredUserId,
+        linkId: attr.linkId,
         grossPeaches: opts.grossPeaches,
         amountPeaches: amount,
         kind: opts.kind || "topup",
       },
-    }),
-  ]);
+    });
+    if (attr.linkId) {
+      await tx.partnerLink.update({
+        where: { id: attr.linkId },
+        data: {
+          purchases: { increment: 1 },
+          purchaseGrossPeaches: { increment: opts.grossPeaches },
+          commissionPeaches: { increment: amount },
+        },
+      });
+    }
+  });
 }
 
 export async function getPartnerDashboard(userId: string) {
@@ -179,6 +190,12 @@ export async function getPartnerDashboard(userId: string) {
     where: { partnerId: profile.id },
   });
 
+  const purchaseAgg = await prisma.partnerCommission.aggregate({
+    where: { partnerId: profile.id },
+    _count: { id: true },
+    _sum: { grossPeaches: true, amountPeaches: true },
+  });
+
   const commissions = await prisma.partnerCommission.findMany({
     where: { partnerId: profile.id },
     orderBy: { createdAt: "desc" },
@@ -197,6 +214,10 @@ export async function getPartnerDashboard(userId: string) {
     profile,
     links,
     referrals,
+    purchases: purchaseAgg._count.id,
+    purchaseGrossPeaches: purchaseAgg._sum.grossPeaches || 0,
+    commissionPeaches:
+      purchaseAgg._sum.amountPeaches || profile.totalEarnedPeaches,
     commissions,
     withdrawals,
     botUsername,

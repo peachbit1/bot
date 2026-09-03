@@ -362,6 +362,7 @@ export async function createQuickVideoTemplateFromRun(opts: {
         "",
       orientation: run.orientation,
       durationSec: run.durationSec,
+      previewIdentityKey: characterIds[0] || "",
     },
   });
 

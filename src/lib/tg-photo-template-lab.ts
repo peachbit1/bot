@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { localBytesFromResultUrl } from "@/lib/peach-lab";
 import { saveGalleryBinary } from "@/lib/local-store";
 import type { TgPhotoTier } from "@/lib/tg-pricing";
+import { guessPhotoSceneCategory } from "@/lib/tg/feed-order";
 
 export type TgPhotoTemplateRow = {
   id: string;
@@ -106,6 +107,7 @@ export async function createTgPhotoTemplateFromUpload(opts: {
       published: true,
       // Ready for lab test immediately; admin still toggles TG catalog explicitly.
       tgPublished: false,
+      sceneCategory: guessPhotoSceneCategory(opts.title),
     },
   });
   return getTgPhotoTemplateForGeneration(row.id);

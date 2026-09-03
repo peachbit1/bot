@@ -43,6 +43,20 @@ export async function ensureTgCatalog(): Promise<void> {
     console.error("[peach] template identity migrate:", e),
   );
 
+  const uncategorized = await prisma.photoTemplate.findMany({
+    where: { sceneCategory: "" },
+    select: { id: true, title: true },
+  });
+  const { guessPhotoSceneCategory } = await import("@/lib/tg/feed-order");
+  for (const row of uncategorized) {
+    const cat = guessPhotoSceneCategory(row.title);
+    if (!cat) continue;
+    await prisma.photoTemplate.update({
+      where: { id: row.id },
+      data: { sceneCategory: cat },
+    });
+  }
+
   for (const title of TG_FEATURED_VIDEO_TITLES) {
     await prisma.quickVideoTemplate.updateMany({
       where: { title },
@@ -140,6 +154,8 @@ async function listTgPublishedVideoRows(userId: string): Promise<PublicQuickVide
       previewPhotoUrl: r.previewPhotoUrl,
       orientation: r.orientation,
       durationSec: r.durationSec,
+      createdAt: r.createdAt.toISOString(),
+      identityKey: r.previewIdentityKey || r.userId || r.id,
       owned,
       isAuthor,
     };
@@ -173,6 +189,9 @@ async function listTgPublishedPhotoRows(locale: TgLocale) {
       r.pricePeaches || tgPhotoPeaches(r.tier === "pose" ? "pose" : "basic"),
     previewImageUrl: r.previewImageUrl || r.sceneImageUrl,
     hasSpeech: r.hasSpeech,
+    createdAt: r.createdAt.toISOString(),
+    identityKey: r.previewIdentityKey || r.id,
+    sceneCategory: r.sceneCategory || "",
   }));
 }
 

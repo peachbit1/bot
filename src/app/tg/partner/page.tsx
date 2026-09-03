@@ -9,6 +9,9 @@ type PartnerData = {
   commissionPct: number;
   code: string;
   referrals: number;
+  purchases: number;
+  purchaseGrossPeaches: number;
+  commissionPeaches: number;
   mainUrl: string;
   links: Array<{
     id: string;
@@ -16,6 +19,9 @@ type PartnerData = {
     label: string;
     clicks: number;
     signups: number;
+    purchases: number;
+    purchaseGrossPeaches: number;
+    commissionPeaches: number;
     url: string;
   }>;
   commissions: Array<{
@@ -124,20 +130,28 @@ export default function TgPartnerPage() {
       <div className="tg-section">
         <div className="tg-settings">
           <div className="tg-settings-row">
-            <span>{ru ? "Комиссия" : "Commission"}</span>
+            <span>{ru ? "Общее количество рефералов" : "Total referrals"}</span>
+            <strong>{data.referrals}</strong>
+          </div>
+          <div className="tg-settings-row">
+            <span>{ru ? "Покупок" : "Purchases"}</span>
+            <strong>{data.purchases}</strong>
+          </div>
+          <div className="tg-settings-row">
+            <span>{ru ? "Сумма покупок" : "Purchase volume"}</span>
+            <strong>🍑 {data.purchaseGrossPeaches}</strong>
+          </div>
+          <div className="tg-settings-row">
+            <span>{ru ? "Комиссия начислено" : "Commission earned"}</span>
+            <strong>🍑 {data.commissionPeaches}</strong>
+          </div>
+          <div className="tg-settings-row">
+            <span>{ru ? "Ставка комиссии" : "Commission rate"}</span>
             <strong>{data.commissionPct}%</strong>
           </div>
           <div className="tg-settings-row">
             <span>{ru ? "Баланс партнёра" : "Partner balance"}</span>
             <strong>🍑 {data.balancePeaches}</strong>
-          </div>
-          <div className="tg-settings-row">
-            <span>{ru ? "Всего заработано" : "Total earned"}</span>
-            <strong>🍑 {data.totalEarnedPeaches}</strong>
-          </div>
-          <div className="tg-settings-row">
-            <span>{ru ? "Приведено юзеров" : "Referrals"}</span>
-            <strong>{data.referrals}</strong>
           </div>
         </div>
       </div>
@@ -158,7 +172,9 @@ export default function TgPartnerPage() {
               <div>
                 <strong>{l.label}</strong>
                 <small>
-                  👆 {l.clicks} · 👤 {l.signups}
+                  👆 {l.clicks} · 👤 {l.signups} · 🛒 {l.purchases} · 🍑{" "}
+                  {l.purchaseGrossPeaches} · {ru ? "комиссия" : "fee"} 🍑{" "}
+                  {l.commissionPeaches}
                 </small>
               </div>
               <button type="button" className="badge" onClick={() => copy(l.url)}>
@@ -225,6 +241,29 @@ export default function TgPartnerPage() {
                   <strong>+{c.amountPeaches} 🍑</strong>
                   <small>
                     {c.kind} · {new Date(c.createdAt).toLocaleDateString()}
+                  </small>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {data.withdrawals.length > 0 && (
+        <div className="tg-section">
+          <h2>{ru ? "Заявки на вывод" : "Payout requests"}</h2>
+          <p className="tg-muted tg-section-hint">
+            {ru
+              ? "Заявки уходят в админку. Статус pending — ждёт обработки."
+              : "Requests go to admin. Pending = waiting for review."}
+          </p>
+          <div className="tg-card-list">
+            {data.withdrawals.map((w) => (
+              <div key={w.id} className="tg-char-card">
+                <div>
+                  <strong>🍑 {w.amountPeaches}</strong>
+                  <small>
+                    {w.status} · {new Date(w.createdAt).toLocaleDateString()}
                   </small>
                 </div>
               </div>
