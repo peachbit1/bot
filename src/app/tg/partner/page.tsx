@@ -122,11 +122,7 @@ export default function TgPartnerPage() {
   if (!data) return <p className="tg-loading">…</p>;
 
   return (
-    <TgShell
-      locale={locale}
-      title={ru ? "🤝 Партнёрка" : "🤝 Affiliate"}
-      balance={profile?.balancePeaches}
-    >
+    <TgShell locale={locale}>
       <div className="tg-section">
         <div className="tg-settings">
           <div className="tg-settings-row">

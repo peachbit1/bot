@@ -122,7 +122,7 @@ function PhotoPageInner() {
     ) || [];
 
   return (
-    <TgShell locale={locale} title={u.title} balance={profile?.balancePeaches}>
+    <TgShell locale={locale}>
       {!templateId || !selected ? (
         <>
           <div className="tg-toolbar">

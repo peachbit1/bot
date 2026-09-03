@@ -82,7 +82,7 @@ const UI = {
 
 export default function TgFeedPage() {
   const router = useRouter();
-  const { status, error, profile, locale, setLocale, apiFetch } = useTgMiniApp();
+  const { status, error, locale, apiFetch } = useTgMiniApp();
   const [tab, setTab] = useState<"all" | "video" | "photo">("all");
   const [items, setItems] = useState<FeedItem[]>([]);
   const [pool, setPool] = useState<FeedItem[]>([]);
@@ -172,13 +172,7 @@ export default function TgFeedPage() {
   if (status === "error") return <p className="tg-error">{error}</p>;
 
   return (
-    <TgShell
-      locale={locale}
-      title={u.title}
-      hideTitle
-      balance={profile?.balancePeaches}
-      onLangToggle={() => setLocale(locale === "ru" ? "en" : "ru")}
-    >
+    <TgShell locale={locale}>
       <nav className="tg-tabs tg-tabs--sticky">
         {(["all", "video", "photo"] as const).map((t) => (
           <button

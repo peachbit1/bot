@@ -42,12 +42,7 @@ export default function TgProfilePage() {
   const promos = profile?.promos;
 
   return (
-    <TgShell
-      locale={locale}
-      title={u.title}
-      balance={profile?.balancePeaches}
-      onLangToggle={() => setLocale(locale === "ru" ? "en" : "ru")}
-    >
+    <TgShell locale={locale}>
       <div className="tg-section">
         <div className="tg-settings">
           <h2>{u.cabinet}</h2>
@@ -94,6 +89,7 @@ export default function TgProfilePage() {
             <small style={{ color: "var(--tg-muted)" }}>{u.partnerDesc}</small>
           </div>
           <div className="tg-settings-row">
+            <span>{locale === "ru" ? "Язык" : "Language"}</span>
             <button
               type="button"
               className="tg-lang"
@@ -103,7 +99,7 @@ export default function TgProfilePage() {
                 void refresh(next);
               }}
             >
-              {locale === "ru" ? "🇺🇸 English" : "🇷🇺 Русский"}
+              {locale === "ru" ? "🇷🇺 RU" : "🇺🇸 EN"}
             </button>
           </div>
         </div>

@@ -133,7 +133,7 @@ export default function TgGalleryPage() {
         ? viewer.resultUrl
         : `${window.location.origin}${viewer.resultUrl}`;
     return (
-      <TgShell locale={locale} title={u.title} balance={profile?.balancePeaches}>
+      <TgShell locale={locale}>
         <div className="tg-section tg-gallery-viewer">
           <button type="button" className="tg-lang" onClick={() => setViewer(null)}>
             ←
@@ -161,7 +161,7 @@ export default function TgGalleryPage() {
   }
 
   return (
-    <TgShell locale={locale} title={u.title} balance={profile?.balancePeaches}>
+    <TgShell locale={locale}>
       {loading && <p className="tg-muted">…</p>}
 
       {!loading && items.length === 0 && (

@@ -160,7 +160,7 @@ function VideoPageInner() {
   if (status === "error") return <p className="tg-error">{error}</p>;
 
   return (
-    <TgShell locale={locale} title={u.title} balance={profile?.balancePeaches}>
+    <TgShell locale={locale}>
       {!tpl ? (
         <>
           <div className="tg-section" style={{ paddingBottom: "0.35rem" }}>
