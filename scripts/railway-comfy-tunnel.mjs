@@ -11,7 +11,7 @@
  */
 import fs from "node:fs";
 import http from "node:http";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 
 const KEY_PATH = process.env.METALNODE_SSH_KEY_PATH || "/tmp/metalnode_ssh_key";
 const HOST = process.env.METALNODE_HOST || "77.94.203.13";
@@ -96,6 +96,72 @@ function startTunnel() {
   return tunnelProc;
 }
 
+function sshBaseArgs() {
+  const key = KEY_PATH;
+  if (!key) return [];
+  return [
+    "-i",
+    key,
+    "-o",
+    "StrictHostKeyChecking=no",
+    "-o",
+    "UserKnownHostsFile=/dev/null",
+    "-o",
+    "BatchMode=yes",
+    "-o",
+    `ConnectTimeout=25`,
+    "-p",
+    SSH_PORT,
+    `${SSH_USER}@${HOST}`,
+  ];
+}
+
+async function ensureRemoteComfyUp() {
+  // In practice, comfyUp=false means ComfyUI on GPU host is down.
+  // This tries to start it once via SSH, then we establish the local tunnel.
+  const remote = `
+set +e
+COMFY_CHECK
+if curl -sf -m 3 http://127.0.0.1:8188/system_stats >/dev/null; then
+  echo COMFY_OK
+  exit 0
+fi
+
+echo COMFY_DOWN — starting
+cd /work/ComfyUI 2>/dev/null || cd /work 2>/dev/null || true
+
+NOHUP_CMD="/work/ai/venv/bin/python main.py --listen --port 8188 --enable-manager"
+if [ -f /work/ai/venv/bin/python ]; then
+  nohup $NOHUP_CMD >> /work/ComfyUI/user/comfyui_8188.log 2>&1 &
+else
+  nohup python3 main.py --listen --port 8188 --enable-manager >> /work/ComfyUI/user/comfyui_8188.log 2>&1 &
+fi
+
+for i in $(seq 1 25); do
+  sleep 1
+  if curl -sf -m 3 http://127.0.0.1:8188/system_stats >/dev/null; then
+    echo COMFY_UP
+    exit 0
+  fi
+done
+
+echo COMFY_FAIL
+exit 1
+`;
+
+  const r = spawnSync("ssh", [...sshBaseArgs(), remote], {
+    encoding: "utf8",
+    timeout: 120_000,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  const out = String(r.stdout || "").trim().split("\n").slice(-5).join(" | ");
+  const err = String(r.stderr || "").trim().split("\n").slice(-3).join(" | ");
+  if (out) log(`remote comfy: ${out}`);
+  if (r.status !== 0 && err) log(`remote comfy err: ${err}`);
+  return r.status === 0;
+}
+
 export async function ensureComfyTunnel() {
   if (!gpuModeEnabled()) {
     log("GPU disabled (COMFY_FORCE_MOCK or PEACH_USE_COMFY=0) — skip tunnel");
@@ -107,6 +173,8 @@ export async function ensureComfyTunnel() {
     return { ok: true, reason: "already_up" };
   }
 
+  // If tunnel-local health fails, also try to bring ComfyUI up on GPU host.
+  // This prevents comfyUp from staying false after a remote restart.
   const key = process.env.METALNODE_SSH_KEY?.trim();
   if (!key) {
     throw new Error(
@@ -115,6 +183,19 @@ export async function ensureComfyTunnel() {
   }
 
   writeKey(key);
+
+  if (!process.env.COMFY_SKIP_REMOTE_START) {
+    try {
+      await ensureRemoteComfyUp();
+    } catch (e) {
+      log(
+        `remote comfy start failed: ${
+          e instanceof Error ? e.message : String(e)
+        }`,
+      );
+    }
+  }
+
   log(`starting SSH tunnel -> ${HOST}:${SSH_PORT} (local :${LOCAL_PORT})`);
   startTunnel();
 
