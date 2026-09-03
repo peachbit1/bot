@@ -118,15 +118,21 @@ export async function ensureComfyTunnel() {
   log(`starting SSH tunnel -> ${HOST}:${SSH_PORT} (local :${LOCAL_PORT})`);
   startTunnel();
 
-  for (let i = 0; i < 45; i++) {
+  // Fail soft and fast so web/bot can boot; starter retries in background.
+  for (let i = 0; i < 12; i++) {
     await new Promise((r) => setTimeout(r, 1000));
     if (await pingComfy()) {
       log("COMFY_OK");
       return { ok: true, reason: "tunnel" };
     }
+    if (!tunnelProc || tunnelProc.killed || tunnelProc.exitCode != null) {
+      log("ssh process died early — abort wait");
+      break;
+    }
   }
 
-  throw new Error(`Comfy not reachable at ${COMFY_BASE} after SSH tunnel`);
+  log(`Comfy not reachable at ${COMFY_BASE} after SSH tunnel`);
+  return { ok: false, reason: "unreachable" };
 }
 
 export async function pingComfyHealth() {
