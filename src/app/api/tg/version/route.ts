@@ -16,6 +16,11 @@ async function pingComfy(): Promise<boolean> {
 
 /** Quick prod deploy check — curl /api/tg/version after Railway deploy. */
 export async function GET() {
+  // Scrub author identity from stored templates (lookbook/LoRA leakage).
+  void import("@/lib/tg/migrate-template-identity")
+    .then((m) => m.migrateTemplateIdentityHygiene())
+    .catch((e) => console.error("[peach] template migrate on version:", e));
+
   const catalogDir = path.join(process.cwd(), "public", "tg", "catalog");
   const catalogFiles = fs.existsSync(catalogDir)
     ? fs.readdirSync(catalogDir).sort()
