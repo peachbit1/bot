@@ -238,6 +238,60 @@ export async function POST(req: NextRequest) {
     });
   }
 
+  if (action === "fail_pending_gens") {
+    const gallery = await prisma.galleryItem.findMany({
+      select: { id: true, metaJson: true, resultUrl: true },
+    });
+    let galleryFailed = 0;
+    for (const row of gallery) {
+      let meta: Record<string, unknown> = {};
+      try {
+        meta = JSON.parse(row.metaJson || "{}") as Record<string, unknown>;
+      } catch {
+        meta = {};
+      }
+      if (meta.status !== "pending") continue;
+      await prisma.galleryItem.update({
+        where: { id: row.id },
+        data: {
+          metaJson: JSON.stringify({
+            ...meta,
+            status: "error",
+            error:
+              "Остановлено: GPU переехал, модели докачиваются. Запусти генерацию заново.",
+          }),
+        },
+      });
+      galleryFailed += 1;
+    }
+
+    const qv = await prisma.quickVideoRun.updateMany({
+      where: { status: { in: ["busy", "pending"] } },
+      data: {
+        status: "error",
+        error:
+          "Остановлено: GPU переехал, модели докачиваются. Запусти генерацию заново.",
+      },
+    });
+
+    const jobs = await prisma.renderJob.updateMany({
+      where: { status: { in: ["queued", "running_still", "running_video", "busy"] } },
+      data: {
+        status: "error",
+        errorMessage:
+          "Остановлено: GPU переехал, модели докачиваются. Запусти генерацию заново.",
+      },
+    });
+
+    return NextResponse.json({
+      ok: true,
+      action: "fail_pending_gens",
+      galleryFailed,
+      quickVideoFailed: qv.count,
+      renderJobsFailed: jobs.count,
+    });
+  }
+
   if (action === "restore_tg") {
     const tgId = String(body.telegramUserId || "978491621");
     const email = `tg_${tgId}@peachbitch.local`;
