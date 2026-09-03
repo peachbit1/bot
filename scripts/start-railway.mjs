@@ -93,8 +93,29 @@ async function main() {
         console.log("[railway] running without GPU tunnel (mock mode)");
       }
     } catch (err) {
-      console.error("[railway] GPU tunnel failed:", err instanceof Error ? err.message : err);
-      process.exit(1);
+      // Never take down web/bot because Metalnode SSH blips — retry in background.
+      console.error(
+        "[railway] GPU tunnel failed (continuing without GPU):",
+        err instanceof Error ? err.message : err,
+      );
+      const retryMs = 30_000;
+      const tick = async () => {
+        if (shuttingDown) return;
+        try {
+          const again = await ensureComfyTunnel();
+          if (again.ok) {
+            console.log(`[railway] GPU Comfy recovered (${again.reason})`);
+            return;
+          }
+        } catch (e) {
+          console.error(
+            "[railway] GPU retry failed:",
+            e instanceof Error ? e.message : e,
+          );
+        }
+        setTimeout(() => void tick(), retryMs);
+      };
+      setTimeout(() => void tick(), retryMs);
     }
   }
 
