@@ -121,7 +121,6 @@ async function ensureRemoteComfyUp() {
   // This tries to start it once via SSH, then we establish the local tunnel.
   const remote = `
 set +e
-COMFY_CHECK
 if curl -sf -m 3 http://127.0.0.1:8188/system_stats >/dev/null; then
   echo COMFY_OK
   exit 0
