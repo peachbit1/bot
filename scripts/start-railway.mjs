@@ -35,7 +35,7 @@ function startWeb() {
   const fromEnv = String(process.env.NODE_OPTIONS || "").trim();
   const nodeOpts = /\bmax-old-space-size=/.test(fromEnv)
     ? fromEnv
-    : `${fromEnv} --max-old-space-size=1536`.trim();
+    : `${fromEnv} --max-old-space-size=700`.trim();
   return run("web", "npm", ["start"], { NODE_OPTIONS: nodeOpts });
 }
 
