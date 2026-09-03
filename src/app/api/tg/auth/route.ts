@@ -33,17 +33,13 @@ export async function POST(req: Request) {
   }
   const fields = validateTelegramInitData(initData, token);
   if (!fields) {
-    const hasSig = /(?:^|&)signature=/.test(initData);
     console.warn("[tg-auth] invalid initData", {
       len: initData.length,
-      hasSig,
+      hasSig: /(?:^|&)signature=/.test(initData),
       hasUser: /(?:^|&)user=/.test(initData),
       hasHash: /(?:^|&)hash=/.test(initData),
     });
-    return NextResponse.json(
-      { error: "Invalid initData", hasSig },
-      { status: 401 },
-    );
+    return NextResponse.json({ error: "Invalid initData" }, { status: 401 });
   }
 
   const tgUser = parseTelegramUser(fields);

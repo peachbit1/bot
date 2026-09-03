@@ -19,10 +19,10 @@ export function validateTelegramInitData(
   const params = new URLSearchParams(initData);
   const hash = params.get("hash");
   if (!hash) return null;
-  // Telegram now also sends `signature` (Ed25519 for third parties).
-  // It must be excluded from the bot-token HMAC data-check-string.
+  // First-party bot-token HMAC: exclude ONLY `hash`.
+  // `signature` (Ed25519, Bot API 7.2+) MUST stay in the data-check-string —
+  // excluding it makes every modern Telegram client fail validation.
   params.delete("hash");
-  params.delete("signature");
 
   const dataCheckString = [...params.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
