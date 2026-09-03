@@ -27,9 +27,23 @@ export async function POST(req: Request) {
     );
   }
 
-  const fields = validateTelegramInitData(body.initData || "", token);
+  const initData = body.initData || "";
+  if (!initData.trim()) {
+    return NextResponse.json({ error: "Missing initData" }, { status: 401 });
+  }
+  const fields = validateTelegramInitData(initData, token);
   if (!fields) {
-    return NextResponse.json({ error: "Invalid initData" }, { status: 401 });
+    const hasSig = /(?:^|&)signature=/.test(initData);
+    console.warn("[tg-auth] invalid initData", {
+      len: initData.length,
+      hasSig,
+      hasUser: /(?:^|&)user=/.test(initData),
+      hasHash: /(?:^|&)hash=/.test(initData),
+    });
+    return NextResponse.json(
+      { error: "Invalid initData", hasSig },
+      { status: 401 },
+    );
   }
 
   const tgUser = parseTelegramUser(fields);

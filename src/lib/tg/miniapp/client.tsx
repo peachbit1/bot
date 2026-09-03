@@ -127,7 +127,13 @@ export function useTgMiniApp() {
         body: JSON.stringify({ initData }),
       });
       if (!authRes.ok) {
-        setError(UI.ru.authErr);
+        const detail = await authRes.text().catch(() => "");
+        console.error("[tg-auth]", authRes.status, detail.slice(0, 200));
+        setError(
+          authRes.status >= 500
+            ? "Сервер перегружен, открой мини-апп ещё раз"
+            : UI.ru.authErr,
+        );
         setStatus("error");
         return;
       }
@@ -137,7 +143,8 @@ export function useTgMiniApp() {
       try {
         await refresh();
         setStatus("ready");
-      } catch {
+      } catch (e) {
+        console.error("[tg-me]", e);
         setError(UI.ru.authErr);
         setStatus("error");
       }
