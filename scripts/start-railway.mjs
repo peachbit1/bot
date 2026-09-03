@@ -24,14 +24,18 @@ function run(label, cmd, args, envExtra = {}) {
 }
 
 function startBot() {
-  return run("bot", "npx", ["tsx", "scripts/tg-bot-dev.ts"]);
+  // Keep bot lean; leave RAM for Next mini-app.
+  return run("bot", "npx", ["tsx", "scripts/tg-bot-dev.ts"], {
+    NODE_OPTIONS: "--max-old-space-size=256",
+  });
 }
 
 function startWeb() {
-  // Cap Next heap so one process doesn't eat the whole Railway container.
-  const nodeOpts = [process.env.NODE_OPTIONS, "--max-old-space-size=384"]
-    .filter(Boolean)
-    .join(" ");
+  // Prefer Railway NODE_OPTIONS; default high enough for Next 16 + mini-app.
+  const fromEnv = String(process.env.NODE_OPTIONS || "").trim();
+  const nodeOpts = /\bmax-old-space-size=/.test(fromEnv)
+    ? fromEnv
+    : `${fromEnv} --max-old-space-size=1536`.trim();
   return run("web", "npm", ["start"], { NODE_OPTIONS: nodeOpts });
 }
 
