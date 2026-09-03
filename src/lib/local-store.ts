@@ -26,7 +26,7 @@ export function saveGalleryBinary(
 
 export function localPathFromResultUrl(resultUrl: string): string | null {
   if (!resultUrl.startsWith("/api/media/")) return null;
-  const key = resultUrl.replace(/^\/api\/media\//, "");
+  const key = resultUrl.replace(/^\/api\/media\//, "").split("?")[0] || "";
   return resolveGalleryFile(key);
 }
 

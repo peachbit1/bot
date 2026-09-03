@@ -5,40 +5,84 @@ import fs from "fs";
 import path from "path";
 import { prisma } from "@/lib/db";
 import { localPathFromResultUrl } from "@/lib/local-store";
+import { ensureDataDirs, galleryRoot } from "@/lib/paths";
 import { ensureTgCatalog } from "@/lib/tg/tg-catalog";
 import { TG_STUDIO_CAST_TRIGGERS } from "@/lib/tg/tg-launch-constants";
 
-const CATALOG_DIR = path.join(process.cwd(), "public", "tg", "catalog");
+const PUBLIC_CATALOG_DIR = path.join(process.cwd(), "public", "tg", "catalog");
 
 function extFromUrl(url: string, fallback: string): string {
   const base = url.split("?")[0] || "";
   const ext = path.extname(base);
-  return ext || fallback;
+  return ext || (fallback.startsWith(".") ? fallback : `.${fallback}`);
 }
 
-/** Copy gallery asset to stable public/tg/catalog URL. */
+/**
+ * Copy gallery/public asset to durable TG catalog on the Railway volume
+ * (`data/gallery/tg-catalog`) and mirror into public/ for static fallback.
+ */
 export function copyAssetToTgCatalog(
   srcUrl: string,
   destBaseName: string,
   fallbackExt: string,
 ): string {
   if (!srcUrl?.trim()) return "";
-  fs.mkdirSync(CATALOG_DIR, { recursive: true });
+  ensureDataDirs();
   const ext = extFromUrl(srcUrl, fallbackExt);
   const destName = `${destBaseName}${ext}`;
-  const destPath = path.join(CATALOG_DIR, destName);
-  const publicUrl = `/tg/catalog/${destName}`;
+  const durableDir = path.join(galleryRoot(), "tg-catalog");
+  fs.mkdirSync(durableDir, { recursive: true });
+  fs.mkdirSync(PUBLIC_CATALOG_DIR, { recursive: true });
+  const durablePath = path.join(durableDir, destName);
+  const publicPath = path.join(PUBLIC_CATALOG_DIR, destName);
+  // Volume-backed URL survives redeploys; public mirror helps local/dev.
+  const publicUrl = `/api/media/tg-catalog/${destName}`;
+
+  const writeBoth = (srcPath: string) => {
+    fs.copyFileSync(srcPath, durablePath);
+    try {
+      fs.copyFileSync(srcPath, publicPath);
+    } catch {
+      /* public may be read-only in some envs */
+    }
+  };
 
   const local = localPathFromResultUrl(srcUrl);
   if (local && fs.existsSync(local)) {
-    fs.copyFileSync(local, destPath);
+    writeBoth(local);
     return publicUrl;
   }
 
-  if (srcUrl.startsWith("/tg/catalog/")) return srcUrl;
-  if (srcUrl.startsWith("/") && fs.existsSync(path.join(process.cwd(), "public", srcUrl))) {
-    fs.copyFileSync(path.join(process.cwd(), "public", srcUrl), destPath);
-    return publicUrl;
+  if (srcUrl.startsWith("/tg/catalog/")) {
+    const name = srcUrl.replace(/^\/tg\/catalog\//, "").split("?")[0] || "";
+    const fromPublic = path.join(PUBLIC_CATALOG_DIR, name);
+    const fromDurable = path.join(durableDir, name);
+    if (fs.existsSync(fromDurable)) {
+      writeBoth(fromDurable);
+      return publicUrl;
+    }
+    if (fs.existsSync(fromPublic)) {
+      writeBoth(fromPublic);
+      return publicUrl;
+    }
+    return srcUrl;
+  }
+
+  if (srcUrl.startsWith("/api/media/")) {
+    const key = srcUrl.replace(/^\/api\/media\//, "").split("?")[0] || "";
+    const fromGallery = path.join(galleryRoot(), ...key.split("/"));
+    if (fs.existsSync(fromGallery)) {
+      writeBoth(fromGallery);
+      return publicUrl;
+    }
+  }
+
+  if (srcUrl.startsWith("/")) {
+    const fromPublicRoot = path.join(process.cwd(), "public", srcUrl);
+    if (fs.existsSync(fromPublicRoot)) {
+      writeBoth(fromPublicRoot);
+      return publicUrl;
+    }
   }
 
   return srcUrl;
@@ -204,7 +248,10 @@ export async function updateStudioCastTgCard(
   if (patch.coverUrl !== undefined) {
     if (patch.coverUrl.trim()) {
       const slug = `cast-${characterId.slice(0, 10)}`;
-      data.tgCoverUrl = copyAssetToTgCatalog(patch.coverUrl.trim(), slug, ".jpg");
+      const copied = copyAssetToTgCatalog(patch.coverUrl.trim(), slug, ".jpg");
+      data.tgCoverUrl = copied
+        ? `${copied}${copied.includes("?") ? "&" : "?"}v=${Date.now()}`
+        : "";
     } else {
       data.tgCoverUrl = "";
     }

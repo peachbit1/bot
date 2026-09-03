@@ -98,7 +98,8 @@ function orderByIds<T extends { id: string }>(rows: T[], ids: string[]): T[] {
 
 async function listTgPublishedVideoRows(userId: string): Promise<PublicQuickVideoTemplate[]> {
   const rows = await prisma.quickVideoTemplate.findMany({
-    where: { tgPublished: true, published: true },
+    // TG feed is gated by tgPublished only — Peach marketplace uses `published`.
+    where: { tgPublished: true },
     orderBy: [{ tgSortOrder: "asc" }, { updatedAt: "desc" }],
   });
   if (!rows.length) return [];
@@ -140,7 +141,7 @@ async function listTgPublishedVideoRows(userId: string): Promise<PublicQuickVide
 
 async function listTgPublishedPhotoRows(locale: TgLocale) {
   const rows = await prisma.photoTemplate.findMany({
-    where: { tgPublished: true, published: true },
+    where: { tgPublished: true },
     orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
   });
   if (!rows.length) return [];

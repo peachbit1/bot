@@ -195,10 +195,15 @@ export function CharacterLab({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(String(data.error || "error"));
-      setMsg("Карточка в Telegram обновлена");
+      setMsg(
+        `Карточка в Telegram обновлена: «${data.character?.tgDisplayName || tgDisplayName}»`,
+      );
       setTgCoverFile(null);
       if (data.character?.tgCoverUrl) {
         setTgCoverPreview(data.character.tgCoverUrl);
+      }
+      if (data.character?.tgDisplayName) {
+        setTgDisplayName(data.character.tgDisplayName);
       }
       router.refresh();
     } catch (e) {
