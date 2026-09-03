@@ -5,7 +5,7 @@
  *   node scripts/comfy-tunnel-watchdog.mjs
  */
 import http from "node:http";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -13,6 +13,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const STARTER = path.join(ROOT, "scripts", "start-comfy-tunnel-detached.mjs");
 const TICK_MS = 15_000;
 const FAIL_BEFORE_RESTART = 2;
+const LOCAL_PORT = 8188;
 
 function pingComfy(timeoutMs = 4000) {
   return new Promise((resolve) => {
@@ -35,6 +36,22 @@ function pingComfy(timeoutMs = 4000) {
 
 function restartTunnel() {
   console.log(`[watchdog] ${new Date().toISOString()} comfy down → restart tunnel`);
+  // Free local port + kill any leftover tunnel processes (ssh/paramiko) so the restart can bind :8188.
+  try {
+    spawnSync(
+      "sh",
+      [
+        "-lc",
+        `fuser -k ${LOCAL_PORT}/tcp >/dev/null 2>&1 || true; ` +
+          `pkill -f \"paramiko-comfy-tunnel.py\" >/dev/null 2>&1 || true; ` +
+          `pkill -f \"-L 127.0.0.1:${LOCAL_PORT}:127.0.0.1:8188\" >/dev/null 2>&1 || true; ` +
+          `true`,
+      ],
+      { stdio: "ignore", timeout: 5000 },
+    );
+  } catch {
+    // ignore
+  }
   const child = spawn(process.execPath, [STARTER], {
     cwd: ROOT,
     detached: true,

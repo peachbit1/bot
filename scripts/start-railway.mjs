@@ -85,6 +85,25 @@ function watchBot() {
 async function main() {
   const needTunnel = NEED_WEB || NEED_BOT;
 
+  function startComfyWatchdog() {
+    // Keep port forward alive during tunnel/ssh hiccups.
+    if (process.env.COMFY_FORCE_MOCK === "1") return;
+    if (process.env.PEACH_USE_COMFY === "0") return;
+    if (!process.env.METALNODE_SSH_KEY?.trim()) return;
+    try {
+      console.log("[railway] starting comfy watchdog…");
+      const child = spawn(process.execPath, ["scripts/comfy-tunnel-watchdog.mjs"], {
+        cwd: process.cwd(),
+        detached: true,
+        stdio: "ignore",
+        windowsHide: true,
+      });
+      child.unref();
+    } catch {
+      /* ignore */
+    }
+  }
+
   function scheduleGpuRetry() {
     const retryMs = 30_000;
     const tick = async () => {
@@ -115,6 +134,8 @@ async function main() {
         console.log(`[railway] running without GPU tunnel (${tunnel.reason})`);
         scheduleGpuRetry();
       }
+
+      startComfyWatchdog();
     } catch (err) {
       // Never take down web/bot because Metalnode SSH blips — retry in background.
       console.error(
@@ -122,6 +143,8 @@ async function main() {
         err instanceof Error ? err.message : err,
       );
       scheduleGpuRetry();
+
+      startComfyWatchdog();
     }
   }
 
