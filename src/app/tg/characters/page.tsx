@@ -32,7 +32,7 @@ const UI = {
     emptyPersonal: "Пока нет своих моделей — обучи LoRA в боте",
     videoRefs: "Модели для видео 🎬",
     videoRefsHint: "Сохранённые ref-фото — без повторной загрузки",
-    promoTest: "Тест: напиши боту «НАЧИСЛИ500» → +500 🍑",
+    promoTest: "Тест: напиши боту «НАЧИСЛИ10000» → +10 000 🍑 (без лимита)",
   },
   en: {
     title: "👤 Cast",
@@ -59,7 +59,7 @@ const UI = {
     emptyPersonal: "No custom models yet — train LoRA in the bot",
     videoRefs: "Video models 🎬",
     videoRefsHint: "Saved ref photos — no re-upload",
-    promoTest: "Test: message the bot «НАЧИСЛИ500» → +500 🍑",
+    promoTest: "Test: message the bot «НАЧИСЛИ10000» → +10,000 🍑 (unlimited)",
   },
 } as const;
 

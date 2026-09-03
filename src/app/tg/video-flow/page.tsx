@@ -3,7 +3,6 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { TgShell, useTgMiniApp } from "@/lib/tg/miniapp/client";
-import { TgGenerationProgress } from "@/lib/tg/miniapp/generation-view";
 
 type VideoRef = { id: string; name: string; photoCount: number; ready: boolean };
 type VideoTpl = {
@@ -55,7 +54,6 @@ function VideoFlowPageInner() {
   const [photoCount, setPhotoCount] = useState(0);
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [generatingId, setGeneratingId] = useState<string | null>(null);
   const [err, setErr] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -155,27 +153,13 @@ function VideoFlowPageInner() {
     }
     const j = (await res.json()) as { galleryItemId?: string };
     if (j.galleryItemId) {
-      setGeneratingId(j.galleryItemId);
       void refresh();
+      router.push("/tg/gallery");
     }
   };
 
   if (status === "loading") return <p className="tg-loading">…</p>;
   if (status === "error") return <p className="tg-error">{error}</p>;
-
-  if (generatingId) {
-    return (
-      <TgShell locale={locale} title={u.title} balance={profile?.balancePeaches}>
-        <TgGenerationProgress
-          galleryItemId={generatingId}
-          locale={locale}
-          apiFetch={apiFetch}
-          onBalanceRefresh={refresh}
-          onGoGallery={() => router.push("/tg/gallery")}
-        />
-      </TgShell>
-    );
-  }
 
   return (
     <TgShell locale={locale} title={u.title} balance={profile?.balancePeaches}>

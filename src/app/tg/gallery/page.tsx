@@ -31,11 +31,6 @@ const UI = {
   },
 } as const;
 
-function aspectFor(item: TgGalleryItem) {
-  if (item.width && item.height) return `${item.width} / ${item.height}`;
-  return item.kind === "video" ? "9 / 16" : "3 / 4";
-}
-
 function GalleryTile({
   item,
   locale,
@@ -51,7 +46,7 @@ function GalleryTile({
     return (
       <div className="tg-gallery-tile tg-gallery-tile--pending">
         <BorderBeam className="h-full w-full">
-          <div className="tg-gallery-pending" style={{ aspectRatio: aspectFor(item) }}>
+          <div className="tg-gallery-pending">
             <ImageGeneration
               fill
               label={item.kind === "video" ? u.video : u.photo}
@@ -66,6 +61,7 @@ function GalleryTile({
             />
           </div>
         </BorderBeam>
+        <span className="tg-gallery-badge">{u.pending}</span>
       </div>
     );
   }

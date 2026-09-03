@@ -33,7 +33,7 @@ const UI = {
     all: "Все",
     video: "Видео",
     photo: "Фото",
-    use: "Снять",
+    use: "Повторить позу",
     empty: "Шаблоны скоро появятся",
     speech: "🗣 речь",
   },
@@ -42,7 +42,7 @@ const UI = {
     all: "All",
     video: "Video",
     photo: "Photo",
-    use: "Use",
+    use: "Repeat pose",
     empty: "Templates coming soon",
     speech: "🗣 speech",
   },
@@ -154,21 +154,23 @@ export default function TgFeedPage() {
       <div className="tg-reels" ref={reelRef}>
         {items.map((item) => (
           <article key={`${item.kind}-${item.id}`} className="tg-reel">
-            {item.isVideo ? (
-              <video
-                src={item.preview}
-                className="tg-reel-media"
-                loop
-                muted
-                playsInline
-                preload="metadata"
-                poster={item.preview.endsWith(".mp4") ? undefined : item.preview}
-              />
-            ) : (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={item.preview} alt="" className="tg-reel-media" />
-            )}
-            <div className="tg-reel-overlay">
+            <div className="tg-reel-stage">
+              {item.isVideo ? (
+                <video
+                  src={item.preview}
+                  className="tg-reel-media"
+                  loop
+                  muted
+                  playsInline
+                  preload="metadata"
+                  poster={item.preview.endsWith(".mp4") ? undefined : item.preview}
+                />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={item.preview} alt="" className="tg-reel-media" />
+              )}
+            </div>
+            <div className="tg-reel-dock">
               <strong>{item.title}</strong>
               {item.notes ? <p>{item.notes}</p> : null}
               <div className="tg-reel-meta">

@@ -48,7 +48,7 @@ export async function GET() {
   };
 
   return NextResponse.json({
-    build: "tg-ready-v8-tpl-identity",
+    build: "tg-ready-v8-miniapp-ux",
     gpu,
     catalogFiles,
     features: {

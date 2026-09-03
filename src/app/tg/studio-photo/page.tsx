@@ -3,7 +3,6 @@
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { TgShell, useTgMiniApp } from "@/lib/tg/miniapp/client";
-import { TgGenerationProgress } from "@/lib/tg/miniapp/generation-view";
 
 type PhotoTpl = {
   id: string;
@@ -18,21 +17,17 @@ const UI = {
     title: "📸 Фото с актрисой",
     pick: "Выбери шаблон",
     generate: "Снять",
+    starting: "…",
     back: "← Назад",
-    starting: "Запускаю…",
-    done: "Готово! Результат придёт в чат бота.",
     err: "Ошибка",
-    close: "Закрыть",
   },
   en: {
     title: "📸 Photo with actress",
     pick: "Pick a template",
     generate: "Shoot",
+    starting: "…",
     back: "← Back",
-    starting: "Starting…",
-    done: "Done! Result will arrive in the bot chat.",
     err: "Error",
-    close: "Close",
   },
 } as const;
 
@@ -48,7 +43,6 @@ function StudioPhotoPageInner() {
   const [templates, setTemplates] = useState<PhotoTpl[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
-  const [generatingId, setGeneratingId] = useState<string | null>(null);
   const [err, setErr] = useState("");
 
   const load = useCallback(async () => {
@@ -87,79 +81,67 @@ function StudioPhotoPageInner() {
       if (j.error === "insufficient_balance") {
         setErr(
           locale === "en"
-            ? `Not enough peaches (need ${j.need}, have ${j.balance}). Send НАЧИСЛИ500 to the bot.`
-            : `Недостаточно персиков (нужно ${j.need}, есть ${j.balance}). Напиши боту НАЧИСЛИ500`,
+            ? `Not enough peaches (need ${j.need}, have ${j.balance}). Send НАЧИСЛИ10000 to the bot.`
+            : `Недостаточно персиков (нужно ${j.need}, есть ${j.balance}). Напиши боту НАЧИСЛИ10000`,
         );
       } else {
         setErr(j.error || u.err);
       }
       return;
     }
-    const j = (await res.json()) as { galleryItemId?: string };
-    if (j.galleryItemId) {
-      setGeneratingId(j.galleryItemId);
-      void refresh();
-    }
+    void refresh();
+    // Show pending tile in the gallery grid (not a fullscreen progress screen).
+    router.push("/tg/gallery");
   };
 
   if (status === "loading") return <p className="tg-loading">…</p>;
   if (status === "error") return <p className="tg-error">{error}</p>;
 
-  if (generatingId) {
-    return (
-      <TgShell locale={locale} title={u.title} balance={profile?.balancePeaches}>
-        <TgGenerationProgress
-          galleryItemId={generatingId}
-          locale={locale}
-          apiFetch={apiFetch}
-          onBalanceRefresh={refresh}
-          onGoGallery={() => router.push("/tg/gallery")}
-        />
-      </TgShell>
-    );
-  }
-
   return (
     <TgShell locale={locale} title={u.title} balance={profile?.balancePeaches}>
-      <div style={{ padding: "0 1rem 0.5rem" }}>
-        <button type="button" className="tg-lang" onClick={() => router.push("/tg/characters")}>
+      <div className="tg-section" style={{ paddingBottom: "0.25rem" }}>
+        <button
+          type="button"
+          className="tg-lang"
+          onClick={() => router.push("/tg/characters")}
+        >
           {u.back}
         </button>
-        {castName && (
-          <p className="tg-muted" style={{ marginTop: "0.5rem" }}>
+        {castName ? (
+          <p className="tg-section-hint" style={{ marginTop: "0.55rem" }}>
             {castName}
           </p>
-        )}
-        <h2 style={{ fontSize: "1rem", margin: "0.75rem 0 0.5rem" }}>{u.pick}</h2>
+        ) : null}
+        <h2 style={{ fontSize: "1rem", margin: "0.75rem 0 0.35rem" }}>{u.pick}</h2>
       </div>
 
       {err && <p className="tg-error">{err}</p>}
       {loading && <p className="tg-muted">…</p>}
 
-      <div className="tg-card-list" style={{ padding: "0 1rem" }}>
+      <div className="tg-portrait-grid" style={{ padding: "0 0.75rem 1rem" }}>
         {templates.map((t) => (
           <button
             key={t.id}
             type="button"
-            className="tg-char-card studio"
+            className="tg-portrait-card"
             disabled={busy === t.id}
             onClick={() => void onGenerate(t.id)}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+            <div className="tg-portrait-media">
               {t.previewImageUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={t.previewImageUrl}
-                  alt=""
-                  style={{ width: 56, height: 72, borderRadius: 8, objectFit: "cover" }}
-                />
-              ) : null}
-              <div>
-                <strong>{t.title}</strong>
-                <small>{t.pricePeaches} 🍑</small>
-              </div>
+                <img src={t.previewImageUrl} alt="" className="tg-portrait-img" />
+              ) : (
+                <div className="tg-portrait-placeholder" />
+              )}
+              <span className="tg-portrait-action ready">
+                {busy === t.id ? u.starting : u.generate}
+              </span>
             </div>
-            <span className="badge">{busy === t.id ? u.starting : u.generate}</span>
+            <div className="tg-portrait-meta">
+              <strong>{t.title}</strong>
+              <small>{t.pricePeaches} 🍑</small>
+            </div>
           </button>
         ))}
       </div>

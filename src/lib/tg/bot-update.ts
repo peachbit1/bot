@@ -902,13 +902,13 @@ export async function handleTgMessage(msg: TgUpdateMessage) {
   }
 
   if (text && isTestPromoMessage(text)) {
-    const result = await redeemTestPromo(user.id, locale);
+    const result = await redeemTestPromo(user.id, locale, text);
     if (result.ok) {
       await tgSendMessage(
         chatId,
         locale === "en"
-          ? `🍑 <b>+500 peaches</b> added!\nBalance: <b>${result.balance}</b> 🍑`
-          : `🍑 <b>+500 персиков</b> начислено!\nБаланс: <b>${result.balance}</b> 🍑`,
+          ? `🍑 <b>+${result.amount} peaches</b> added!\nBalance: <b>${result.balance}</b> 🍑`
+          : `🍑 <b>+${result.amount} персиков</b> начислено!\nБаланс: <b>${result.balance}</b> 🍑`,
         mainMenuExtra(locale),
       );
     } else {
