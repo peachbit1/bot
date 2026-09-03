@@ -117,8 +117,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, users });
   }
 
-  if (action === "disk_stats" || action === "free_disk") {
+  if (action === "disk_stats" || action === "free_disk" || action === "purge_videos") {
     const { dataRoot, galleryRoot } = await import("@/lib/paths");
+    const { execSync } = await import("node:child_process");
     const root = dataRoot();
 
     function walk(dir: string, out: { path: string; size: number }[], depth = 0) {
@@ -140,6 +141,16 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    let df = "";
+    try {
+      df = execSync("df -h /app/data /tmp / 2>/dev/null || df -h", {
+        encoding: "utf8",
+        timeout: 5000,
+      }).slice(0, 800);
+    } catch {
+      df = "df_unavailable";
+    }
+
     const before: { path: string; size: number }[] = [];
     walk(root, before);
     const beforeBytes = before.reduce((s, f) => s + f.size, 0);
@@ -147,21 +158,21 @@ export async function POST(req: NextRequest) {
 
     let deleted = 0;
     let freed = 0;
-    if (action === "free_disk") {
-      const kill = (p: string) => {
-        try {
-          const sz = fs.statSync(p).size;
-          fs.unlinkSync(p);
-          deleted += 1;
-          freed += sz;
-        } catch {
-          /* ignore */
-        }
-      };
+    const kill = (p: string) => {
+      try {
+        const sz = fs.statSync(p).size;
+        fs.unlinkSync(p);
+        deleted += 1;
+        freed += sz;
+      } catch {
+        /* ignore */
+      }
+    };
+
+    if (action === "free_disk" || action === "purge_videos") {
       for (const f of before) {
         const base = path.basename(f.path);
         const rel = path.relative(root, f.path).replace(/\\/g, "/");
-        // DB backups / import leftovers / sqlite journals from failed writes
         if (
           /\.bak($|-)/i.test(base) ||
           base.endsWith(".importing") ||
@@ -172,7 +183,7 @@ export async function POST(req: NextRequest) {
           kill(f.path);
         }
       }
-      // Drop huge orphan videos over 40MB under gallery (keep DB rows; previews can re-gen)
+      // Drop huge orphan videos over 40MB under gallery
       const gRoot = galleryRoot();
       for (const f of before) {
         if (!f.path.startsWith(gRoot)) continue;
@@ -180,10 +191,28 @@ export async function POST(req: NextRequest) {
         if (!/\.(mp4|webm|mov|mkv)$/i.test(f.path)) continue;
         kill(f.path);
       }
+    }
+
+    if (action === "purge_videos") {
+      // Emergency: remove all gallery videos > 800KB to reclaim volume headroom.
+      // DB rows stay; missing files show placeholders until re-synced.
+      const gRoot = galleryRoot();
+      const min = 800 * 1024;
+      for (const f of before) {
+        if (!f.path.startsWith(gRoot)) continue;
+        if (f.size < min) continue;
+        if (!/\.(mp4|webm|mov|mkv)$/i.test(f.path)) continue;
+        kill(f.path);
+      }
       try {
         await prisma.$executeRawUnsafe("VACUUM");
       } catch (e) {
-        /* VACUUM may fail if disk still tight; report below */
+        console.error("[bootstrap] VACUUM failed", e);
+      }
+    } else if (action === "free_disk") {
+      try {
+        await prisma.$executeRawUnsafe("VACUUM");
+      } catch (e) {
         console.error("[bootstrap] VACUUM failed", e);
       }
     }
@@ -196,6 +225,7 @@ export async function POST(req: NextRequest) {
       ok: true,
       action,
       root,
+      df,
       beforeBytes,
       afterBytes,
       deleted,
