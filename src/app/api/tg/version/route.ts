@@ -43,7 +43,7 @@ export async function GET() {
   };
 
   return NextResponse.json({
-    build: "tg-ready-v8-boot-resilient",
+    build: "tg-ready-v8-disk-fix",
     gpu,
     catalogFiles,
     features: {

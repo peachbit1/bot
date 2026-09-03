@@ -117,6 +117,97 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, users });
   }
 
+  if (action === "disk_stats" || action === "free_disk") {
+    const { dataRoot, galleryRoot } = await import("@/lib/paths");
+    const root = dataRoot();
+
+    function walk(dir: string, out: { path: string; size: number }[], depth = 0) {
+      if (depth > 8 || !fs.existsSync(dir)) return;
+      let entries: fs.Dirent[] = [];
+      try {
+        entries = fs.readdirSync(dir, { withFileTypes: true });
+      } catch {
+        return;
+      }
+      for (const e of entries) {
+        const full = path.join(dir, e.name);
+        try {
+          if (e.isDirectory()) walk(full, out, depth + 1);
+          else if (e.isFile()) out.push({ path: full, size: fs.statSync(full).size });
+        } catch {
+          /* skip */
+        }
+      }
+    }
+
+    const before: { path: string; size: number }[] = [];
+    walk(root, before);
+    const beforeBytes = before.reduce((s, f) => s + f.size, 0);
+    const largest = [...before].sort((a, b) => b.size - a.size).slice(0, 25);
+
+    let deleted = 0;
+    let freed = 0;
+    if (action === "free_disk") {
+      const kill = (p: string) => {
+        try {
+          const sz = fs.statSync(p).size;
+          fs.unlinkSync(p);
+          deleted += 1;
+          freed += sz;
+        } catch {
+          /* ignore */
+        }
+      };
+      for (const f of before) {
+        const base = path.basename(f.path);
+        const rel = path.relative(root, f.path).replace(/\\/g, "/");
+        // DB backups / import leftovers / sqlite journals from failed writes
+        if (
+          /\.bak($|-)/i.test(base) ||
+          base.endsWith(".importing") ||
+          base.endsWith(".tmp") ||
+          rel.startsWith("backups/") ||
+          /\.partial$/i.test(base)
+        ) {
+          kill(f.path);
+        }
+      }
+      // Drop huge orphan videos over 40MB under gallery (keep DB rows; previews can re-gen)
+      const gRoot = galleryRoot();
+      for (const f of before) {
+        if (!f.path.startsWith(gRoot)) continue;
+        if (f.size < 40 * 1024 * 1024) continue;
+        if (!/\.(mp4|webm|mov|mkv)$/i.test(f.path)) continue;
+        kill(f.path);
+      }
+      try {
+        await prisma.$executeRawUnsafe("VACUUM");
+      } catch (e) {
+        /* VACUUM may fail if disk still tight; report below */
+        console.error("[bootstrap] VACUUM failed", e);
+      }
+    }
+
+    const after: { path: string; size: number }[] = [];
+    walk(root, after);
+    const afterBytes = after.reduce((s, f) => s + f.size, 0);
+
+    return NextResponse.json({
+      ok: true,
+      action,
+      root,
+      beforeBytes,
+      afterBytes,
+      deleted,
+      freed,
+      files: after.length,
+      largest: largest.map((f) => ({
+        path: path.relative(root, f.path).replace(/\\/g, "/"),
+        mb: Math.round((f.size / 1024 / 1024) * 10) / 10,
+      })),
+    });
+  }
+
   if (action === "restore_tg") {
     const tgId = String(body.telegramUserId || "978491621");
     const email = `tg_${tgId}@peachbitch.local`;
