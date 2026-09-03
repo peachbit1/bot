@@ -28,17 +28,22 @@ export async function GET(req: Request) {
     listVideoRefCharacters(userId),
   ]);
 
-  const charactersWithCovers = await Promise.all(
-    characters.map(async (c) => ({
-      id: c.id,
-      name: c.name,
-      loraStatus: c.loraStatus,
-      photoCount: c.photoCount,
-      isStudioCast: c.isStudioCast,
-      videoRefOnly: false,
-      coverUrl: c.isStudioCast ? null : await pickCharacterCoverUrl(c.id),
-    })),
+  // Covers: only for a few personal cards — avoid N gallery scans on every open.
+  const personal = characters.filter((c) => !c.isStudioCast).slice(0, 8);
+  const coverEntries = await Promise.all(
+    personal.map(async (c) => [c.id, await pickCharacterCoverUrl(c.id)] as const),
   );
+  const covers = new Map(coverEntries);
+
+  const charactersWithCovers = characters.map((c) => ({
+    id: c.id,
+    name: c.name,
+    loraStatus: c.loraStatus,
+    photoCount: c.photoCount,
+    isStudioCast: c.isStudioCast,
+    videoRefOnly: false,
+    coverUrl: c.isStudioCast ? null : covers.get(c.id) ?? null,
+  }));
 
   return NextResponse.json({
     balancePeaches: user.balancePeaches,

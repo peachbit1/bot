@@ -30,6 +30,8 @@ const UI = {
   ru: {
     openInTg: "Открой из Telegram Mini App",
     authErr: "Ошибка авторизации",
+    profileErr: "Не удалось загрузить профиль — открой мини-апп ещё раз",
+    busyErr: "Сервер перезапускается — подожди 5 сек и открой снова",
     loading: "Загрузка…",
     feed: "Лента",
     chars: "Персонажи",
@@ -39,6 +41,8 @@ const UI = {
   en: {
     openInTg: "Open from Telegram Mini App",
     authErr: "Auth failed",
+    profileErr: "Could not load profile — reopen the mini app",
+    busyErr: "Server is restarting — wait 5s and open again",
     loading: "Loading…",
     feed: "Feed",
     chars: "Cast",
@@ -87,6 +91,27 @@ function tgFetch(
   });
 }
 
+async function fetchWithRetry(
+  initData: string,
+  input: RequestInfo | URL,
+  init?: RequestInit,
+  tries = 3,
+): Promise<Response> {
+  let last: Response | null = null;
+  for (let i = 0; i < tries; i++) {
+    try {
+      const res = await tgFetch(initData, input, init);
+      last = res;
+      if (res.status < 500) return res;
+    } catch {
+      /* network blip while Next restarts after OOM */
+    }
+    await new Promise((r) => setTimeout(r, 800 * (i + 1)));
+  }
+  if (last) return last;
+  throw new Error("network");
+}
+
 export function useTgMiniApp() {
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [error, setError] = useState("");
@@ -98,8 +123,11 @@ export function useTgMiniApp() {
     const initData = initDataRef.current;
     if (!initData) throw new Error("no initData");
     const q = loc ? `?locale=${loc}` : "";
-    const res = await tgFetch(initData, `/api/tg/me${q}`);
-    if (!res.ok) throw new Error("profile");
+    const res = await fetchWithRetry(initData, `/api/tg/me${q}`);
+    if (!res.ok) {
+      const err = new Error(res.status >= 500 ? "busy" : "profile");
+      throw err;
+    }
     const data = (await res.json()) as TgMiniAppProfile;
     setProfile(data);
     if (data.locale === "en" || data.locale === "ru") setLocale(data.locale);
@@ -121,31 +149,38 @@ export function useTgMiniApp() {
         return;
       }
 
-      const authRes = await tgFetch(initData, "/api/tg/auth", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ initData }),
-      });
-      if (!authRes.ok) {
-        const detail = await authRes.text().catch(() => "");
-        console.error("[tg-auth]", authRes.status, detail.slice(0, 200));
-        setError(
-          authRes.status >= 500
-            ? "Сервер перегружен, открой мини-апп ещё раз"
-            : UI.ru.authErr,
-        );
+      let authRes: Response;
+      try {
+        authRes = await fetchWithRetry(initData, "/api/tg/auth", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ initData }),
+        });
+      } catch {
+        setError(UI.ru.busyErr);
         setStatus("error");
         return;
       }
 
-      await tgFetch(initData, "/api/tg/miniapp-heartbeat", { method: "POST" });
+      if (!authRes.ok) {
+        const detail = await authRes.text().catch(() => "");
+        console.error("[tg-auth]", authRes.status, detail.slice(0, 200));
+        setError(authRes.status >= 500 ? UI.ru.busyErr : UI.ru.authErr);
+        setStatus("error");
+        return;
+      }
+
+      void fetchWithRetry(initData, "/api/tg/miniapp-heartbeat", {
+        method: "POST",
+      }).catch(() => undefined);
 
       try {
         await refresh();
         setStatus("ready");
       } catch (e) {
         console.error("[tg-me]", e);
-        setError(UI.ru.authErr);
+        const msg = e instanceof Error ? e.message : "";
+        setError(msg === "busy" ? UI.ru.busyErr : UI.ru.profileErr);
         setStatus("error");
       }
     })();

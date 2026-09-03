@@ -9,23 +9,49 @@ export type TelegramWebAppUser = {
   is_premium?: boolean;
 };
 
-/** Validate Telegram Mini App `initData` per official spec. */
-export function validateTelegramInitData(
+export type InitDataValidationFailure =
+  | "empty"
+  | "missing_token"
+  | "missing_hash"
+  | "bad_hash"
+  | "expired";
+
+function ordinalSort(a: string, b: string) {
+  if (a < b) return -1;
+  if (a > b) return 1;
+  return 0;
+}
+
+function timingSafeEqualHex(a: string, b: string) {
+  try {
+    const ba = Buffer.from(a, "hex");
+    const bb = Buffer.from(b, "hex");
+    if (ba.length !== bb.length || ba.length === 0) return false;
+    return crypto.timingSafeEqual(ba, bb);
+  } catch {
+    return false;
+  }
+}
+
+/** Validate Telegram Mini App `initData` per official bot-token HMAC spec. */
+export function validateTelegramInitDataDetailed(
   initData: string,
   botToken: string,
-): Record<string, string> | null {
-  if (!initData?.trim() || !botToken) return null;
+):
+  | { ok: true; fields: Record<string, string> }
+  | { ok: false; reason: InitDataValidationFailure } {
+  if (!initData?.trim()) return { ok: false, reason: "empty" };
+  if (!botToken) return { ok: false, reason: "missing_token" };
 
   const params = new URLSearchParams(initData);
   const hash = params.get("hash");
-  if (!hash) return null;
-  // First-party bot-token HMAC: exclude ONLY `hash`.
-  // `signature` (Ed25519, Bot API 7.2+) MUST stay in the data-check-string —
-  // excluding it makes every modern Telegram client fail validation.
+  if (!hash) return { ok: false, reason: "missing_hash" };
+
+  // First-party HMAC: exclude ONLY `hash`. Keep `signature` in the check string.
   params.delete("hash");
 
   const dataCheckString = [...params.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
+    .sort(([a], [b]) => ordinalSort(a, b))
     .map(([k, v]) => `${k}=${v}`)
     .join("\n");
 
@@ -39,16 +65,29 @@ export function validateTelegramInitData(
     .update(dataCheckString)
     .digest("hex");
 
-  if (calculated !== hash) return null;
+  if (!timingSafeEqualHex(calculated, hash)) {
+    return { ok: false, reason: "bad_hash" };
+  }
 
   const authDate = Number(params.get("auth_date") || 0);
-  if (authDate && Date.now() / 1000 - authDate > 86400) return null;
+  if (authDate && Date.now() / 1000 - authDate > 86400) {
+    return { ok: false, reason: "expired" };
+  }
 
   const out: Record<string, string> = {};
   params.forEach((v, k) => {
     out[k] = v;
   });
-  return out;
+  return { ok: true, fields: out };
+}
+
+/** Validate Telegram Mini App `initData` per official spec. */
+export function validateTelegramInitData(
+  initData: string,
+  botToken: string,
+): Record<string, string> | null {
+  const result = validateTelegramInitDataDetailed(initData, botToken);
+  return result.ok ? result.fields : null;
 }
 
 export function parseTelegramUser(

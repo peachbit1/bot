@@ -43,7 +43,7 @@ export async function GET() {
   };
 
   return NextResponse.json({
-    build: "tg-ready-v8-auth-sig",
+    build: "tg-ready-v8-auth-stable",
     gpu,
     catalogFiles,
     features: {

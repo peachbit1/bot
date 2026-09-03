@@ -28,7 +28,6 @@ export function hasRealCharacterLora(ch: {
 }
 
 async function findStudioCastCandidates() {
-  await ensureStudioCasts();
   const rows = await prisma.character.findMany({
     where: { isStudioCast: true, loraStatus: "lora_ready" },
     orderBy: { updatedAt: "desc" },
@@ -84,7 +83,7 @@ export async function ensureStudioCasts(): Promise<void> {
 }
 
 export async function listStudioCasts(_locale: "ru" | "en" = "ru") {
-  await ensureStudioCasts();
+  // Avoid heavy ensureStudioCasts on every Mini App /me — casts already seeded in prod.
   const candidates = await findStudioCastCandidates();
   const out: Array<{ id: string; name: string; coverUrl: string | null }> = [];
 

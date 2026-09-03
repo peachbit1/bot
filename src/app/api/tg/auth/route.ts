@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import {
   parseTelegramUser,
-  validateTelegramInitData,
+  validateTelegramInitDataDetailed,
 } from "@/lib/tg/auth";
 import { findOrCreateTelegramUser } from "@/lib/tg/user";
 import { createSession } from "@/lib/auth";
@@ -28,21 +28,22 @@ export async function POST(req: Request) {
   }
 
   const initData = body.initData || "";
-  if (!initData.trim()) {
-    return NextResponse.json({ error: "Missing initData" }, { status: 401 });
-  }
-  const fields = validateTelegramInitData(initData, token);
-  if (!fields) {
+  const checked = validateTelegramInitDataDetailed(initData, token);
+  if (!checked.ok) {
     console.warn("[tg-auth] invalid initData", {
+      reason: checked.reason,
       len: initData.length,
       hasSig: /(?:^|&)signature=/.test(initData),
       hasUser: /(?:^|&)user=/.test(initData),
       hasHash: /(?:^|&)hash=/.test(initData),
     });
-    return NextResponse.json({ error: "Invalid initData" }, { status: 401 });
+    return NextResponse.json(
+      { error: "Invalid initData", reason: checked.reason },
+      { status: 401 },
+    );
   }
 
-  const tgUser = parseTelegramUser(fields);
+  const tgUser = parseTelegramUser(checked.fields);
   if (!tgUser) {
     return NextResponse.json({ error: "No user in initData" }, { status: 400 });
   }
