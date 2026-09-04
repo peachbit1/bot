@@ -25,7 +25,9 @@ const M: Dict = {
 
   /** Start pitch — always shown in Russian first (PDF). */
   start_pitch: {
-    ru: `🍑<b>С Peachbitch ты воплотишь все свои фантазии</b>. Без ограничений, без цензуры, с тотальной защитой конфиденциальности!
+    ru: `🔐 <code>PlaVER</code>
+
+🍑<b>С Peachbitch ты воплотишь все свои фантазии</b>. Без ограничений, без цензуры, с тотальной защитой конфиденциальности!
 
 Просто загружаешь фотографию своего персонажа и творишь с ним всё, на что хватит фантазии и смелости 🤯💦
 
@@ -35,7 +37,9 @@ const M: Dict = {
 
 <b>Для начала, выбери язык 👇</b>
 <b>(Select a language)</b>`,
-    en: `🍑<b>With Peachbitch you can bring every fantasy to life</b>. No limits, no censorship, total privacy!
+    en: `🔐 <code>PlaVER</code>
+
+🍑<b>With Peachbitch you can bring every fantasy to life</b>. No limits, no censorship, total privacy!
 
 Just upload a photo of your character and create anything your imagination dares 🤯💦
 
@@ -291,12 +295,14 @@ Find her in "Characters" in the bottom menu — edit body settings, add more cha
 
 Стоимость генерации: {price}
 
-Начинаю генерацию {kind} с моделью по имени «{name}»?`,
+Модель: <b>{name}</b>
+Выбери актрису ниже и нажми «Сгенерировать».`,
     en: `Selected pose: <b>{title}</b>
 
 Generation cost: {price}
 
-Start {kind} generation with model «{name}»?`,
+Model: <b>{name}</b>
+Pick an actress below, then tap Generate.`,
   },
 
   gen_confirm_video_pose: {

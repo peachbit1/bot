@@ -7,6 +7,7 @@ import {
   characterReadyForVideo,
   createVideoRefCharacter,
   getActiveTgCharacter,
+  listTgCharacters,
   listVideoRefCharacters,
   renameTgCharacter,
   setActiveTgCharacter,
@@ -27,6 +28,7 @@ import {
   GEN_CB,
   OB_CB,
   VID_CB,
+  photoCastPickerKeyboard,
   resolvePickIndex,
   sendTemplatePicker,
   successInlineKeyboard,
@@ -78,6 +80,8 @@ import {
 import {
   tgAnswerCallbackQuery,
   tgDownloadFile,
+  tgEditMessageCaption,
+  tgEditMessageText,
   tgSendMessage,
   tgSendPhoto,
   tgSendVideo,
@@ -97,7 +101,12 @@ import { maybeSendWelcomePush } from "@/lib/tg/tg-promo";
 import { isTestPromoMessage, redeemTestPromo } from "@/lib/tg/test-promo";
 import { goToMainMenu, routeMenuText } from "@/lib/tg/menu-routing";
 import { tgMiniAppUrl } from "@/lib/tg/miniapp-url";
-import { isStudioCastCharacter, getStudioCast, characterUsesLoraPhoto } from "@/lib/tg/studio-cast";
+import {
+  isStudioCastCharacter,
+  getStudioCast,
+  characterUsesLoraPhoto,
+  listStudioCasts,
+} from "@/lib/tg/studio-cast";
 import { showPhotoUploadProgress } from "@/lib/tg/photo-upload-ui";
 
 export type TgUpdateMessage = {
@@ -112,7 +121,14 @@ export type TgUpdateMessage = {
 export type TgCallbackQuery = {
   id: string;
   from: TelegramBotUser;
-  message?: { chat: { id: number }; message_id: number };
+  message?: {
+    chat: { id: number };
+    message_id: number;
+    photo?: unknown[];
+    video?: unknown;
+    animation?: unknown;
+    caption?: string;
+  };
   data?: string;
 };
 
@@ -284,6 +300,35 @@ async function loadTemplateMeta(
   };
 }
 
+/** Studio catalog + user's LoRA-ready models for photo confirm buttons. */
+async function listPhotoConfirmModels(userId: string, locale: TgLocale) {
+  const casts = await listStudioCasts(locale);
+  const personal = await listTgCharacters(userId);
+  const out: Array<{ id: string; name: string }> = [];
+  const seen = new Set<string>();
+
+  for (const ch of personal) {
+    if (!characterUsesLoraPhoto(ch) || seen.has(ch.id)) continue;
+    seen.add(ch.id);
+    out.push({ id: ch.id, name: ch.name });
+  }
+  for (const c of casts) {
+    if (seen.has(c.id)) continue;
+    seen.add(c.id);
+    out.push({ id: c.id, name: c.name });
+  }
+  return out;
+}
+
+async function resolvePhotoConfirmCharacter(userId: string, characterId?: string | null) {
+  if (!characterId) return null;
+  const studio = await getStudioCast(characterId);
+  if (studio) return studio;
+  return prisma.character.findFirst({
+    where: { id: characterId, userId },
+  });
+}
+
 async function showTemplateConfirm(
   chatId: number,
   platformUserId: string,
@@ -294,60 +339,190 @@ async function showTemplateConfirm(
   title: string,
   hasSpeech: boolean,
 ) {
-  const character = await getActiveTgCharacter(userId, platformUserId);
-  const pricing = await templatePriceLabel({
-    userId,
-    kind,
-    templateId,
-    locale,
-    character: kind === "photo" ? character : null,
-  });
-
-  const kindWord = kind === "photo"
-    ? (locale === "en" ? "photo" : "фото")
-    : (locale === "en" ? "video" : "видео");
-
-  let caption: string;
   if (kind === "video") {
-    caption = tFormat("gen_confirm_video_pose", locale, {
+    const pricing = await templatePriceLabel({
+      userId,
+      kind,
+      templateId,
+      locale,
+      character: null,
+    });
+    const caption = tFormat("gen_confirm_video_pose", locale, {
       title,
       price: pricing.label,
     });
-  } else {
-    const name = character?.name || (locale === "en" ? "Model" : "Модель");
-    caption = tFormat("gen_confirm_pose", locale, {
-      title,
-      price: pricing.label,
-      kind: kindWord,
-      name,
+    const markup = {
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: t("gen_confirm_btn", locale), callback_data: GEN_CB.confirm }],
+          [{ text: t("gen_other_poses_btn", locale), callback_data: GEN_CB.backTemplates }],
+        ],
+      },
+    };
+    const previewUrl = await getTemplatePreviewUrl(userId, kind, templateId);
+    const { tgSendPreviewMessage } = await import("@/lib/tg/media-assets");
+    await tgSendPreviewMessage(chatId, previewUrl, caption, markup);
+    await setTgSession(platformUserId, {
+      chatState: "idle",
+      pending: {
+        templateId,
+        templateKind: kind,
+        title,
+        hasSpeech: hasSpeech && kind === "video",
+        pricePeaches: pricing.price,
+        discountApplied: pricing.discountApplied,
+        freePhoto: pricing.freePhoto,
+        studioDaily: pricing.studioDaily,
+        loraWelcome: pricing.loraWelcome,
+      },
     });
+    return;
   }
 
-  const markup = {
-    reply_markup: {
-      inline_keyboard: [
-        [{ text: t("gen_confirm_btn", locale), callback_data: GEN_CB.confirm }],
-        [{ text: t("gen_other_poses_btn", locale), callback_data: GEN_CB.backTemplates }],
-      ],
-    },
-  };
+  const casts = await listPhotoConfirmModels(userId, locale);
+  const active = await getActiveTgCharacter(userId, platformUserId);
+  let selectedId =
+    active && casts.some((c) => c.id === active.id)
+      ? active.id
+      : casts[0]?.id;
 
-  const previewUrl = await getTemplatePreviewUrl(userId, kind, templateId);
+  if (selectedId && selectedId !== active?.id) {
+    await setActiveTgCharacter(platformUserId, selectedId);
+  }
+
+  const character =
+    (await resolvePhotoConfirmCharacter(userId, selectedId)) ||
+    (await getActiveTgCharacter(userId, platformUserId));
+
+  const pricing = await templatePriceLabel({
+    userId,
+    kind: "photo",
+    templateId,
+    locale,
+    character,
+  });
+
+  const name =
+    casts.find((c) => c.id === selectedId)?.name ||
+    character?.name ||
+    (locale === "en" ? "Model" : "Модель");
+
+  const caption = tFormat("gen_confirm_pose", locale, {
+    title,
+    price: pricing.label,
+    name,
+  });
+
+  const castPage = 0;
+  const { keyboard } = photoCastPickerKeyboard(casts, selectedId, castPage, locale);
+  const markup = { reply_markup: { inline_keyboard: keyboard } };
+
+  const previewUrl = await getTemplatePreviewUrl(userId, "photo", templateId);
   const { tgSendPreviewMessage } = await import("@/lib/tg/media-assets");
-  await tgSendPreviewMessage(chatId, previewUrl, caption, markup);
+  const sent = (await tgSendPreviewMessage(
+    chatId,
+    previewUrl,
+    caption,
+    markup,
+  )) as { message_id?: number } | undefined;
 
   await setTgSession(platformUserId, {
     chatState: "idle",
     pending: {
       templateId,
-      templateKind: kind,
+      templateKind: "photo",
       title,
-      hasSpeech: hasSpeech && kind === "video",
+      hasSpeech: false,
       pricePeaches: pricing.price,
       discountApplied: pricing.discountApplied,
       freePhoto: pricing.freePhoto,
       studioDaily: pricing.studioDaily,
       loraWelcome: pricing.loraWelcome,
+      studioCastId: selectedId,
+      castPage,
+      confirmMessageId: sent?.message_id,
+      confirmHasMedia: Boolean(previewUrl),
+    },
+  });
+}
+
+async function refreshPhotoConfirmMessage(
+  chatId: number,
+  platformUserId: string,
+  userId: string,
+  locale: TgLocale,
+  pending: TgPending,
+  messageId: number | undefined,
+  hasMedia: boolean | undefined,
+) {
+  const templateId = pending.templateId;
+  if (!templateId) return;
+
+  const casts = await listPhotoConfirmModels(userId, locale);
+  const selectedId =
+    pending.studioCastId && casts.some((c) => c.id === pending.studioCastId)
+      ? pending.studioCastId
+      : casts[0]?.id;
+
+  if (selectedId) {
+    await setActiveTgCharacter(platformUserId, selectedId);
+  }
+
+  const character = await resolvePhotoConfirmCharacter(userId, selectedId);
+
+  const pricing = await templatePriceLabel({
+    userId,
+    kind: "photo",
+    templateId,
+    locale,
+    character,
+  });
+
+  const name =
+    casts.find((c) => c.id === selectedId)?.name ||
+    character?.name ||
+    (locale === "en" ? "Model" : "Модель");
+
+  const caption = tFormat("gen_confirm_pose", locale, {
+    title: pending.title || "",
+    price: pricing.label,
+    name,
+  });
+
+  const castPage = pending.castPage || 0;
+  const { keyboard, page } = photoCastPickerKeyboard(
+    casts,
+    selectedId,
+    castPage,
+    locale,
+  );
+  const markup = { reply_markup: { inline_keyboard: keyboard } };
+  const mid = messageId ?? pending.confirmMessageId;
+
+  if (mid) {
+    try {
+      if (hasMedia ?? pending.confirmHasMedia) {
+        await tgEditMessageCaption(chatId, mid, caption, markup);
+      } else {
+        await tgEditMessageText(chatId, mid, caption, markup);
+      }
+    } catch {
+      /* message may be too old / identical */
+    }
+  }
+
+  await setTgSession(platformUserId, {
+    pending: {
+      ...pending,
+      studioCastId: selectedId,
+      castPage: page,
+      pricePeaches: pricing.price,
+      discountApplied: pricing.discountApplied,
+      freePhoto: pricing.freePhoto,
+      studioDaily: pricing.studioDaily,
+      loraWelcome: pricing.loraWelcome,
+      confirmMessageId: mid,
+      confirmHasMedia: hasMedia ?? pending.confirmHasMedia,
     },
   });
 }
@@ -584,6 +759,8 @@ async function handleGenerationCallback(
   locale: TgLocale,
   data: string,
   pending: TgPending,
+  messageId?: number,
+  hasMedia?: boolean,
 ): Promise<boolean> {
   if (data === GEN_CB.kindPhoto || data === GEN_CB.kindVideo) {
     const kind = data === GEN_CB.kindPhoto ? "photo" : "video";
@@ -636,6 +813,39 @@ async function handleGenerationCallback(
     return true;
   }
 
+  if (data.startsWith("g:mc:")) {
+    const castId = data.slice("g:mc:".length);
+    if (!pending.templateId || pending.templateKind !== "photo") return true;
+    const character = await resolvePhotoConfirmCharacter(userId, castId);
+    if (!character) return true;
+    await setActiveTgCharacter(platformUserId, character.id);
+    await refreshPhotoConfirmMessage(
+      chatId,
+      platformUserId,
+      userId,
+      locale,
+      { ...pending, studioCastId: character.id },
+      messageId,
+      hasMedia,
+    );
+    return true;
+  }
+
+  if (data.startsWith("g:cp:")) {
+    if (!pending.templateId || pending.templateKind !== "photo") return true;
+    const page = Number(data.slice("g:cp:".length)) || 0;
+    await refreshPhotoConfirmMessage(
+      chatId,
+      platformUserId,
+      userId,
+      locale,
+      { ...pending, castPage: page },
+      messageId,
+      hasMedia,
+    );
+    return true;
+  }
+
   if (data === GEN_CB.confirm && pending.templateId) {
     if (pending.hasSpeech) {
       await setTgSession(platformUserId, { chatState: "awaiting_speech", pending });
@@ -645,6 +855,9 @@ async function handleGenerationCallback(
     if (pending.templateKind === "video") {
       await beginVideoUploadFlow(chatId, platformUserId, userId, locale, pending);
       return true;
+    }
+    if (pending.studioCastId) {
+      await setActiveTgCharacter(platformUserId, pending.studioCastId);
     }
     await beginGeneration(chatId, platformUserId, userId, locale, pending);
     return true;
@@ -864,7 +1077,16 @@ export async function handleTgCallbackQuery(cq: TgCallbackQuery) {
       tgSendMessage(chatId, body, extra),
     );
 
-    if (await handleGenerationCallback(chatId, platformUserId, user.id, locale, data, pending)) {
+    if (await handleGenerationCallback(
+      chatId,
+      platformUserId,
+      user.id,
+      locale,
+      data,
+      pending,
+      cq.message?.message_id,
+      Boolean(cq.message?.photo || cq.message?.video || cq.message?.animation),
+    )) {
       await tgAnswerCallbackQuery(cq.id);
       return;
     }

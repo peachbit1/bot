@@ -13,6 +13,8 @@ export const GEN_CB = {
   kindVideo: "g:k:v",
   pick: (idx: number) => `g:pi:${idx}`,
   page: (page: number) => `g:pg:${page}`,
+  pickCast: (id: string) => `g:mc:${id}`,
+  castPage: (page: number) => `g:cp:${page}`,
   confirm: "g:go",
   backTemplates: "g:bt",
   againPhoto: "g:ap",
@@ -41,6 +43,8 @@ export const TOPUP_CB = {
 } as const;
 
 const PAGE_SIZE = 6;
+/** Studio casts on photo confirm: 2 columns × 3 rows */
+export const CAST_PAGE_SIZE = 6;
 
 export type BotTemplateRow = {
   id: string;
@@ -131,6 +135,64 @@ export function templatePickerKeyboard(
       web_app: { url: miniAppUrl() },
     },
   ]);
+
+  return { keyboard: rows, page: safePage, totalPages };
+}
+
+export type BotCastRow = { id: string; name: string };
+
+export function photoCastPickerKeyboard(
+  casts: BotCastRow[],
+  selectedId: string | null | undefined,
+  page: number,
+  locale: TgLocale,
+) {
+  const totalPages = Math.max(1, Math.ceil(casts.length / CAST_PAGE_SIZE));
+  const safePage = Math.min(Math.max(0, page), totalPages - 1);
+  const slice = casts.slice(
+    safePage * CAST_PAGE_SIZE,
+    safePage * CAST_PAGE_SIZE + CAST_PAGE_SIZE,
+  );
+
+  const rows: Array<Array<{ text: string; callback_data: string }>> = [];
+  for (let i = 0; i < slice.length; i += 2) {
+    const row: Array<{ text: string; callback_data: string }> = [];
+    const a = slice[i]!;
+    const aMark = a.id === selectedId ? " ✓" : "";
+    row.push({
+      text: `${a.name.slice(0, 28)}${aMark}`,
+      callback_data: GEN_CB.pickCast(a.id),
+    });
+    const b = slice[i + 1];
+    if (b) {
+      const bMark = b.id === selectedId ? " ✓" : "";
+      row.push({
+        text: `${b.name.slice(0, 28)}${bMark}`,
+        callback_data: GEN_CB.pickCast(b.id),
+      });
+    }
+    rows.push(row);
+  }
+
+  if (totalPages > 1) {
+    const nav: Array<{ text: string; callback_data: string }> = [];
+    if (safePage > 0) {
+      nav.push({
+        text: t("gen_page_prev", locale),
+        callback_data: GEN_CB.castPage(safePage - 1),
+      });
+    }
+    if (safePage < totalPages - 1) {
+      nav.push({
+        text: t("gen_page_next", locale),
+        callback_data: GEN_CB.castPage(safePage + 1),
+      });
+    }
+    if (nav.length) rows.push(nav);
+  }
+
+  rows.push([{ text: t("gen_confirm_btn", locale), callback_data: GEN_CB.confirm }]);
+  rows.push([{ text: t("gen_other_poses_btn", locale), callback_data: GEN_CB.backTemplates }]);
 
   return { keyboard: rows, page: safePage, totalPages };
 }

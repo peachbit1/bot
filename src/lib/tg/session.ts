@@ -38,6 +38,12 @@ export type TgPending = {
   uploadProgressMessageId?: number;
   /** Studio cast id when generating photo from mini app */
   studioCastId?: string;
+  /** Cast picker page on photo confirm */
+  castPage?: number;
+  /** Message id of photo confirm (for inline edit) */
+  confirmMessageId?: number;
+  /** Confirm message is photo/video (edit caption) vs text */
+  confirmHasMedia?: boolean;
 };
 
 export async function getTgSession(platformUserId: string) {
