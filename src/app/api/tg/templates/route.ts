@@ -8,6 +8,7 @@ import {
 } from "@/lib/tg/tg-catalog";
 import { normalizeLocale, type TgLocale } from "@/lib/tg/i18n";
 import { seedPreviewForPhoto, seedPreviewForVideo } from "@/lib/tg/tg-catalog-seed";
+import { isSafeVideoTemplateThumb } from "@/lib/quick-video-template-preview";
 
 function videoTitle(
   row: { title: string; titleEn?: string },
@@ -16,8 +17,17 @@ function videoTitle(
   return locale === "en" && row.titleEn?.trim() ? row.titleEn : row.title;
 }
 
+function looksLikeVideoUrl(url: string): boolean {
+  return /\.(mp4|webm|mov)(\?|$)/i.test(url) || /preview/i.test(url);
+}
+
 /** Templates feed for TG Mini App. */
 export async function GET(req: Request) {
+  // One-shot scrub of leaked ref stills from video thumbs (safe to call often).
+  void import("@/lib/tg/migrate-video-preview")
+    .then((m) => m.migrateVideoTemplatePreviewHygiene())
+    .catch((e) => console.error("[peach] video preview migrate:", e));
+
   const userId = await resolveTgApiUserId(req);
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -37,15 +47,18 @@ export async function GET(req: Request) {
   const video = videoRaw.map((t, i) => {
     const row = t as typeof t & { titleEn?: string; hasSpeech?: boolean };
     const seedPrev = seedPreviewForVideo(row.title, i);
+    const rawVideo = t.previewVideoUrl?.trim() || "";
+    // Never promote previewPhotoUrl (often a leaked identity/ref still) to video.
     const previewVideo =
-      t.previewVideoUrl?.trim() ||
-      t.previewPhotoUrl?.trim() ||
+      (rawVideo && looksLikeVideoUrl(rawVideo) ? rawVideo : "") ||
       seedPrev?.previewVideoUrl ||
       "";
-    const previewPhoto =
-      t.previewPhotoUrl?.trim() ||
-      seedPrev?.previewPhotoUrl ||
-      previewVideo;
+    const rawPhoto = t.previewPhotoUrl?.trim() || "";
+    const previewPhoto = isSafeVideoTemplateThumb(rawPhoto)
+      ? rawPhoto
+      : isSafeVideoTemplateThumb(seedPrev?.previewPhotoUrl)
+        ? seedPrev!.previewPhotoUrl
+        : "";
     return {
       ...t,
       title: videoTitle(row, locale),

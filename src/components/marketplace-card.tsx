@@ -41,14 +41,16 @@ export function MarketplaceCard({
       onMouseLeave={() => setHover(false)}
     >
       <div className="relative aspect-[9/16] max-h-[280px] w-full overflow-hidden bg-gradient-to-br from-[#1a1218] via-[#141416] to-[#101820]">
-        {previewVideo && hover ? (
+        {previewVideo ? (
           <video
             src={previewVideo}
+            poster={previewImage || undefined}
             className="h-full w-full object-cover"
-            autoPlay
+            autoPlay={hover}
             muted
             loop
             playsInline
+            preload="metadata"
           />
         ) : previewImage ? (
           // eslint-disable-next-line @next/next/no-img-element

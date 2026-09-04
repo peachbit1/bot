@@ -194,12 +194,16 @@ function VideoPageInner() {
                       loop
                       playsInline
                       preload="metadata"
-                      poster={t.previewPhotoUrl || undefined}
+                      poster={
+                        t.previewPhotoUrl &&
+                        /qv_tpl_thumb|frame-thumb|video-\d+-thumb/i.test(
+                          t.previewPhotoUrl,
+                        )
+                          ? t.previewPhotoUrl
+                          : undefined
+                      }
                       onClick={(e) => togglePreview(e.currentTarget)}
                     />
-                  ) : t.previewPhotoUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={t.previewPhotoUrl} alt="" className="tg-portrait-img" />
                   ) : (
                     <div className="tg-portrait-placeholder" />
                   )}

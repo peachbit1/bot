@@ -205,6 +205,7 @@ export function TemplateTicker({
     id: string;
     title: string;
     previewPhotoUrl?: string;
+    previewVideoUrl?: string;
     badge: "peach" | "bitch" | "juice";
     href: string;
   }>;
@@ -270,6 +271,7 @@ function TickerCard({
     id: string;
     title: string;
     previewPhotoUrl?: string;
+    previewVideoUrl?: string;
     badge: "peach" | "bitch" | "juice";
     href: string;
   };
@@ -282,7 +284,17 @@ function TickerCard({
       className="group relative w-[140px] shrink-0 overflow-hidden rounded-xl border border-white/10 text-left"
     >
       <div className="aspect-[9/14] bg-gradient-to-br from-[#1a1218] to-[#101820]">
-        {item.previewPhotoUrl ? (
+        {item.previewVideoUrl ? (
+          <video
+            src={item.previewVideoUrl}
+            poster={item.previewPhotoUrl || undefined}
+            muted
+            loop
+            playsInline
+            preload="metadata"
+            className="h-full w-full object-cover"
+          />
+        ) : item.previewPhotoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={item.previewPhotoUrl} alt="" className="h-full w-full object-cover" />
         ) : null}

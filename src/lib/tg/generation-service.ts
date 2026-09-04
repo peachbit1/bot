@@ -210,7 +210,7 @@ export async function startTgVideoGeneration(opts: {
       platformUserId: opts.platformUserId,
       title: detail.title,
       characterId: opts.characterId,
-      previewVideoUrl: detail.previewVideoUrl || detail.previewPhotoUrl,
+      previewVideoUrl: detail.previewVideoUrl || "",
     });
     return {
       runId: mock.runId,

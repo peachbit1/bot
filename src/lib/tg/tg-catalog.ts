@@ -15,6 +15,7 @@ import {
 } from "@/lib/quick-video-template";
 import { TG_VIDEO_PEACHES } from "@/lib/tg-pricing";
 import { tgTemplateDisplayTitle } from "@/lib/tg/tg-publish";
+import { isSafeVideoTemplateThumb } from "@/lib/quick-video-template-preview";
 import {
   TG_FEATURED_PHOTO_TITLES,
   TG_FEATURED_VIDEO_TITLES,
@@ -151,7 +152,9 @@ async function listTgPublishedVideoRows(userId: string): Promise<PublicQuickVide
       identityPersonCount: r.identityPersonCount,
       hasLocationSlot: r.hasLocationSlot,
       previewVideoUrl: r.previewVideoUrl,
-      previewPhotoUrl: r.previewPhotoUrl,
+      previewPhotoUrl: isSafeVideoTemplateThumb(r.previewPhotoUrl)
+        ? r.previewPhotoUrl
+        : "",
       orientation: r.orientation,
       durationSec: r.durationSec,
       createdAt: r.createdAt.toISOString(),

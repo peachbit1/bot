@@ -111,19 +111,30 @@ export async function publishQuickVideoTemplateToTg(
   const row = await prisma.quickVideoTemplate.findUnique({ where: { id: templateId } });
   if (!row) throw new Error("Шаблон не найден");
 
+  const { ensureTemplatePreviewPhoto, isSafeVideoTemplateThumb } = await import(
+    "@/lib/quick-video-template-preview"
+  );
+  const safeThumb = await ensureTemplatePreviewPhoto(row, {
+    force: !isSafeVideoTemplateThumb(row.previewPhotoUrl),
+    atSec: 1,
+  });
+  const fresh = await prisma.quickVideoTemplate.findUnique({
+    where: { id: templateId },
+  });
+  if (!fresh) throw new Error("Шаблон не найден");
+
   const slug = `qv-${templateId.slice(0, 10)}`;
   const previewVideoUrl = copyAssetToTgCatalog(
-    row.previewVideoUrl,
+    fresh.previewVideoUrl,
     `${slug}-preview`,
     ".mp4",
   );
-  const previewPhotoUrl = copyAssetToTgCatalog(
-    row.previewPhotoUrl,
-    `${slug}-thumb`,
-    ".jpg",
-  );
+  // Use -frame-thumb so old leaked qv-*-thumb.jpg copies are not reused as posters.
+  const previewPhotoUrl = safeThumb
+    ? copyAssetToTgCatalog(safeThumb, `${slug}-frame-thumb`, ".png")
+    : "";
 
-  const displayTitle = opts?.displayTitle?.trim() ?? row.tgDisplayTitle;
+  const displayTitle = opts?.displayTitle?.trim() ?? fresh.tgDisplayTitle;
 
   const updated = await prisma.quickVideoTemplate.update({
     where: { id: templateId },
@@ -131,9 +142,9 @@ export async function publishQuickVideoTemplateToTg(
       tgPublished: true,
       // Do not force Peach `published` — TG-only templates stay off marketplace.
       tgDisplayTitle: displayTitle,
-      previewVideoUrl: previewVideoUrl || row.previewVideoUrl,
-      previewPhotoUrl: previewPhotoUrl || row.previewPhotoUrl,
-      pricePeaches: row.pricePeaches || 0,
+      previewVideoUrl: previewVideoUrl || fresh.previewVideoUrl,
+      previewPhotoUrl: previewPhotoUrl || safeThumb || "",
+      pricePeaches: fresh.pricePeaches || 0,
       isJuice: false,
       priceCredits: 0,
     },

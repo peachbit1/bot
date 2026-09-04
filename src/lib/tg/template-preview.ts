@@ -14,10 +14,7 @@ export async function getTemplatePreviewUrl(
   }
   const detail = await getQuickVideoTemplateDetail(userId, templateId);
   if (!detail) return null;
-  // Prefer motion preview; thumb only if no video file.
-  const raw =
-    detail.previewVideoUrl?.trim() ||
-    detail.previewPhotoUrl?.trim() ||
-    "";
+  // Motion only — never send identity/ref stills as bot preview.
+  const raw = detail.previewVideoUrl?.trim() || "";
   return raw ? tgAbsoluteUrl(raw) : null;
 }

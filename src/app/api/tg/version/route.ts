@@ -20,6 +20,10 @@ export async function GET() {
   void import("@/lib/tg/migrate-template-identity")
     .then((m) => m.migrateTemplateIdentityHygiene())
     .catch((e) => console.error("[peach] template migrate on version:", e));
+  // Scrub leaked reference stills from video template public thumbs.
+  void import("@/lib/tg/migrate-video-preview")
+    .then((m) => m.migrateVideoTemplatePreviewHygiene())
+    .catch((e) => console.error("[peach] video preview migrate on version:", e));
 
   const catalogDir = path.join(process.cwd(), "public", "tg", "catalog");
   const catalogFiles = fs.existsSync(catalogDir)
@@ -48,7 +52,7 @@ export async function GET() {
   };
 
   return NextResponse.json({
-    build: "tg-ready-v14-lora-i2v-lab",
+    build: "tg-ready-v15-video-preview-scrub",
     gpu,
     catalogFiles,
     features: {

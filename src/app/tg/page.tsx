@@ -116,7 +116,7 @@ export default function TgFeedPage() {
           id: v.id,
           title: v.title,
           notes: v.notes,
-          preview: v.previewVideoUrl || v.previewPhotoUrl,
+          preview: v.previewVideoUrl || "",
           isVideo: true,
           price: v.pricePeaches || 142,
           durationSec: v.durationSec,

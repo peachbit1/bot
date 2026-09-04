@@ -345,6 +345,90 @@ export async function concatMp4sLossless(opts: {
 }
 
 /**
+ * Extract a single PNG frame at ~`atSec` seconds (clamped; falls back to first frame).
+ * Used for safe TG/Mini App video template thumbs — never use identity/ref stills.
+ */
+export async function extractFrameAtSec(
+  videoPath: string,
+  atSec = 1,
+): Promise<Buffer> {
+  if (!fs.existsSync(videoPath)) {
+    throw new Error(`extractFrameAtSec: file not found: ${videoPath}`);
+  }
+  const seek = Math.max(0, Number.isFinite(atSec) ? atSec : 1);
+  const outPath = path.join(
+    os.tmpdir(),
+    `peach_frame_${Date.now().toString(36)}.png`,
+  );
+  const trySeek = async (ss: number) => {
+    const args =
+      ss > 0
+        ? [
+            "-y",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-ss",
+            String(ss),
+            "-i",
+            videoPath,
+            "-vframes",
+            "1",
+            "-update",
+            "1",
+            "-q:v",
+            "2",
+            outPath,
+          ]
+        : [
+            "-y",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-i",
+            videoPath,
+            "-vframes",
+            "1",
+            "-update",
+            "1",
+            "-q:v",
+            "2",
+            outPath,
+          ];
+    const result = await runTool(ffmpegBin(), args, 60_000);
+    if (
+      result.code !== 0 ||
+      !fs.existsSync(outPath) ||
+      fs.statSync(outPath).size < 100
+    ) {
+      throw new Error(
+        `ffmpeg frame@${ss}s failed: ${(result.stderr || result.stdout).slice(-300)}`,
+      );
+    }
+    return fs.readFileSync(outPath);
+  };
+  try {
+    try {
+      return await trySeek(seek);
+    } catch {
+      if (seek > 0) return await trySeek(0);
+      throw new Error("ffmpeg frame extract failed");
+    }
+  } finally {
+    try {
+      if (fs.existsSync(outPath)) fs.unlinkSync(outPath);
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+/** @deprecated Prefer extractFrameAtSec(path, 1) for public thumbs. */
+export async function extractFirstFramePng(videoPath: string): Promise<Buffer> {
+  return extractFrameAtSec(videoPath, 0);
+}
+
+/**
  * Extract the last video frame as a PNG Buffer using ffmpeg.
  * Used to get a context frame for Ref2V continuity between scenes.
  */

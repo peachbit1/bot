@@ -81,6 +81,7 @@ function VideoHubInner({
       id: t.id,
       title: t.title,
       previewPhotoUrl: t.previewPhotoUrl || undefined,
+      previewVideoUrl: t.previewVideoUrl || undefined,
       badge: (t.isJuice ? "juice" : t.category || "peach") as
         | "peach"
         | "bitch"
@@ -95,6 +96,7 @@ function VideoHubInner({
           id: t.id,
           title: t.title,
           previewPhotoUrl: t.previewPhotoUrl || undefined,
+          previewVideoUrl: t.previewVideoUrl || undefined,
           badge: (t.isJuice ? "juice" : "peach") as "peach" | "bitch" | "juice",
           href: `/peach/video?tab=peach&template=${t.id}`,
         }));
