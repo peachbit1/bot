@@ -288,6 +288,22 @@ async function loadTemplateMeta(
       pricePeaches: price,
     };
   }
+  const loraI2v = await prisma.loraI2vTemplate.findFirst({
+    where: { id: templateId, tgPublished: true },
+    select: { title: true, tgDisplayTitle: true, pricePeaches: true },
+  });
+  if (loraI2v) {
+    const price = await resolveTemplatePricePeaches({
+      kind: "video",
+      templateId,
+      userId,
+    });
+    return {
+      title: loraI2v.tgDisplayTitle.trim() || loraI2v.title,
+      hasSpeech: false,
+      pricePeaches: price,
+    };
+  }
   const detail = await getQuickVideoTemplateDetail(userId, templateId);
   if (!detail) return null;
   const price = await resolveTemplatePricePeaches({

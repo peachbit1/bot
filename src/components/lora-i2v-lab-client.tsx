@@ -368,7 +368,8 @@ export function LoraI2vLabClient({ characters }: { characters: Char[] }) {
           <h2 className="text-sm font-medium text-zinc-200">Сборка рецепта</h2>
           <p className="mt-1 text-[11px] text-zinc-500">
             1) Still на LoRA (Krea) → 2) оживление MiniMax I2V (обычно 10–25 мин)
-            → 3) сохранить шаблон. У юзеров потом только с обученной LoRA.
+            → 3) сохранить шаблон → 4) в карточке справа нажать «В Telegram».
+            Без шага 4 пользователь в боте/мини-аппе шаблон не увидит.
           </p>
         </div>
 

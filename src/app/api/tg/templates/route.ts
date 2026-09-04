@@ -6,6 +6,7 @@ import {
   listTgFeaturedVideoTemplates,
   videoTemplatePricePeaches,
 } from "@/lib/tg/tg-catalog";
+import { listTgPublishedLoraI2vTemplates } from "@/lib/lora-i2v-template";
 import { normalizeLocale, type TgLocale } from "@/lib/tg/i18n";
 import { seedPreviewForPhoto, seedPreviewForVideo } from "@/lib/tg/tg-catalog-seed";
 import { isSafeVideoTemplateThumb } from "@/lib/quick-video-preview-safe";
@@ -23,7 +24,6 @@ function looksLikeVideoUrl(url: string): boolean {
 
 /** Templates feed for TG Mini App. */
 export async function GET(req: Request) {
-  // One-shot scrub of leaked ref stills from video thumbs (safe to call often).
   void import("@/lib/tg/migrate-video-preview")
     .then((m) => m.migrateVideoTemplatePreviewHygiene())
     .catch((e) => console.error("[peach] video preview migrate:", e));
@@ -39,16 +39,18 @@ export async function GET(req: Request) {
   const user = await prisma.user.findUnique({ where: { id: userId } });
   const locale = normalizeLocale(localeParam || user?.locale);
 
-  const [videoRaw, photo] = await Promise.all([
+  const [videoRaw, photo, loraI2vRaw] = await Promise.all([
     kind === "photo" ? Promise.resolve([]) : listTgFeaturedVideoTemplates(userId),
     kind === "video" ? Promise.resolve([]) : listTgFeaturedPhotoTemplates(locale),
+    kind === "photo"
+      ? Promise.resolve([])
+      : listTgPublishedLoraI2vTemplates(locale),
   ]);
 
   const video = videoRaw.map((t, i) => {
     const row = t as typeof t & { titleEn?: string; hasSpeech?: boolean };
     const seedPrev = seedPreviewForVideo(row.title, i);
     const rawVideo = t.previewVideoUrl?.trim() || "";
-    // Never promote previewPhotoUrl (often a leaked identity/ref still) to video.
     const previewVideo =
       (rawVideo && looksLikeVideoUrl(rawVideo) ? rawVideo : "") ||
       seedPrev?.previewVideoUrl ||
@@ -66,12 +68,37 @@ export async function GET(req: Request) {
       hasSpeech: Boolean(row.hasSpeech),
       previewVideoUrl: previewVideo,
       previewPhotoUrl: previewPhoto,
+      templateKind: "quick_video" as const,
+      requiresLora: false,
       createdAt: (t as { createdAt?: string }).createdAt || new Date(0).toISOString(),
       updatedAt:
         (t as { updatedAt?: string }).updatedAt ||
         (t as { createdAt?: string }).createdAt ||
         new Date(0).toISOString(),
       identityKey: (t as { identityKey?: string }).identityKey || t.id,
+    };
+  });
+
+  const loraI2v = loraI2vRaw.map((t) => {
+    const rawVideo = t.previewVideoUrl?.trim() || "";
+    const previewVideo =
+      rawVideo && looksLikeVideoUrl(rawVideo) ? rawVideo : "";
+    // Recipe still/video are the product preview (not training identity refs).
+    const previewPhoto = t.previewImageUrl?.trim() || "";
+    return {
+      id: t.id,
+      title: t.title,
+      notes: t.notes,
+      pricePeaches: t.pricePeaches,
+      durationSec: t.durationSec,
+      previewVideoUrl: previewVideo,
+      previewPhotoUrl: previewPhoto,
+      hasSpeech: false,
+      templateKind: "lora_i2v" as const,
+      requiresLora: true,
+      createdAt: t.createdAt,
+      updatedAt: t.updatedAt,
+      identityKey: t.identityKey || t.id,
     };
   });
 
@@ -90,5 +117,9 @@ export async function GET(req: Request) {
     sceneCategory: (p as { sceneCategory?: string }).sceneCategory || "",
   }));
 
-  return NextResponse.json({ video, photo: photoMapped, locale });
+  return NextResponse.json({
+    video: [...loraI2v, ...video],
+    photo: photoMapped,
+    locale,
+  });
 }

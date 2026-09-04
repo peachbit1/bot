@@ -101,13 +101,25 @@ export async function listBotInlineTemplates(
     const rows = await listTgFeaturedPhotoTemplates(locale);
     return rows.map((r) => ({ id: r.id, title: r.title, kind: "photo" as const }));
   }
-  const rows = await listTgFeaturedVideoTemplates(userId);
+  const [rows, loraI2v] = await Promise.all([
+    listTgFeaturedVideoTemplates(userId),
+    import("@/lib/lora-i2v-template").then((m) =>
+      m.listTgPublishedLoraI2vTemplates(locale),
+    ),
+  ]);
   const filter = botTemplateFilter();
-  const mapped = rows.map((r) => ({
-    id: r.id,
-    title: r.title,
-    kind: "video" as const,
-  }));
+  const mapped = [
+    ...loraI2v.map((r) => ({
+      id: r.id,
+      title: r.title,
+      kind: "video" as const,
+    })),
+    ...rows.map((r) => ({
+      id: r.id,
+      title: r.title,
+      kind: "video" as const,
+    })),
+  ];
   if (!filter) return mapped;
   const picked = mapped.filter((r) => filter.includes(r.id));
   return picked.length ? picked : mapped;

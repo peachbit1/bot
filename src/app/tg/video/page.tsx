@@ -11,7 +11,11 @@ type VideoTpl = {
   pricePeaches: number;
   previewVideoUrl: string;
   previewPhotoUrl: string;
+  templateKind?: "quick_video" | "lora_i2v";
+  requiresLora?: boolean;
 };
+
+type LoraChar = { id: string; name: string; loraStatus?: string };
 
 const UI = {
   ru: {
@@ -19,6 +23,8 @@ const UI = {
     pick: "1. Выбери позу",
     upload: "2. Загрузи фото персонажа",
     useSaved: "Или выбери сохранённую модель",
+    pickLora: "2. Выбери модель с LoRA",
+    needLora: "Нужна обученная LoRA",
     generate: "Снять видео",
     choose: "Выбрать",
     back: "← К позам",
@@ -30,6 +36,8 @@ const UI = {
     pick: "1. Pick a pose",
     upload: "2. Upload character photos",
     useSaved: "Or pick a saved model",
+    pickLora: "2. Pick a LoRA model",
+    needLora: "Need a trained LoRA",
     generate: "Shoot video",
     choose: "Choose",
     back: "← Poses",
@@ -55,6 +63,7 @@ function VideoPageInner() {
   const [templates, setTemplates] = useState<VideoTpl[]>([]);
   const [templateId, setTemplateId] = useState(presetId);
   const [refs, setRefs] = useState<VideoRef[]>([]);
+  const [loraChars, setLoraChars] = useState<LoraChar[]>([]);
   const [characterId, setCharacterId] = useState<string | null>(
     presetCharacterId || null,
   );
@@ -65,9 +74,10 @@ function VideoPageInner() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
-    const [tRes, rRes] = await Promise.all([
+    const [tRes, rRes, meRes] = await Promise.all([
       apiFetch(`/api/tg/templates?kind=video&locale=${locale}`),
       apiFetch("/api/tg/video-refs"),
+      apiFetch(`/api/tg/me?locale=${locale}`),
     ]);
     if (tRes.ok) {
       const data = (await tRes.json()) as { video: VideoTpl[] };
@@ -88,6 +98,28 @@ function VideoPageInner() {
         }
       }
     }
+    if (meRes.ok) {
+      const data = (await meRes.json()) as {
+        characters?: LoraChar[];
+        casts?: Array<{ id: string; name: string }>;
+      };
+      const pool: LoraChar[] = [
+        ...(data.characters || []).filter((c) => c.loraStatus === "lora_ready"),
+        ...(data.casts || []).map((c) => ({
+          id: c.id,
+          name: c.name,
+          loraStatus: "lora_ready",
+        })),
+      ];
+      const seen = new Set<string>();
+      setLoraChars(
+        pool.filter((c) => {
+          if (seen.has(c.id)) return false;
+          seen.add(c.id);
+          return true;
+        }),
+      );
+    }
   }, [apiFetch, locale, presetId, presetCharacterId]);
 
   useEffect(() => {
@@ -96,6 +128,21 @@ function VideoPageInner() {
   }, [status, load]);
 
   const tpl = templates.find((t) => t.id === templateId) || null;
+  const isLoraI2v = tpl?.templateKind === "lora_i2v" || !!tpl?.requiresLora;
+
+  useEffect(() => {
+    if (!tpl || !isLoraI2v) return;
+    if (characterId && loraChars.some((c) => c.id === characterId)) {
+      setReady(true);
+      return;
+    }
+    if (loraChars[0]) {
+      setCharacterId(loraChars[0].id);
+      setReady(true);
+    } else {
+      setReady(false);
+    }
+  }, [tpl, isLoraI2v, loraChars, characterId]);
 
   const ensureCharacter = async (): Promise<string | null> => {
     if (characterId) return characterId;
@@ -134,7 +181,11 @@ function VideoPageInner() {
   };
 
   const onGenerate = async () => {
-    if (!templateId || !ready || !characterId) {
+    if (!templateId || !characterId) {
+      setErr(isLoraI2v ? u.needLora : u.needPhoto);
+      return;
+    }
+    if (!isLoraI2v && !ready) {
       setErr(u.needPhoto);
       return;
     }
@@ -151,6 +202,7 @@ function VideoPageInner() {
         error?: string;
         need?: number;
         balance?: number;
+        message?: string;
       };
       if (j.error === "insufficient_balance") {
         setErr(
@@ -158,8 +210,10 @@ function VideoPageInner() {
             ? `Not enough peaches (need ${j.need}, have ${j.balance})`
             : `Недостаточно персиков (нужно ${j.need}, есть ${j.balance})`,
         );
+      } else if (j.error === "need_lora_ready") {
+        setErr(j.message || u.needLora);
       } else {
-        setErr(j.error || "error");
+        setErr(j.error || j.message || "error");
       }
       return;
     }
@@ -195,10 +249,7 @@ function VideoPageInner() {
                       playsInline
                       preload="metadata"
                       poster={
-                        t.previewPhotoUrl &&
-                        /qv_tpl_thumb|frame-thumb|video-\d+-thumb/i.test(
-                          t.previewPhotoUrl,
-                        )
+                        t.previewPhotoUrl
                           ? t.previewPhotoUrl
                           : undefined
                       }
@@ -210,7 +261,10 @@ function VideoPageInner() {
                 </div>
                 <div className="tg-portrait-meta">
                   <strong>{t.title}</strong>
-                  <small>{t.pricePeaches} 🍑</small>
+                  <small>
+                    {t.pricePeaches} 🍑
+                    {t.templateKind === "lora_i2v" ? " · LoRA" : ""}
+                  </small>
                 </div>
                 <button
                   type="button"
@@ -250,50 +304,82 @@ function VideoPageInner() {
             )}
           </div>
 
-          <h2 style={{ fontSize: "1rem", margin: "1rem 0 0.5rem" }}>{u.upload}</h2>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            multiple
-            hidden
-            onChange={(e) => void onUpload(e.target.files)}
-          />
-          <button
-            type="button"
-            className="tg-primary-btn"
-            style={{ width: "100%" }}
-            onClick={() => fileRef.current?.click()}
-          >
-            📷 {u.upload} {photoCount > 0 ? `(${photoCount})` : ""}
-          </button>
-
-          {refs.length > 0 && (
+          {isLoraI2v ? (
             <>
               <h2 style={{ fontSize: "1rem", margin: "1rem 0 0.5rem" }}>
-                {u.useSaved}
+                {u.pickLora}
               </h2>
-              <div className="tg-card-list">
-                {refs.map((r) => (
-                  <button
-                    key={r.id}
-                    type="button"
-                    className={`tg-char-card ${characterId === r.id ? "active" : ""}`}
-                    disabled={!r.ready}
-                    onClick={() => {
-                      if (!r.ready) return;
-                      setCharacterId(r.id);
-                      setPhotoCount(r.photoCount);
-                      setReady(true);
-                    }}
-                  >
-                    <div>
-                      <strong>{r.name}</strong>
-                      <small>📸 {r.photoCount}</small>
-                    </div>
-                  </button>
-                ))}
-              </div>
+              {loraChars.length === 0 ? (
+                <p className="tg-muted">{u.needLora}</p>
+              ) : (
+                <div className="tg-card-list">
+                  {loraChars.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      className={`tg-char-card ${characterId === c.id ? "active" : ""}`}
+                      onClick={() => {
+                        setCharacterId(c.id);
+                        setReady(true);
+                      }}
+                    >
+                      <div>
+                        <strong>{c.name}</strong>
+                        <small>LoRA</small>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <h2 style={{ fontSize: "1rem", margin: "1rem 0 0.5rem" }}>{u.upload}</h2>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                multiple
+                hidden
+                onChange={(e) => void onUpload(e.target.files)}
+              />
+              <button
+                type="button"
+                className="tg-primary-btn"
+                style={{ width: "100%" }}
+                onClick={() => fileRef.current?.click()}
+              >
+                📷 {u.upload} {photoCount > 0 ? `(${photoCount})` : ""}
+              </button>
+
+              {refs.length > 0 && (
+                <>
+                  <h2 style={{ fontSize: "1rem", margin: "1rem 0 0.5rem" }}>
+                    {u.useSaved}
+                  </h2>
+                  <div className="tg-card-list">
+                    {refs.map((r) => (
+                      <button
+                        key={r.id}
+                        type="button"
+                        className={`tg-char-card ${characterId === r.id ? "active" : ""}`}
+                        disabled={!r.ready}
+                        onClick={() => {
+                          if (!r.ready) return;
+                          setCharacterId(r.id);
+                          setPhotoCount(r.photoCount);
+                          setReady(true);
+                        }}
+                      >
+                        <div>
+                          <strong>{r.name}</strong>
+                          <small>📸 {r.photoCount}</small>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
             </>
           )}
 
@@ -303,7 +389,7 @@ function VideoPageInner() {
             type="button"
             className="tg-primary-btn"
             style={{ marginTop: "1rem", width: "100%" }}
-            disabled={!ready || busy}
+            disabled={!ready || busy || (isLoraI2v && !characterId)}
             onClick={() => void onGenerate()}
           >
             {busy ? u.starting : u.generate}

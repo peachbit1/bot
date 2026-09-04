@@ -11,11 +11,16 @@ import {
   startQuickVideoRun,
   type ManualPictureSlotInput,
 } from "@/lib/quick-video";
-import { enqueuePhotoJob } from "@/lib/gallery-jobs";
-import { localBytesFromResultUrl } from "@/lib/peach-lab";
+import { enqueuePhotoJob, enqueueGpuJob } from "@/lib/gallery-jobs";
+import {
+  generatePhotoBytes,
+  localBytesFromResultUrl,
+  runI2VFromStill,
+} from "@/lib/peach-lab";
 import { useComfy } from "@/lib/metalnode-config";
 import { GALLERY_PLACEHOLDER_URL } from "@/lib/gallery-meta";
 import { saveGalleryBinary } from "@/lib/local-store";
+import { kreaStillSize } from "@/lib/video-orientation";
 import {
   TG_PHOTO_PEACHES,
   TG_VIDEO_PEACHES,
@@ -68,6 +73,13 @@ export async function resolveTemplatePricePeaches(opts: {
     if (!row) throw new Error("template not found");
     return row.pricePeaches || TG_PHOTO_PEACHES.basic;
   }
+  const loraI2v = await prisma.loraI2vTemplate.findFirst({
+    where: { id: opts.templateId, tgPublished: true },
+    select: { pricePeaches: true },
+  });
+  if (loraI2v) {
+    return loraI2v.pricePeaches > 0 ? loraI2v.pricePeaches : 180;
+  }
   const detail = await getQuickVideoTemplateDetail(opts.userId, opts.templateId);
   if (!detail) throw new Error("template not found");
   const row = await prisma.quickVideoTemplate.findFirst({
@@ -79,6 +91,196 @@ export async function resolveTemplatePricePeaches(opts: {
   return TG_VIDEO_PEACHES.basic5;
 }
 
+export async function startTgLoraI2vGeneration(opts: {
+  userId: string;
+  platformUserId: string;
+  templateId: string;
+  characterId: string;
+}): Promise<TgGenerateResult> {
+  const tpl = await prisma.loraI2vTemplate.findFirst({
+    where: { id: opts.templateId, tgPublished: true },
+  });
+  if (!tpl) throw new Error("Шаблон не найден");
+
+  const character = await prisma.character.findFirst({
+    where: {
+      id: opts.characterId,
+      OR: [{ userId: opts.userId }, { isStudioCast: true }],
+    },
+  });
+  if (!character) throw new Error("Персонаж не найден");
+  if (character.loraStatus !== "lora_ready" || !character.triggerWord?.trim()) {
+    throw new Error("Для этого шаблона нужна обученная LoRA");
+  }
+  const loraPath = character.loraPath || "";
+  if (loraPath.startsWith("mock://") && character.triggerWord !== "olh_person") {
+    throw new Error("LoRA ещё не готова на GPU");
+  }
+
+  const user = await prisma.user.findUnique({ where: { id: opts.userId } });
+  if (!user) throw new Error("user not found");
+
+  let price = tpl.pricePeaches > 0 ? tpl.pricePeaches : 180;
+  const discounted = applyFirstVideoDiscount(
+    price,
+    user.tgFirstVideoDiscountUsed,
+  );
+  price = discounted.peaches;
+
+  if (price > 0) {
+    const paid = await debitPeaches(opts.userId, price, "tg_video", {
+      templateId: opts.templateId,
+      kind: "lora_i2v",
+    });
+    if (!paid.ok) {
+      throw new Error(
+        `Недостаточно персиков (нужно ${price}, есть ${paid.balance})`,
+      );
+    }
+  }
+  if (discounted.discountApplied) {
+    await prisma.user.update({
+      where: { id: opts.userId },
+      data: { tgFirstVideoDiscountUsed: true },
+    });
+  }
+
+  const title = tpl.tgDisplayTitle.trim() || tpl.title;
+  const item = await prisma.galleryItem.create({
+    data: {
+      userId: opts.userId,
+      characterId: character.id,
+      kind: "video",
+      title,
+      prompt: tpl.i2vPrompt,
+      resultUrl: GALLERY_PLACEHOLDER_URL,
+      metaJson: JSON.stringify({
+        status: "pending",
+        jobAction: "lora_i2v",
+        loraI2vTemplateId: tpl.id,
+        stillPrompt: tpl.stillPrompt,
+        durationSec: tpl.durationSec,
+      }),
+    },
+  });
+
+  void enqueueGpuJob(async () => {
+    try {
+      if (!useComfy()) {
+        const previewUrl =
+          tpl.previewVideoUrl || "/tg/catalog/video-1.mp4";
+        const bytes =
+          localBytesFromResultUrl(previewUrl) ||
+          localBytesFromResultUrl("/tg/catalog/video-1.mp4");
+        if (!bytes?.length) throw new Error("mock preview missing");
+        const saved = saveGalleryBinary(
+          opts.userId,
+          "mp4",
+          bytes,
+          `tg_li2v_${item.id}`,
+        );
+        await prisma.galleryItem.update({
+          where: { id: item.id },
+          data: {
+            resultUrl: saved.publicUrl,
+            metaJson: JSON.stringify({
+              status: "ready",
+              engine: "mock",
+              jobAction: "lora_i2v",
+              loraI2vTemplateId: tpl.id,
+            }),
+          },
+        });
+        await notifyTgVideoReady(opts.userId, saved.publicUrl, title);
+        return;
+      }
+
+      const trigger = character.triggerWord!.trim();
+      let composed = tpl.stillPrompt.trim();
+      const re = new RegExp(
+        `\\b${trigger.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`,
+        "i",
+      );
+      if (!re.test(composed)) composed = `${trigger}, ${composed}`;
+
+      const orient = (tpl.orientation || "9_16") as "9_16" | "16_9" | "1_1";
+      const size = kreaStillSize(orient);
+      const still = await generatePhotoBytes({
+        userId: opts.userId,
+        characterId: character.id,
+        characterIds: [character.id],
+        useCharacterLora: true,
+        usePreset: false,
+        composedPrompt: composed,
+        negativePrompt: tpl.negativePrompt || undefined,
+        title: `LoRA→I2V · ${title}`,
+        width: size.width,
+        height: size.height,
+        orientationId: orient,
+      });
+
+      const clip = await runI2VFromStill({
+        stillBytes: still.bytes,
+        prompt: tpl.i2vPrompt,
+        width: still.width,
+        height: still.height,
+        filenamePrefix: "peach/li2v",
+        durationSec: tpl.durationSec || 6,
+        extraHints: [tpl.stillPrompt, tpl.i2vPrompt, still.prompt],
+      });
+      if (!clip.bytes?.length || clip.bytes.length < 100) {
+        throw new Error("MiniMax вернул пустой клип");
+      }
+
+      const saved = saveGalleryBinary(
+        opts.userId,
+        "mp4",
+        clip.bytes,
+        `tg_li2v_${item.id}`,
+      );
+      await prisma.galleryItem.update({
+        where: { id: item.id },
+        data: {
+          resultUrl: saved.publicUrl,
+          width: still.width,
+          height: still.height,
+          prompt: tpl.i2vPrompt,
+          metaJson: JSON.stringify({
+            status: "ready",
+            engine: clip.engine,
+            jobAction: "lora_i2v",
+            loraI2vTemplateId: tpl.id,
+            localKey: saved.relKey,
+          }),
+        },
+      });
+      await notifyTgVideoReady(opts.userId, saved.publicUrl, title);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "ошибка LoRA→I2V";
+      console.error("[peach] lora_i2v job failed:", e);
+      await prisma.galleryItem.update({
+        where: { id: item.id },
+        data: {
+          metaJson: JSON.stringify({
+            status: "error",
+            error: msg,
+            jobAction: "lora_i2v",
+            loraI2vTemplateId: tpl.id,
+          }),
+        },
+      });
+      const { notifyTelegramGenerationError } = await import("@/lib/tg/tg-notify");
+      await notifyTelegramGenerationError(opts.userId, msg).catch(() => undefined);
+    }
+  });
+
+  return {
+    galleryItemId: item.id,
+    chargedPeaches: price,
+    discountApplied: discounted.discountApplied,
+  };
+}
+
 export async function startTgVideoGeneration(opts: {
   userId: string;
   platformUserId: string;
@@ -86,6 +288,18 @@ export async function startTgVideoGeneration(opts: {
   characterId: string;
   speechLine?: string;
 }): Promise<TgGenerateResult> {
+  const loraI2v = await prisma.loraI2vTemplate.findFirst({
+    where: { id: opts.templateId, tgPublished: true },
+  });
+  if (loraI2v) {
+    return startTgLoraI2vGeneration({
+      userId: opts.userId,
+      platformUserId: opts.platformUserId,
+      templateId: opts.templateId,
+      characterId: opts.characterId,
+    });
+  }
+
   const detail = await getQuickVideoTemplateDetail(opts.userId, opts.templateId);
   if (!detail) throw new Error("Шаблон не найден");
 

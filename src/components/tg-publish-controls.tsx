@@ -132,7 +132,7 @@ export function TgPublishControls({
       onClick={(e) => e.stopPropagation()}
     >
       <div className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">
-        Telegram
+        Telegram {!published ? "· ещё не видно юзерам" : "· опубликовано"}
       </div>
       <label className="block text-xs">
         <span className="text-zinc-500">Название в TG</span>

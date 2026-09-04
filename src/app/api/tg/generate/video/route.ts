@@ -20,6 +20,17 @@ async function tgPlatformUserId(userId: string): Promise<string | null> {
   return acc?.platformUserId ?? null;
 }
 
+function usableLora(ch: {
+  loraStatus: string;
+  triggerWord: string | null;
+  loraPath: string | null;
+}) {
+  if (ch.loraStatus !== "lora_ready" || !ch.triggerWord?.trim()) return false;
+  const path = ch.loraPath || "";
+  if (path && !path.startsWith("mock://")) return true;
+  return ch.triggerWord === "olh_person";
+}
+
 /** Start video generation after ref photos uploaded (Mini App). */
 export async function POST(req: Request) {
   const userId = await resolveTgApiUserId(req);
@@ -44,23 +55,50 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "No Telegram account" }, { status: 400 });
   }
 
-  let characterId = body.characterId;
-  if (!characterId && body.createNew) {
-    const ch = await createVideoRefCharacter(userId, "Модель");
-    characterId = ch.id;
-  }
-  if (!characterId) {
-    return NextResponse.json({ error: "characterId required" }, { status: 400 });
-  }
-
-  const ch = await prisma.character.findFirst({
-    where: { id: characterId, userId, videoRefOnly: true },
+  const loraI2v = await prisma.loraI2vTemplate.findFirst({
+    where: { id: body.templateId, tgPublished: true },
+    select: { id: true },
   });
-  if (!ch) {
-    return NextResponse.json({ error: "Video ref not found" }, { status: 404 });
-  }
-  if (!characterReadyForVideo(characterId)) {
-    return NextResponse.json({ error: "upload_photos_first" }, { status: 400 });
+
+  let characterId = body.characterId;
+
+  if (loraI2v) {
+    if (!characterId) {
+      return NextResponse.json(
+        { error: "characterId required (LoRA model)" },
+        { status: 400 },
+      );
+    }
+    const ch = await prisma.character.findFirst({
+      where: {
+        id: characterId,
+        OR: [{ userId }, { isStudioCast: true }],
+      },
+    });
+    if (!ch || !usableLora(ch)) {
+      return NextResponse.json(
+        { error: "need_lora_ready", message: "Нужна обученная LoRA" },
+        { status: 400 },
+      );
+    }
+  } else {
+    if (!characterId && body.createNew) {
+      const ch = await createVideoRefCharacter(userId, "Модель");
+      characterId = ch.id;
+    }
+    if (!characterId) {
+      return NextResponse.json({ error: "characterId required" }, { status: 400 });
+    }
+
+    const ch = await prisma.character.findFirst({
+      where: { id: characterId, userId, videoRefOnly: true },
+    });
+    if (!ch) {
+      return NextResponse.json({ error: "Video ref not found" }, { status: 404 });
+    }
+    if (!characterReadyForVideo(characterId)) {
+      return NextResponse.json({ error: "upload_photos_first" }, { status: 400 });
+    }
   }
 
   const price = await resolveTemplatePricePeaches({
@@ -83,7 +121,7 @@ export async function POST(req: Request) {
       userId,
       platformUserId,
       templateId: body.templateId,
-      characterId,
+      characterId: characterId!,
     });
     return NextResponse.json({
       ok: true,
