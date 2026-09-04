@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireUser } from "@/lib/auth";
 import {
   createQuickVideoTemplateFromRun,
+  getQuickVideoTemplateDetail,
   listPublishedQuickVideoTemplates,
   type TemplateCategory,
 } from "@/lib/quick-video-template";
@@ -45,6 +46,31 @@ export async function POST(req: NextRequest) {
       isJuice: body.isJuice,
       priceCredits: body.priceCredits,
     });
+    if (template?.id && template.previewVideoUrl) {
+      try {
+        const { ensureTemplatePreviewPhoto } = await import(
+          "@/lib/quick-video-template-preview"
+        );
+        await ensureTemplatePreviewPhoto(
+          {
+            id: template.id,
+            userId: user.id,
+            previewVideoUrl: template.previewVideoUrl,
+            previewPhotoUrl: template.previewPhotoUrl || "",
+          },
+          { force: true, atSec: 1 },
+        );
+        const refreshed = await getQuickVideoTemplateDetail(
+          user.id,
+          template.id,
+        );
+        if (refreshed) {
+          return NextResponse.json({ template: refreshed });
+        }
+      } catch (e) {
+        console.error("[peach] qv template thumb on create:", e);
+      }
+    }
     return NextResponse.json({ template });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "error";

@@ -444,32 +444,14 @@ export async function createQuickVideoTemplateFromRun(opts: {
       defaultLocationUrl: locationSlot?.bakedRefUrl || "",
       refVideoUrl: run.refVideoUrl || "",
       previewVideoUrl: run.resultVideoUrl || "",
-      // Never use identity/pose ref stills as public thumbs — frame filled below.
+      // Never use identity/pose ref stills as public thumbs.
+      // Frame thumb is filled by ensureTemplatePreviewPhoto (API / TG publish / migrate).
       previewPhotoUrl: "",
       orientation: run.orientation,
       durationSec: run.durationSec,
       previewIdentityKey: filterDbCharacterIds(characterIds)[0] || "",
     },
   });
-
-  if (tpl.previewVideoUrl) {
-    try {
-      const { ensureTemplatePreviewPhoto } = await import(
-        "@/lib/quick-video-template-preview"
-      );
-      await ensureTemplatePreviewPhoto(
-        {
-          id: tpl.id,
-          userId: tpl.userId,
-          previewVideoUrl: tpl.previewVideoUrl,
-          previewPhotoUrl: "",
-        },
-        { force: true, atSec: 1 },
-      );
-    } catch (e) {
-      console.error("[peach] qv template thumb on create:", e);
-    }
-  }
 
   return (
     (await getQuickVideoTemplateDetail(opts.userId, tpl.id)) ||
