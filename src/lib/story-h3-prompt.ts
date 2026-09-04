@@ -27,20 +27,27 @@ export type StoryH3TemplateStored = {
   __storyH3: 1;
   prompt: string;
   totalDurationSec: number;
+  /** Default body/bust/hips ids for the Story lab form (not baked identity). */
+  bodyLookbook?: Record<string, string>;
 };
 
 export function serializeStoryH3Template(opts: {
   prompt: string;
   totalDurationSec: number;
+  bodyLookbook?: Record<string, string>;
 }): string {
-  return JSON.stringify({
+  const payload: StoryH3TemplateStored = {
     __storyH3: 1,
     prompt: opts.prompt.trim(),
     totalDurationSec: Math.min(
       12,
       Math.max(4, Math.floor(opts.totalDurationSec) || 8),
     ),
-  } satisfies StoryH3TemplateStored);
+  };
+  if (opts.bodyLookbook && Object.keys(opts.bodyLookbook).length) {
+    payload.bodyLookbook = opts.bodyLookbook;
+  }
+  return JSON.stringify(payload);
 }
 
 export function parseStoryH3Template(
@@ -60,6 +67,10 @@ export function parseStoryH3Template(
         12,
         Math.max(4, Math.floor(Number(j.totalDurationSec)) || 8),
       ),
+      bodyLookbook:
+        j.bodyLookbook && typeof j.bodyLookbook === "object"
+          ? (j.bodyLookbook as Record<string, string>)
+          : undefined,
     };
   } catch {
     return null;

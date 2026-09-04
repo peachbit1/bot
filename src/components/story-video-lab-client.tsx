@@ -11,12 +11,20 @@ import {
   type StoryVideoRestorePayload,
 } from "@/lib/generation-restore";
 import { parseStoryH3Template } from "@/lib/story-h3-prompt";
-import { CharacterBodySettingsPanel } from "@/components/character-body-settings-panel";
+import {
+  VIDEO_BODY_LOOKBOOK_FIELD_IDS,
+  bodyShapeAppearanceForPrompt,
+  emptyLookbook,
+  fieldsForGender,
+  lookbookSelectValue,
+  parseLookbook,
+  toCustomValue,
+  customPayload,
+  isCustomValue,
+  type LookbookValues,
+} from "@/lib/lookbook";
 
-type Char = { id: string; name: string };
-
-const SLOT_ROLES: Array<{ id: QuickVideoSlotRole; label: string }> = [
-  { id: "identity", label: "Identity" },
+const EXTRA_ROLES: Array<{ id: QuickVideoSlotRole; label: string }> = [
   { id: "location", label: "Location" },
   { id: "pose", label: "Pose" },
   { id: "object", label: "Object" },
@@ -24,18 +32,26 @@ const SLOT_ROLES: Array<{ id: QuickVideoSlotRole; label: string }> = [
   { id: "other", label: "Other" },
 ];
 
-type SlotState = {
+type IdentitySlot = { file: File | null; previewUrl: string };
+type ExtraSlot = {
   file: File | null;
+  previewUrl: string;
   role: QuickVideoSlotRole;
   label: string;
 };
 
-function defaultSlots(): SlotState[] {
-  return Array.from({ length: 6 }, (_, i) => ({
-    file: null,
-    role: (i < 3 ? "identity" : i === 3 ? "location" : "other") as QuickVideoSlotRole,
-    label: "",
-  }));
+function defaultBodyLookbook(): LookbookValues {
+  const v = emptyLookbook("female");
+  v.body = "slim";
+  v.bust = "medium";
+  v.hips = "medium";
+  return v;
+}
+
+function bodyFields() {
+  return fieldsForGender("female").filter((f) =>
+    VIDEO_BODY_LOOKBOOK_FIELD_IDS.female.has(f.id),
+  );
 }
 
 async function readJson(res: Response) {
@@ -54,6 +70,12 @@ async function blobFromUrl(url: string): Promise<Blob | null> {
     return await res.blob();
   } catch {
     return null;
+  }
+}
+
+function revokePreviews(urls: string[]) {
+  for (const u of urls) {
+    if (u) URL.revokeObjectURL(u);
   }
 }
 
@@ -93,13 +115,23 @@ const GROK_BRIEF = `Ты пишешь production-ready промпт для MiniM
 ЦЕЛЬ
 Промпт должен дать узнаваемый тот же сюжет/постановку, что я опишу, а лицо всегда браться из Picture 1–3 пользователя.`;
 
-export function StoryVideoLabClient({ characters }: { characters: Char[] }) {
+export function StoryVideoLabClient() {
   const [title, setTitle] = useState("");
   const [prompt, setPrompt] = useState("");
-  const [characterId, setCharacterId] = useState(characters[0]?.id || "");
+  const [modelName, setModelName] = useState("");
+  const [bodyLookbook, setBodyLookbook] = useState<LookbookValues>(defaultBodyLookbook);
+  const [identity, setIdentity] = useState<IdentitySlot[]>([
+    { file: null, previewUrl: "" },
+    { file: null, previewUrl: "" },
+    { file: null, previewUrl: "" },
+  ]);
+  const [extras, setExtras] = useState<ExtraSlot[]>([
+    { file: null, previewUrl: "", role: "location", label: "" },
+    { file: null, previewUrl: "", role: "other", label: "" },
+    { file: null, previewUrl: "", role: "other", label: "" },
+  ]);
   const [orientation, setOrientation] = useState<VideoOrientationId>("9_16");
   const [durationSec, setDurationSec] = useState(8);
-  const [slots, setSlots] = useState<SlotState[]>(defaultSlots);
   const [poseVideo, setPoseVideo] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -109,99 +141,135 @@ export function StoryVideoLabClient({ characters }: { characters: Char[] }) {
   const [briefCopied, setBriefCopied] = useState(false);
 
   const promptLen = prompt.trim().length;
+  const identityCount = identity.filter((s) => s.file).length;
   const canSubmit = useMemo(
-    () => promptLen >= 80 && (Boolean(characterId) || slots.some((s) => s.file && s.role === "identity")),
-    [promptLen, characterId, slots],
+    () => promptLen >= 80 && modelName.trim().length >= 2 && identityCount >= 1,
+    [promptLen, modelName, identityCount],
   );
 
-  const applyRestore = useCallback(
-    async (payload: StoryVideoRestorePayload) => {
-      let nextPrompt = payload.prompt || "";
-      let nextTitle = payload.title || "";
-      let nextOrientation = (payload.orientation || "9_16") as VideoOrientationId;
-      let nextDuration = payload.durationSec || 8;
-      let nextCharacterIds = payload.characterIds || [];
-      let refSlots = payload.refSlots || [];
-      let refImageUrls = payload.refImageUrls || [];
-      let refVideoUrl = payload.refVideoUrl || "";
+  const bodyPreview = bodyShapeAppearanceForPrompt(bodyLookbook, "female");
 
-      if (payload.runId) {
-        try {
-          const d = await fetch("/api/peach/quick-video/runs").then((r) => r.json());
-          const run = ((d.runs as Array<Record<string, unknown>>) || []).find(
-            (x) => x.id === payload.runId,
-          );
-          if (run) {
-            nextTitle = String(run.title || nextTitle);
-            // run.prompt is raw H3 for story; composedPrompt is rebuilt
-            nextPrompt = String(run.prompt || nextPrompt);
-            nextOrientation = (String(run.orientation || nextOrientation) ||
-              "9_16") as VideoOrientationId;
-            nextDuration = Number(run.durationSec) || nextDuration;
-            nextCharacterIds = (run.characterIds as string[]) || nextCharacterIds;
-            refSlots = (run.refSlots as typeof refSlots) || refSlots;
-            refImageUrls = (run.refImageUrls as string[]) || refImageUrls;
-            refVideoUrl = String(run.refVideoUrl || refVideoUrl);
-          }
-        } catch {
-          /* keep payload */
+  const applyRestore = useCallback(async (payload: StoryVideoRestorePayload) => {
+    let nextPrompt = payload.prompt || "";
+    let nextTitle = payload.title || "";
+    let nextOrientation = (payload.orientation || "9_16") as VideoOrientationId;
+    let nextDuration = payload.durationSec || 8;
+    let refSlots = payload.refSlots || [];
+    let refImageUrls = payload.refImageUrls || [];
+    let refVideoUrl = payload.refVideoUrl || "";
+    let nextName = payload.storyModelName || "";
+    let nextBody = payload.bodyLookbook
+      ? parseLookbook(JSON.stringify({ ...defaultBodyLookbook(), ...payload.bodyLookbook }), "female")
+      : defaultBodyLookbook();
+
+    if (payload.runId) {
+      try {
+        const d = await fetch("/api/peach/quick-video/runs").then((r) => r.json());
+        const run = ((d.runs as Array<Record<string, unknown>>) || []).find(
+          (x) => x.id === payload.runId,
+        );
+        if (run) {
+          nextTitle = String(run.title || nextTitle);
+          nextPrompt = String(run.prompt || nextPrompt);
+          nextOrientation = (String(run.orientation || nextOrientation) ||
+            "9_16") as VideoOrientationId;
+          nextDuration = Number(run.durationSec) || nextDuration;
+          refSlots = (run.refSlots as typeof refSlots) || refSlots;
+          refImageUrls = (run.refImageUrls as string[]) || refImageUrls;
+          refVideoUrl = String(run.refVideoUrl || refVideoUrl);
+          const idName = (run.refSlots as Array<{ characterName?: string; role?: string }> | undefined)
+            ?.find((s) => s.role === "identity")?.characterName;
+          if (idName) nextName = idName;
         }
+      } catch {
+        /* keep payload */
       }
+    }
 
-      // If prompt came as stored template wrapper
-      const wrapped = parseStoryH3Template(nextPrompt);
-      if (wrapped) {
-        nextPrompt = wrapped.prompt;
-        nextDuration = wrapped.totalDurationSec || nextDuration;
+    const wrapped = parseStoryH3Template(nextPrompt);
+    if (wrapped) {
+      nextPrompt = wrapped.prompt;
+      nextDuration = wrapped.totalDurationSec || nextDuration;
+      if (wrapped.bodyLookbook) {
+        nextBody = parseLookbook(
+          JSON.stringify({ ...defaultBodyLookbook(), ...wrapped.bodyLookbook }),
+          "female",
+        );
       }
+    }
 
-      if (nextTitle) setTitle(nextTitle);
-      if (nextPrompt) setPrompt(nextPrompt);
-      setOrientation(nextOrientation);
-      setDurationSec(Math.min(12, Math.max(4, nextDuration)));
-      if (nextCharacterIds[0]) setCharacterId(nextCharacterIds[0]);
+    if (nextTitle) setTitle(nextTitle);
+    if (nextPrompt) setPrompt(nextPrompt);
+    setOrientation(nextOrientation);
+    setDurationSec(Math.min(12, Math.max(4, nextDuration)));
+    if (nextName) setModelName(nextName);
+    setBodyLookbook(nextBody);
 
-      // Restore non-identity baked slots as files; identity comes from character pick.
-      if (refSlots.length && refImageUrls.length) {
-        const next = defaultSlots();
-        for (let i = 0; i < Math.min(refSlots.length, next.length); i++) {
-          const slot = refSlots[i]!;
-          const role = (slot.role ||
-            (slot.kind === "identity" ? "identity" : "other")) as QuickVideoSlotRole;
-          next[i] = {
-            file: null,
-            role,
-            label: slot.label || "",
-          };
-          if (role === "identity") continue;
-          const url = refImageUrls[i];
-          if (!url) continue;
-          const blob = await blobFromUrl(url);
-          if (!blob) continue;
-          next[i]!.file = new File([blob], `ref-${i + 1}.png`, {
-            type: blob.type || "image/png",
-          });
+    const idSlots: IdentitySlot[] = [
+      { file: null, previewUrl: "" },
+      { file: null, previewUrl: "" },
+      { file: null, previewUrl: "" },
+    ];
+    const exSlots: ExtraSlot[] = [
+      { file: null, previewUrl: "", role: "location", label: "" },
+      { file: null, previewUrl: "", role: "other", label: "" },
+      { file: null, previewUrl: "", role: "other", label: "" },
+    ];
+
+    let idIdx = 0;
+    let exIdx = 0;
+    for (let i = 0; i < refSlots.length; i++) {
+      const slot = refSlots[i]!;
+      const role = (slot.role ||
+        (slot.kind === "identity" ? "identity" : "other")) as QuickVideoSlotRole;
+      const url = refImageUrls[i];
+      if (!url) continue;
+      const blob = await blobFromUrl(url);
+      if (!blob) continue;
+      const file = new File([blob], `ref-${i + 1}.png`, {
+        type: blob.type || "image/png",
+      });
+      const previewUrl = URL.createObjectURL(blob);
+      if (role === "identity") {
+        if (idIdx < 3) {
+          idSlots[idIdx] = { file, previewUrl };
+          idIdx += 1;
         }
-        setSlots(next);
+      } else if (exIdx < 3) {
+        exSlots[exIdx] = {
+          file,
+          previewUrl,
+          role,
+          label: slot.label || "",
+        };
+        exIdx += 1;
       }
+    }
 
-      if (refVideoUrl) {
-        const blob = await blobFromUrl(refVideoUrl);
-        if (blob) {
-          setPoseVideo(
-            new File([blob], "pose.mp4", { type: blob.type || "video/mp4" }),
-          );
-        }
+    setIdentity((prev) => {
+      revokePreviews(prev.map((p) => p.previewUrl));
+      return idSlots;
+    });
+    setExtras((prev) => {
+      revokePreviews(prev.map((p) => p.previewUrl));
+      return exSlots;
+    });
+
+    if (refVideoUrl) {
+      const blob = await blobFromUrl(refVideoUrl);
+      if (blob) {
+        setPoseVideo(
+          new File([blob], "pose.mp4", { type: blob.type || "video/mp4" }),
+        );
       }
+    }
 
-      setRestoreMsg(
-        "Настройки Story H3 загружены — смени персонажа/модель и запусти снова",
-      );
-      setError("");
-      setWarning("");
-    },
-    [],
-  );
+    setRestoreMsg(
+      "Story H3 загружен — можно сменить фото/имя/тело и прогнать снова",
+    );
+    setError("");
+    setWarning("");
+  }, []);
 
   useEffect(() => {
     const pending = loadStoryVideoRestore();
@@ -220,7 +288,6 @@ export function StoryVideoLabClient({ characters }: { characters: Char[] }) {
     };
     window.addEventListener(PEACH_STORY_VIDEO_RESTORE_EVENT, onRestore);
 
-    // Apply story template from ?storyTemplate= / qvTemplate redirect
     const params = new URLSearchParams(window.location.search);
     const storyTemplateId =
       params.get("storyTemplate") || params.get("qvTemplate");
@@ -242,48 +309,57 @@ export function StoryVideoLabClient({ characters }: { characters: Char[] }) {
               role: QuickVideoSlotRole;
               label?: string;
               bakedRefUrl?: string;
-              pictureIndex?: number;
             }>;
           };
           const story = parseStoryH3Template(String(tpl.shotsJson || ""));
           if (!story) {
-            setError("Это не Story H3 шаблон — открой его в Быстром видео");
+            setError("Это не Story H3 шаблон");
             return;
           }
-          const next = defaultSlots();
-          for (const bp of tpl.slotBlueprint || []) {
-            if (bp.role === "identity") continue;
-            if (!bp.bakedRefUrl) continue;
-            const idx = Math.min(
-              5,
-              Math.max(0, (bp.pictureIndex || 4) - 1),
-            );
-            const blob = await blobFromUrl(bp.bakedRefUrl);
-            if (!blob) continue;
-            next[idx] = {
-              file: new File([blob], `slot-${idx + 1}.png`, {
-                type: blob.type || "image/png",
-              }),
-              role: bp.role,
-              label: bp.label || "",
-            };
-          }
-          setSlots(next);
           setTitle(tpl.title || "Story H3");
           setPrompt(story.prompt);
           setOrientation((tpl.orientation || "9_16") as VideoOrientationId);
           setDurationSec(story.totalDurationSec || tpl.durationSec || 8);
-          if (tpl.refVideoUrl) {
-            const blob = await blobFromUrl(tpl.refVideoUrl);
-            if (blob) {
-              setPoseVideo(
-                new File([blob], "pose.mp4", {
-                  type: blob.type || "video/mp4",
+          if (story.bodyLookbook) {
+            setBodyLookbook(
+              parseLookbook(
+                JSON.stringify({
+                  ...defaultBodyLookbook(),
+                  ...story.bodyLookbook,
                 }),
-              );
-            }
+                "female",
+              ),
+            );
           }
-          setRestoreMsg("Story-шаблон загружен — выбери персонажа и генерируй");
+          // Template: only non-identity baked refs (location etc). Identity stays empty for user.
+          const exSlots: ExtraSlot[] = [
+            { file: null, previewUrl: "", role: "location", label: "" },
+            { file: null, previewUrl: "", role: "other", label: "" },
+            { file: null, previewUrl: "", role: "other", label: "" },
+          ];
+          let exIdx = 0;
+          for (const bp of tpl.slotBlueprint || []) {
+            if (bp.role === "identity" || !bp.bakedRefUrl) continue;
+            if (exIdx >= 3) break;
+            const blob = await blobFromUrl(bp.bakedRefUrl);
+            if (!blob) continue;
+            exSlots[exIdx] = {
+              file: new File([blob], `slot-${exIdx + 1}.png`, {
+                type: blob.type || "image/png",
+              }),
+              previewUrl: URL.createObjectURL(blob),
+              role: bp.role,
+              label: bp.label || "",
+            };
+            exIdx += 1;
+          }
+          setExtras((prev) => {
+            revokePreviews(prev.map((p) => p.previewUrl));
+            return exSlots;
+          });
+          setRestoreMsg(
+            "Шаблон: промпт + слоты. Загрузи свои identity-фото, имя и тело.",
+          );
           const u = new URL(window.location.href);
           u.searchParams.delete("storyTemplate");
           u.searchParams.delete("qvTemplate");
@@ -299,6 +375,33 @@ export function StoryVideoLabClient({ characters }: { characters: Char[] }) {
     };
   }, [applyRestore]);
 
+  function setIdentityFile(index: number, file: File | null) {
+    setIdentity((prev) => {
+      const next = [...prev];
+      const cur = next[index];
+      if (cur?.previewUrl) URL.revokeObjectURL(cur.previewUrl);
+      next[index] = {
+        file,
+        previewUrl: file ? URL.createObjectURL(file) : "",
+      };
+      return next;
+    });
+  }
+
+  function setExtraFile(index: number, file: File | null) {
+    setExtras((prev) => {
+      const next = [...prev];
+      const cur = next[index];
+      if (cur?.previewUrl) URL.revokeObjectURL(cur.previewUrl);
+      next[index] = {
+        ...cur!,
+        file,
+        previewUrl: file ? URL.createObjectURL(file) : "",
+      };
+      return next;
+    });
+  }
+
   async function onGenerate() {
     setBusy(true);
     setError("");
@@ -308,26 +411,39 @@ export function StoryVideoLabClient({ characters }: { characters: Char[] }) {
       const fd = new FormData();
       if (title.trim()) fd.set("title", title.trim());
       fd.set("prompt", prompt.trim());
+      fd.set("modelName", modelName.trim());
       fd.set("orientation", orientation);
       fd.set("durationSec", String(durationSec));
-      if (characterId) fd.set("characterIds", JSON.stringify([characterId]));
+      const bodyPayload: Record<string, string> = {};
+      for (const id of VIDEO_BODY_LOOKBOOK_FIELD_IDS.female) {
+        if (bodyLookbook[id]) bodyPayload[id] = bodyLookbook[id]!;
+      }
+      fd.set("bodyLookbook", JSON.stringify(bodyPayload));
 
       const slotMeta: Array<{
         pictureIndex: number;
         role: QuickVideoSlotRole;
         label?: string;
       }> = [];
-      slots.forEach((slot, idx) => {
+
+      identity.forEach((slot, idx) => {
+        if (!slot.file) return;
         const pictureIndex = idx + 1;
-        if (slot.file) {
-          fd.set(`picture_${pictureIndex}`, slot.file);
-          slotMeta.push({
-            pictureIndex,
-            role: slot.role,
-            label: slot.label.trim() || undefined,
-          });
-        }
+        fd.set(`picture_${pictureIndex}`, slot.file);
+        slotMeta.push({ pictureIndex, role: "identity" });
       });
+
+      extras.forEach((slot, idx) => {
+        if (!slot.file) return;
+        const pictureIndex = 4 + idx;
+        fd.set(`picture_${pictureIndex}`, slot.file);
+        slotMeta.push({
+          pictureIndex,
+          role: slot.role,
+          label: slot.label.trim() || undefined,
+        });
+      });
+
       if (slotMeta.length) fd.set("slotMeta", JSON.stringify(slotMeta));
       if (poseVideo) fd.set("poseVideo", poseVideo);
 
@@ -360,8 +476,7 @@ export function StoryVideoLabClient({ characters }: { characters: Char[] }) {
             <h2 className="text-sm font-medium text-zinc-100">Бриф для Grok</h2>
             <p className="mt-1 max-w-2xl text-xs text-zinc-500">
               Сначала кинь Grok гайд <code className="text-zinc-400">referensguide.md</code>, потом
-              этот бриф. Детали сюжета — следующим сообщением. Он вернёт 6 секций H3 без лица
-              конкретной девушки.
+              этот бриф. Детали сюжета — следующим сообщением.
             </p>
           </div>
           <button
@@ -372,12 +487,12 @@ export function StoryVideoLabClient({ characters }: { characters: Char[] }) {
             {briefCopied ? "Скопировано" : "Скопировать бриф"}
           </button>
         </div>
-        <pre className="mt-3 max-h-48 overflow-auto whitespace-pre-wrap rounded-xl border border-white/5 bg-black/40 p-3 text-[11px] leading-relaxed text-zinc-400">
+        <pre className="mt-3 max-h-40 overflow-auto whitespace-pre-wrap rounded-xl border border-white/5 bg-black/40 p-3 text-[11px] leading-relaxed text-zinc-400">
           {GROK_BRIEF}
         </pre>
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
+      <section className="grid gap-4 lg:grid-cols-[1.35fr_1fr]">
         <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-zinc-950/60 p-4">
           <label className="text-xs text-zinc-400">
             Название (опционально)
@@ -394,7 +509,7 @@ export function StoryVideoLabClient({ characters }: { characters: Char[] }) {
             <textarea
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
-              rows={18}
+              rows={16}
               className="mt-1 w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 font-mono text-[12px] leading-relaxed text-zinc-100"
               placeholder={"subject_definitions:\n...\n\nsummary:\n...\n\ndetailed_description:\n..."}
             />
@@ -423,35 +538,133 @@ export function StoryVideoLabClient({ characters }: { characters: Char[] }) {
         </div>
 
         <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-zinc-950/60 p-4">
-          <CharacterBodySettingsPanel
-            characters={characters}
-            characterId={characterId}
-            onCharacterIdChange={setCharacterId}
-          />
+          <div>
+            <div className="text-xs font-medium text-zinc-200">
+              Кастомная модель (только для Story)
+            </div>
+            <p className="mt-1 text-[11px] text-zinc-600">
+              Не из библиотеки персонажей: имя + фото + тело. В шаблон уйдёт промпт и структура
+              слотов/тела — без твоих identity-фото.
+            </p>
+          </div>
+
+          <label className="text-xs text-zinc-400">
+            Имя
+            <input
+              value={modelName}
+              onChange={(e) => setModelName(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-zinc-100"
+              placeholder="Anna / Model A"
+            />
+          </label>
 
           <div>
-            <div className="text-xs font-medium text-zinc-300">Доп. Picture-слоты</div>
-            <p className="mt-1 text-[11px] text-zinc-600">
-              1–3 = identity (если не хватает персонажа), 4 = location, дальше по роли.
-            </p>
+            <div className="text-[11px] text-zinc-400">Identity фото (Picture 1–3)</div>
+            <div className="mt-2 grid grid-cols-3 gap-2">
+              {identity.map((slot, idx) => (
+                <label
+                  key={idx}
+                  className="relative flex aspect-[3/4] cursor-pointer items-center justify-center overflow-hidden rounded-lg border border-dashed border-white/15 bg-black/40"
+                >
+                  {slot.previewUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={slot.previewUrl}
+                      alt=""
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <span className="px-1 text-center text-[10px] text-zinc-500">
+                      P{idx + 1}
+                    </span>
+                  )}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="absolute inset-0 opacity-0"
+                    onChange={(e) =>
+                      setIdentityFile(idx, e.target.files?.[0] || null)
+                    }
+                  />
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-[11px] font-medium text-zinc-300">Тело / грудь / попа</div>
+            <div className="mt-2 grid gap-2">
+              {bodyFields().map((field) => {
+                const stored = bodyLookbook[field.id] || "";
+                const selectVal = lookbookSelectValue(field, stored);
+                const showCustom =
+                  selectVal === "__custom__" || isCustomValue(stored);
+                return (
+                  <label key={field.id} className="text-[11px] text-zinc-400">
+                    {field.label}
+                    <select
+                      className="mt-1 w-full rounded border border-white/10 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-100"
+                      value={selectVal}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setBodyLookbook((prev) => ({
+                          ...prev,
+                          [field.id]:
+                            v === "__custom__"
+                              ? toCustomValue(customPayload(prev[field.id]) || "")
+                              : v,
+                        }));
+                      }}
+                    >
+                      {field.options.map((o) => (
+                        <option key={o.id} value={o.id}>
+                          {o.label}
+                        </option>
+                      ))}
+                      <option value="__custom__">Своё…</option>
+                    </select>
+                    {showCustom ? (
+                      <input
+                        className="mt-1 w-full rounded border border-white/10 bg-zinc-900 px-2 py-1 text-xs"
+                        placeholder="EN"
+                        value={isCustomValue(stored) ? customPayload(stored) : ""}
+                        onChange={(e) =>
+                          setBodyLookbook((prev) => ({
+                            ...prev,
+                            [field.id]: toCustomValue(e.target.value),
+                          }))
+                        }
+                      />
+                    ) : null}
+                  </label>
+                );
+              })}
+            </div>
+            {bodyPreview ? (
+              <p className="mt-2 font-mono text-[10px] text-zinc-500">→ {bodyPreview}</p>
+            ) : null}
+          </div>
+
+          <div>
+            <div className="text-[11px] text-zinc-400">Доп. слоты (P4+)</div>
             <div className="mt-2 flex flex-col gap-2">
-              {slots.map((slot, idx) => (
+              {extras.map((slot, idx) => (
                 <div
                   key={idx}
                   className="grid grid-cols-[auto_1fr_1fr] items-center gap-2 rounded-lg border border-white/5 bg-black/30 p-2"
                 >
-                  <span className="text-[11px] text-zinc-500">P{idx + 1}</span>
+                  <span className="text-[11px] text-zinc-500">P{4 + idx}</span>
                   <select
                     value={slot.role}
                     onChange={(e) => {
                       const role = e.target.value as QuickVideoSlotRole;
-                      setSlots((prev) =>
+                      setExtras((prev) =>
                         prev.map((s, i) => (i === idx ? { ...s, role } : s)),
                       );
                     }}
                     className="rounded border border-white/10 bg-zinc-900 px-2 py-1 text-[11px]"
                   >
-                    {SLOT_ROLES.map((r) => (
+                    {EXTRA_ROLES.map((r) => (
                       <option key={r.id} value={r.id}>
                         {r.label}
                       </option>
@@ -460,12 +673,9 @@ export function StoryVideoLabClient({ characters }: { characters: Char[] }) {
                   <input
                     type="file"
                     accept="image/*"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0] || null;
-                      setSlots((prev) =>
-                        prev.map((s, i) => (i === idx ? { ...s, file } : s)),
-                      );
-                    }}
+                    onChange={(e) =>
+                      setExtraFile(idx, e.target.files?.[0] || null)
+                    }
                     className="text-[10px] text-zinc-400"
                   />
                 </div>
@@ -474,7 +684,7 @@ export function StoryVideoLabClient({ characters }: { characters: Char[] }) {
           </div>
 
           <label className="text-xs text-zinc-400">
-            Motion / pose video (опционально → Video 1)
+            Motion video (опционально)
             <input
               type="file"
               accept="video/*"
@@ -500,7 +710,13 @@ export function StoryVideoLabClient({ characters }: { characters: Char[] }) {
         </div>
       </section>
 
-      <TodayGenerationsStrip kind="video" editor="video" refreshKey={stripRefresh} />
+      <TodayGenerationsStrip
+        kind="video"
+        editor="video"
+        forceStoryRestore
+        onlyStoryH3
+        refreshKey={stripRefresh}
+      />
     </div>
   );
 }

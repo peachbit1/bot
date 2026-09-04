@@ -78,12 +78,17 @@ export function TodayGenerationsStrip({
   editor,
   pollMs = 3000,
   refreshKey = 0,
+  forceStoryRestore,
+  onlyStoryH3,
 }: {
   kind: "photo" | "video";
   editor: "photo" | "video";
   pollMs?: number;
   /** Bump after enqueue — triggers immediate refresh + faster polling. */
   refreshKey?: number;
+  forceStoryRestore?: boolean;
+  /** Story lab: show only Story H3 runs in the strip. */
+  onlyStoryH3?: boolean;
 }) {
   const [items, setItems] = useState<TodayItem[]>([]);
 
@@ -91,8 +96,22 @@ export function TodayGenerationsStrip({
     const res = await fetch(`/api/peach/generations/today?kind=${kind}`);
     const data = await readJson(res);
     if (!res.ok) throw new Error(String(data.error || "ошибка"));
-    setItems((data.items as TodayItem[]) || []);
-  }, [kind]);
+    let list = (data.items as TodayItem[]) || [];
+    if (onlyStoryH3) {
+      const { isStoryH3Meta } = await import("@/lib/generation-restore");
+      list = list.filter(
+        (i) =>
+          isStoryH3Meta(i.meta, i.prompt) ||
+          isStoryH3Meta(
+            i.meta,
+            typeof i.meta?.shotsJson === "string"
+              ? String(i.meta.shotsJson)
+              : null,
+          ),
+      );
+    }
+    setItems(list);
+  }, [kind, onlyStoryH3]);
 
   useEffect(() => {
     void refresh().catch(() => undefined);
@@ -176,7 +195,12 @@ export function TodayGenerationsStrip({
               />
             )}
             <div className="absolute inset-x-0 bottom-0 flex gap-1 bg-gradient-to-t from-black/80 to-transparent p-2 opacity-0 transition group-hover:opacity-100">
-              <RestoreToEditorButton item={item} editor={editor} compact />
+              <RestoreToEditorButton
+                item={item}
+                editor={editor}
+                compact
+                forceStoryRestore={forceStoryRestore}
+              />
               {kind === "photo" ? (
                 <SavePhotoTemplateButton item={item} compact />
               ) : null}

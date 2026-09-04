@@ -62,6 +62,8 @@ export type ManualPictureSlotInput = {
   role: QuickVideoSlotRole;
   label?: string;
   characterName?: string;
+  /** Lookbook body clause for this identity slot. */
+  bodyShapeHint?: string;
   bytes: Buffer;
   ext?: string;
 };
@@ -202,6 +204,7 @@ export async function assembleQuickVideoRefs(opts: {
         characterName: slot.characterName,
         label: slot.label,
         pictureIndex: uiIndex,
+        bodyShapeHint: slot.bodyShapeHint,
       });
     }
   } else {
@@ -312,6 +315,10 @@ async function attachBodyShapeHints(
   return imageSlots.map((slot) => {
     const role = slot.role || (slot.kind === "identity" ? "identity" : "other");
     if (role !== "identity") return slot;
+    if (slot.bodyShapeHint?.trim()) {
+      identityIdx += 1;
+      return slot;
+    }
     const nameKey = (slot.characterName || "").trim().toLowerCase();
     const fromName = nameKey ? byName.get(nameKey) : undefined;
     const hint = fromName || byOrder[Math.min(identityIdx, byOrder.length - 1)];
@@ -377,15 +384,39 @@ async function runQuickVideoJob(runId: string, userId: string) {
   });
 
   const saved = saveGalleryBinary(userId, "mp4", out.bytes, `quick_${runId}`);
+
+  let prevMeta: Record<string, unknown> = {};
+  if (run.galleryItemId) {
+    try {
+      const prev = await prisma.galleryItem.findUnique({
+        where: { id: run.galleryItemId },
+        select: { metaJson: true },
+      });
+      prevMeta = JSON.parse(prev?.metaJson || "{}") as Record<string, unknown>;
+    } catch {
+      prevMeta = {};
+    }
+  }
+
+  const { isStoryH3RunPrompt } = await import("@/lib/story-h3-prompt");
+  const storyH3 =
+    prevMeta.storyH3 === true ||
+    prevMeta.jobAction === "story_h3_video" ||
+    isStoryH3RunPrompt(run.prompt);
+
   const galleryData = {
     resultUrl: saved.publicUrl,
     width: out.size.width,
     height: out.size.height,
     prompt: composed,
     metaJson: JSON.stringify({
+      ...prevMeta,
       status: "ready",
+      error: undefined,
       engine: out.engine,
       quickVideoRunId: runId,
+      storyH3,
+      jobAction: storyH3 ? "story_h3_video" : prevMeta.jobAction || "quick_video",
       refImageUrls: refUrls,
       refVideoUrl: run.refVideoUrl,
       characterIds: parseJsonArray(run.characterIdsJson),
@@ -401,6 +432,11 @@ async function runQuickVideoJob(runId: string, userId: string) {
       durationSec: run.durationSec,
       shotsJson: run.prompt,
       refSlots: imageSlots,
+      bodyLookbook: prevMeta.bodyLookbook,
+      storyModelName:
+        prevMeta.storyModelName ||
+        imageSlots.find((s) => s.role === "identity")?.characterName ||
+        undefined,
     }),
   };
 
@@ -649,6 +685,9 @@ export async function startQuickVideoRun(opts: {
   shotsPlan?: QuickVideoShotsPlan;
   /** Full MiniMax H3 story prompt (Grok) — rebuild subject_definitions from slots */
   storyH3?: boolean;
+  /** Story lab custom model name + body lookbook (not DB cast). */
+  storyModelName?: string;
+  bodyLookbook?: Record<string, string>;
   characterIds?: string[];
   manualSlots?: ManualPictureSlotInput[];
   extraImageBuffers?: Buffer[];
@@ -812,6 +851,8 @@ export async function startQuickVideoRun(opts: {
         refImageUrls: assembled.refImageUrls,
         refVideoUrl: assembled.refVideoUrl,
         refSlots: assembled.imageSlots,
+        storyModelName: opts.storyModelName || undefined,
+        bodyLookbook: opts.bodyLookbook || undefined,
       }),
     },
   });

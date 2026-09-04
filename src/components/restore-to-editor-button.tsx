@@ -16,10 +16,13 @@ export function RestoreToEditorButton({
   item,
   editor,
   compact,
+  forceStoryRestore,
 }: {
   item: TodayItem;
   editor: "photo" | "video";
   compact?: boolean;
+  /** Story lab strip: always restore into /peach/story-video */
+  forceStoryRestore?: boolean;
 }) {
   const router = useRouter();
 
@@ -35,7 +38,12 @@ export function RestoreToEditorButton({
       return;
     }
 
-    if (isStoryH3Meta(meta)) {
+    const asStory =
+      forceStoryRestore ||
+      isStoryH3Meta(meta, item.prompt) ||
+      isStoryH3Meta(meta, typeof meta.shotsJson === "string" ? meta.shotsJson : null);
+
+    if (asStory) {
       const payload = buildStoryVideoRestorePayload({
         title: item.title || "",
         prompt: item.prompt || item.title || "",

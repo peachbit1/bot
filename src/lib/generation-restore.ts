@@ -61,13 +61,27 @@ export type StoryVideoRestorePayload = {
   refImageUrls?: string[];
   refVideoUrl?: string;
   refSlots?: QuickVideoImageSlot[];
+  storyModelName?: string;
+  bodyLookbook?: Record<string, string>;
 };
 
-export function isStoryH3Meta(meta?: Record<string, unknown> | null): boolean {
-  if (!meta) return false;
-  if (meta.storyH3 === true) return true;
-  if (meta.jobAction === "story_h3_video") return true;
-  return false;
+export function isStoryH3Meta(
+  meta?: Record<string, unknown> | null,
+  promptHint?: string | null,
+): boolean {
+  if (meta?.storyH3 === true) return true;
+  if (meta?.jobAction === "story_h3_video") return true;
+  const shots =
+    typeof meta?.shotsJson === "string" ? meta.shotsJson : undefined;
+  const candidate = shots || promptHint || "";
+  if (!candidate.trim()) return false;
+  if (candidate.trim().startsWith('{"__qvShots"')) return false;
+  if (candidate.trim().startsWith('{"__storyH3"')) return true;
+  // Heuristic: structured H3 sections (works even if meta lost storyH3 flag).
+  return (
+    /detailed_description\s*:/i.test(candidate) &&
+    /summary\s*:/i.test(candidate)
+  );
 }
 
 export function savePhotoRestore(payload: PhotoRestorePayload) {
@@ -163,6 +177,19 @@ export function buildStoryVideoRestorePayload(opts: {
     refVideoUrl:
       typeof meta.refVideoUrl === "string" ? meta.refVideoUrl : undefined,
     refSlots: meta.refSlots as QuickVideoImageSlot[] | undefined,
+    storyModelName:
+      typeof meta.storyModelName === "string"
+        ? meta.storyModelName
+        : Array.isArray(meta.customCharacters) &&
+            meta.customCharacters[0] &&
+            typeof (meta.customCharacters[0] as { name?: string }).name ===
+              "string"
+          ? (meta.customCharacters[0] as { name: string }).name
+          : undefined,
+    bodyLookbook:
+      meta.bodyLookbook && typeof meta.bodyLookbook === "object"
+        ? (meta.bodyLookbook as Record<string, string>)
+        : undefined,
   };
 }
 

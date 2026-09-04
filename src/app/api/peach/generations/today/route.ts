@@ -41,6 +41,8 @@ export async function GET(req: NextRequest) {
       .filter((id): id is string => typeof id === "string"),
   );
 
+  const { isStoryH3RunPrompt } = await import("@/lib/story-h3-prompt");
+
   const fromRuns = runs
     .filter((r) => {
       if (linkedRunIds.has(r.id)) return false;
@@ -48,24 +50,38 @@ export async function GET(req: NextRequest) {
       if (r.galleryItemId) return !galleryIds.has(r.galleryItemId);
       return !!r.resultVideoUrl;
     })
-    .map((r) => ({
-      id: r.galleryItemId || r.id,
-      kind: "video" as const,
-      title: r.title,
-      prompt: r.prompt,
-      resultUrl: r.resultVideoUrl || "",
-      status:
-        r.status === "busy"
-          ? "pending"
-          : r.status === "ready"
-            ? "ready"
-            : r.status,
-      createdAt: r.createdAt.toISOString(),
-      meta: { quickVideoRunId: r.id },
-    }));
+    .map((r) => {
+      const storyH3 = isStoryH3RunPrompt(r.prompt);
+      return {
+        id: r.galleryItemId || r.id,
+        kind: "video" as const,
+        title: r.title,
+        prompt: r.prompt,
+        resultUrl: r.resultVideoUrl || "",
+        status:
+          r.status === "busy"
+            ? "pending"
+            : r.status === "ready"
+              ? "ready"
+              : r.status,
+        createdAt: r.createdAt.toISOString(),
+        meta: {
+          quickVideoRunId: r.id,
+          storyH3,
+          jobAction: storyH3 ? "story_h3_video" : "quick_video",
+          shotsJson: r.prompt,
+        },
+      };
+    });
 
   const mapped = items.map((i) => {
     const m = mapGalleryItem(i);
+    const meta = parseGalleryMeta(i.metaJson);
+    const storyH3 =
+      meta.storyH3 === true ||
+      meta.jobAction === "story_h3_video" ||
+      (typeof meta.shotsJson === "string" && isStoryH3RunPrompt(meta.shotsJson)) ||
+      isStoryH3RunPrompt(i.prompt || "");
     return {
       id: m.id,
       kind: m.kind,
@@ -76,7 +92,9 @@ export async function GET(req: NextRequest) {
       createdAt: m.createdAt,
       width: i.width,
       height: i.height,
-      meta: parseGalleryMeta(i.metaJson),
+      meta: storyH3
+        ? { ...meta, storyH3: true, jobAction: "story_h3_video" }
+        : meta,
     };
   });
 

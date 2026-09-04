@@ -345,6 +345,21 @@ export async function createQuickVideoTemplateFromRun(opts: {
     ? serializeStoryH3Template({
         prompt: run.prompt,
         totalDurationSec: run.durationSec,
+        bodyLookbook: await (async () => {
+          if (!run.galleryItemId) return undefined;
+          try {
+            const item = await prisma.galleryItem.findUnique({
+              where: { id: run.galleryItemId },
+              select: { metaJson: true },
+            });
+            const meta = JSON.parse(item?.metaJson || "{}") as {
+              bodyLookbook?: Record<string, string>;
+            };
+            return meta.bodyLookbook;
+          } catch {
+            return undefined;
+          }
+        })(),
       })
     : sanitizeShotsJsonForTemplate(run.prompt, authorNames);
 
