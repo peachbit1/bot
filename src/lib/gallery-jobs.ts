@@ -11,7 +11,7 @@ import {
   generatePhotoBytes,
 } from "@/lib/peach-lab";
 import { galleryRoot } from "@/lib/paths";
-import { scheduleAfterResponse } from "@/lib/schedule-after";
+import { localBytesFromResultUrl } from "@/lib/peach-lab";
 
 type PhotoPayload = Parameters<typeof generatePhotoBytes>[0] & {
   templateRunFrameId?: string;
@@ -337,7 +337,9 @@ async function runFilmJob(itemId: string, userId: string, opts: FilmPayload) {
 }
 
 function scheduleJob(fn: () => Promise<void>) {
-  scheduleAfterResponse(() => enqueueGpuJob(fn));
+  // Start on the GPU queue immediately. Do not rely on Next `after()` —
+  // I2V can run 15–25+ min and must not depend on request lifecycle hooks.
+  void enqueueGpuJob(fn);
 }
 
 export async function enqueuePhotoJob(userId: string, opts: PhotoPayload) {
@@ -539,6 +541,15 @@ export async function enqueueAnimateJob(
     where: { id: stillId, userId, kind: "photo" },
   });
   if (!still) throw new Error("still not found");
+  if (!still.resultUrl?.trim() || still.resultUrl === GALLERY_PLACEHOLDER_URL) {
+    throw new Error("У still нет файла результата");
+  }
+  const stillBytes = localBytesFromResultUrl(still.resultUrl);
+  if (!stillBytes?.length) {
+    throw new Error(
+      "Файл still не найден на диске — перегенерируй фото в этой сессии",
+    );
+  }
   return enqueueClipJob(userId, {
     userId,
     characterId: still.characterId,

@@ -52,7 +52,7 @@ export async function GET() {
   };
 
   return NextResponse.json({
-    build: "tg-ready-v15-video-preview-scrub",
+    build: "tg-ready-v16-i2v-wait-fix",
     gpu,
     catalogFiles,
     features: {

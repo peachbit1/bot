@@ -100,14 +100,18 @@ export function LoraI2vLabClient({ characters }: { characters: Char[] }) {
     if (!characterId && loraChars[0]) setCharacterId(loraChars[0].id);
   }, [characterId, loraChars]);
 
-  async function pollItem(id: string): Promise<{
+  async function pollItem(
+    id: string,
+    opts: { maxAttempts: number; intervalMs: number; label: string },
+  ): Promise<{
     id: string;
     resultUrl: string;
     kind: string;
     status?: string;
   } | null> {
-    for (let i = 0; i < 90; i++) {
-      await new Promise((r) => setTimeout(r, 4000));
+    const started = Date.now();
+    for (let i = 0; i < opts.maxAttempts; i++) {
+      await new Promise((r) => setTimeout(r, opts.intervalMs));
       const res = await fetch(`/api/peach/gallery/${id}`);
       if (!res.ok) continue;
       const data = await readJson(res);
@@ -134,7 +138,11 @@ export function LoraI2vLabClient({ characters }: { characters: Char[] }) {
           "Генерация упала (смотри галерею)";
         throw new Error(String(detail));
       }
-      setMsg(`Ждём GPU… ${i + 1}/90 · ${id.slice(0, 8)}`);
+      const elapsedMin = ((Date.now() - started) / 60_000).toFixed(1);
+      setMsg(
+        `${opts.label}… ${elapsedMin} мин · ${i + 1}/${opts.maxAttempts} · ${id.slice(0, 8)}`,
+      );
+      setStripRefresh((n) => n + 1);
     }
     return null;
   }
@@ -161,8 +169,17 @@ export function LoraI2vLabClient({ characters }: { characters: Char[] }) {
       setStillItemId(item.id);
       setStripRefresh((n) => n + 1);
       setMsg("Still в очереди GPU…");
-      const ready = await pollItem(item.id);
-      if (!ready) throw new Error("Таймаут ожидания still");
+      // Photo usually < 5 min; keep headroom for GPU queue.
+      const ready = await pollItem(item.id, {
+        maxAttempts: 120,
+        intervalMs: 4000,
+        label: "Ждём still",
+      });
+      if (!ready) {
+        throw new Error(
+          "Таймаут still (~8 мин). Смотри галерею — если pending, подожди ещё; если error — перегенерируй.",
+        );
+      }
       setStillUrl(ready.resultUrl);
       setMsg("Still готов — можно оживлять");
       setStripRefresh((n) => n + 1);
@@ -178,6 +195,10 @@ export function LoraI2vLabClient({ characters }: { characters: Char[] }) {
     setMsg("");
     if (!stillItemId) {
       setError("Сначала сделай still");
+      return;
+    }
+    if (!i2vPrompt.trim()) {
+      setError("Нужен I2V-промпт (движение)");
       return;
     }
     setBusy("animate");
@@ -196,9 +217,47 @@ export function LoraI2vLabClient({ characters }: { characters: Char[] }) {
       const item = data.item as { id: string };
       setVideoItemId(item.id);
       setStripRefresh((n) => n + 1);
-      setMsg("I2V в очереди GPU…");
-      const ready = await pollItem(item.id);
-      if (!ready) throw new Error("Таймаут ожидания видео");
+      setMsg("I2V в очереди GPU (обычно 10–25 мин)…");
+      // MiniMax I2V comfy timeout ≈ 15–21 мин + очередь — UI must wait longer.
+      const ready = await pollItem(item.id, {
+        maxAttempts: 360,
+        intervalMs: 5000,
+        label: "Ждём I2V",
+      });
+      if (!ready) {
+        throw new Error(
+          "Таймаут I2V (~30 мин). Видео может ещё считаться — открой Галерею или нажми «Дождаться видео» с id ниже.",
+        );
+      }
+      setVideoUrl(ready.resultUrl);
+      setMsg("Видео готово — сохрани шаблон");
+      setStripRefresh((n) => n + 1);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "error");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function onResumeVideoPoll() {
+    if (!videoItemId) {
+      setError("Нет video id — сначала запусти оживление");
+      return;
+    }
+    setError("");
+    setBusy("animate");
+    try {
+      setMsg("Продолжаем ждать I2V…");
+      const ready = await pollItem(videoItemId, {
+        maxAttempts: 360,
+        intervalMs: 5000,
+        label: "Ждём I2V",
+      });
+      if (!ready) {
+        throw new Error(
+          "Всё ещё нет ready. Смотри Галерею — если error, перезапусти оживление.",
+        );
+      }
       setVideoUrl(ready.resultUrl);
       setMsg("Видео готово — сохрани шаблон");
       setStripRefresh((n) => n + 1);
@@ -308,8 +367,8 @@ export function LoraI2vLabClient({ characters }: { characters: Char[] }) {
         <div>
           <h2 className="text-sm font-medium text-zinc-200">Сборка рецепта</h2>
           <p className="mt-1 text-[11px] text-zinc-500">
-            1) Still на LoRA (Krea) → 2) оживление (Minimax I2V) → 3) сохранить
-            шаблон. У юзеров потом только с обученной LoRA.
+            1) Still на LoRA (Krea) → 2) оживление MiniMax I2V (обычно 10–25 мин)
+            → 3) сохранить шаблон. У юзеров потом только с обученной LoRA.
           </p>
         </div>
 
@@ -460,6 +519,16 @@ export function LoraI2vLabClient({ characters }: { characters: Char[] }) {
           >
             {busy === "animate" ? "I2V…" : "2. Оживить (I2V)"}
           </button>
+          {videoItemId && !videoUrl ? (
+            <button
+              type="button"
+              disabled={!!busy}
+              onClick={() => void onResumeVideoPoll()}
+              className="rounded-full border border-amber-500/40 px-3 py-1.5 text-xs text-amber-200 disabled:opacity-40"
+            >
+              Дождаться видео
+            </button>
+          ) : null}
           <button
             type="button"
             disabled={!!busy || !stillPrompt.trim() || !i2vPrompt.trim()}
@@ -579,6 +648,76 @@ export function LoraI2vLabClient({ characters }: { characters: Char[] }) {
                 id: {videoItemId}
               </p>
             ) : null}
+            <label className="mt-2 block text-[10px] text-zinc-500">
+              Или вставь gallery id готового / pending видео
+              <div className="mt-1 flex gap-1">
+                <input
+                  className="min-w-0 flex-1 rounded border border-white/10 bg-zinc-900 px-2 py-1 text-[11px]"
+                  placeholder="cm…"
+                  id="li2v-video-attach"
+                />
+                <button
+                  type="button"
+                  className="shrink-0 rounded border border-white/15 px-2 py-1 text-[10px]"
+                  disabled={!!busy}
+                  onClick={() => {
+                    const el = document.getElementById(
+                      "li2v-video-attach",
+                    ) as HTMLInputElement | null;
+                    const id = el?.value.trim();
+                    if (!id) return;
+                    void (async () => {
+                      setError("");
+                      setBusy("animate");
+                      try {
+                        const res = await fetch(`/api/peach/gallery/${id}`);
+                        const data = await readJson(res);
+                        if (!res.ok) throw new Error(String(data.error || "нет"));
+                        const item = (data.item || data) as {
+                          id: string;
+                          resultUrl: string;
+                          kind: string;
+                          status?: string;
+                        };
+                        if (item.kind !== "video") {
+                          throw new Error("Нужен kind=video");
+                        }
+                        setVideoItemId(item.id);
+                        if (
+                          item.status === "ready" &&
+                          item.resultUrl &&
+                          !/placeholder/i.test(item.resultUrl)
+                        ) {
+                          setVideoUrl(item.resultUrl);
+                          setMsg("Видео подключено из галереи");
+                          return;
+                        }
+                        if (item.status === "error") {
+                          throw new Error("Это видео в ошибке — перезапусти I2V");
+                        }
+                        setMsg("Видео ещё pending — жду GPU…");
+                        const ready = await pollItem(item.id, {
+                          maxAttempts: 360,
+                          intervalMs: 5000,
+                          label: "Ждём I2V",
+                        });
+                        if (!ready) {
+                          throw new Error("Таймаут — смотри галерею");
+                        }
+                        setVideoUrl(ready.resultUrl);
+                        setMsg("Видео готово — сохрани шаблон");
+                      } catch (e) {
+                        setError(e instanceof Error ? e.message : "error");
+                      } finally {
+                        setBusy("");
+                      }
+                    })();
+                  }}
+                >
+                  Взять
+                </button>
+              </div>
+            </label>
           </div>
         </div>
 
