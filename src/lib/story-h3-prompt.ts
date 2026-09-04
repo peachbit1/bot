@@ -113,7 +113,7 @@ function splitH3Sections(raw: string): Record<string, string> {
 function bodyClause(slot: QuickVideoImageSlot): string {
   const hint = slot.bodyShapeHint?.trim();
   if (!hint) return "";
-  return ` Body proportions from user settings (apply consistently; do not invent different proportions): ${hint}.`;
+  return ` CRITICAL BODY OVERRIDE (not from photo): force body proportions to ${hint}. Do not copy breast size, hip size, or butt size from this picture if they conflict — text body settings win.`;
 }
 
 function buildSlotDefinitions(
@@ -126,7 +126,7 @@ function buildSlotDefinitions(
     if (role === "identity") {
       const who =
         slot.characterName?.trim() || slot.label?.trim() || `Subject ${n}`;
-      return `<Picture ${n}> is ${who}'s identity reference (face, hair, skin). Preserve recognizable facial identity, hair, and skin from this picture.${bodyClause(slot)} Do not invent a different face.`;
+      return `<Picture ${n}> is ${who}'s identity reference for FACE, HAIR, and SKIN ONLY. Preserve recognizable facial identity, hair, and skin from this picture.${bodyClause(slot)} Do not invent a different face.`;
     }
     if (role === "location") {
       const label = slot.label?.trim();
@@ -143,18 +143,27 @@ function patchRetentionForIdentity(
 ): string {
   const base = retention.trim();
   const bodyExtra = bodyHints.length
-    ? ` Body shape lock: ${bodyHints.join("; ")}.`
+    ? ` BODY SHAPE LOCK (mandatory): ${bodyHints.join("; ")} — overrides any larger/smaller body cues in pictures or shot text.`
     : "";
   const identityLine =
     `<Picture 1> / identity subject (throughout): fully_preserved — facial identity, hairstyle, age cues, and skin from the identity reference pictures remain recognizable and stable.${bodyExtra}`;
   if (!base) return identityLine;
+  // Always append body lock even if Grok already wrote fully_preserved.
+  if (bodyHints.length && !/BODY SHAPE LOCK/i.test(base)) {
+    return `${base}\nBODY SHAPE LOCK (mandatory): ${bodyHints.join("; ")} — overrides any conflicting body size in pictures or shot text.`;
+  }
   if (/fully_preserved/i.test(base) && /identity|Picture\s*1|Subject\s*1/i.test(base)) {
-    if (bodyHints.length && !/Body shape lock/i.test(base)) {
-      return `${base}\nBody shape lock: ${bodyHints.join("; ")}.`;
-    }
     return base;
   }
   return `${identityLine}\n${base}`;
+}
+
+function bodyShapeLockBlock(bodyHints: string[]): string {
+  if (!bodyHints.length) return "";
+  return `body_shape_lock:
+MANDATORY body proportions for Subject 1 throughout every shot: ${bodyHints.join("; ")}.
+This overrides breast/hip/butt size implied by identity photos and any conflicting body description in detailed_description.
+Keep face/hair/skin from <Picture 1–3>; force body shape from this lock only.`;
 }
 
 /**
@@ -190,24 +199,33 @@ export function prepareStoryH3Prompt(
     parts.push(`subject_definitions:\n${sections.subject_definitions}`);
   }
 
+  const lock = bodyShapeLockBlock(bodyHints);
+  if (lock) parts.push(lock);
+
   if (videoCount > 0) {
     parts.push(
       "motion_reference:\nMatch poses, body motion, camera moves and timing from <Video 1> unless the prompt explicitly overrides. Identity still comes from the identity picture slots, not from the video faces.",
     );
   }
 
-  const summary =
+  let summary =
     sections.summary?.trim() ||
     "[reference generation] Generate the target video with the identity subject fully preserved from the identity reference pictures, following the staged actions and camera plan in detailed_description.";
+  if (bodyHints.length && !/BODY SHAPE LOCK|body proportions/i.test(summary)) {
+    summary = `${summary} BODY SHAPE LOCK: ${bodyHints.join("; ")}.`;
+  }
   parts.push(`summary:\n${summary}`);
 
   parts.push(
     `retention_analysis:\n${patchRetentionForIdentity(sections.retention_analysis || "", bodyHints)}`,
   );
 
-  const detailed =
+  let detailed =
     sections.detailed_description?.trim() ||
     (sections.subject_definitions || sections.summary ? "" : raw);
+  if (detailed && bodyHints.length) {
+    detailed = `BODY SHAPE LOCK (apply in every shot, overrides conflicting body size words below): ${bodyHints.join("; ")}.\n\n${detailed}`;
+  }
   if (detailed) {
     parts.push(`detailed_description:\n${detailed}`);
   }

@@ -454,6 +454,9 @@ export function StoryVideoLabClient() {
       const data = await readJson(res);
       if (!res.ok) throw new Error(String(data.error || "ошибка"));
       if (data.warning) setWarning(String(data.warning));
+      if (data.bodyHint) {
+        setRestoreMsg(`В промпт ушло тело: ${String(data.bodyHint)}`);
+      }
       setStripRefresh((n) => n + 1);
     } catch (e) {
       setError(e instanceof Error ? e.message : "error");

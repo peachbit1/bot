@@ -205,6 +205,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       run,
+      bodyHint: bodyHint || null,
       structured: storyH3LooksStructured(prompt),
       warning: storyH3LooksStructured(prompt)
         ? undefined
