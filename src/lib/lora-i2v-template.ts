@@ -317,8 +317,11 @@ export async function publishLoraI2vTemplateToTg(
   if (!row.stillPrompt.trim() || !row.i2vPrompt.trim()) {
     throw new Error("Сначала сохрани still + I2V промпты");
   }
-  if (!row.previewVideoUrl.trim() && !row.previewImageUrl.trim()) {
-    throw new Error("Нужен preview (still или video) перед переносом в TG");
+  if (!row.previewVideoUrl.trim()) {
+    throw new Error("Нужен preview-видео (оживи still) перед переносом в TG");
+  }
+  if (!row.previewImageUrl.trim()) {
+    throw new Error("Нужен preview-still перед переносом в TG");
   }
 
   const slug = `li2v-${templateId.slice(0, 10)}`;

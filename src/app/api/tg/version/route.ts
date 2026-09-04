@@ -48,7 +48,7 @@ export async function GET() {
   };
 
   return NextResponse.json({
-    build: "tg-ready-v13-bot-video-pose-fix",
+    build: "tg-ready-v14-lora-i2v-lab",
     gpu,
     catalogFiles,
     features: {
@@ -60,6 +60,9 @@ export async function GET() {
       ),
       catalogSeed: fs.existsSync(
         path.join(process.cwd(), "src", "lib", "tg", "tg-catalog-seed.json"),
+      ),
+      loraI2vLab: fs.existsSync(
+        path.join(process.cwd(), "src", "app", "peach", "lora-i2v", "page.tsx"),
       ),
     },
   });

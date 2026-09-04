@@ -43,7 +43,10 @@ export async function POST(req: NextRequest) {
       {};
     if (body.characterId) {
       const ch = await prisma.character.findFirst({
-        where: { id: body.characterId, userId: user.id },
+        where: {
+          id: body.characterId,
+          OR: [{ userId: user.id }, { isStudioCast: true }],
+        },
         select: { triggerWord: true, name: true },
       });
       if (ch) scrub = { triggerWord: ch.triggerWord, characterName: ch.name };

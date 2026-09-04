@@ -116,7 +116,8 @@ export function LoraI2vLabClient({ characters }: { characters: Char[] }) {
         resultUrl: string;
         kind: string;
         status?: string;
-        meta?: { status?: string };
+        error?: string | null;
+        meta?: { status?: string; error?: string };
       };
       const status = item.status || item.meta?.status || "";
       if (
@@ -127,8 +128,13 @@ export function LoraI2vLabClient({ characters }: { characters: Char[] }) {
         return item;
       }
       if (status === "error") {
-        throw new Error("Генерация упала (смотри галерею)");
+        const detail =
+          item.error ||
+          item.meta?.error ||
+          "Генерация упала (смотри галерею)";
+        throw new Error(String(detail));
       }
+      setMsg(`Ждём GPU… ${i + 1}/90 · ${id.slice(0, 8)}`);
     }
     return null;
   }
@@ -456,9 +462,7 @@ export function LoraI2vLabClient({ characters }: { characters: Char[] }) {
           </button>
           <button
             type="button"
-            disabled={
-              !!busy || !stillPrompt.trim() || !i2vPrompt.trim() || !title.trim()
-            }
+            disabled={!!busy || !stillPrompt.trim() || !i2vPrompt.trim()}
             onClick={() => void onSave()}
             className="rounded-full border border-emerald-500/40 px-3 py-1.5 text-xs text-emerald-300 disabled:opacity-40"
           >
@@ -491,6 +495,72 @@ export function LoraI2vLabClient({ characters }: { characters: Char[] }) {
             ) : (
               <p className="text-[11px] text-zinc-600">ещё нет</p>
             )}
+            {stillItemId ? (
+              <p className="mt-1 truncate text-[10px] text-zinc-600">
+                id: {stillItemId}
+              </p>
+            ) : null}
+            <label className="mt-2 block text-[10px] text-zinc-500">
+              Или вставь gallery id готового still
+              <div className="mt-1 flex gap-1">
+                <input
+                  className="min-w-0 flex-1 rounded border border-white/10 bg-zinc-900 px-2 py-1 text-[11px]"
+                  placeholder="cm…"
+                  id="li2v-still-attach"
+                />
+                <button
+                  type="button"
+                  className="shrink-0 rounded border border-white/15 px-2 py-1 text-[10px]"
+                  disabled={!!busy}
+                  onClick={() => {
+                    const el = document.getElementById(
+                      "li2v-still-attach",
+                    ) as HTMLInputElement | null;
+                    const id = el?.value.trim();
+                    if (!id) return;
+                    void (async () => {
+                      setError("");
+                      setBusy("still");
+                      try {
+                        const res = await fetch(`/api/peach/gallery/${id}`);
+                        const data = await readJson(res);
+                        if (!res.ok) throw new Error(String(data.error || "нет"));
+                        const item = (data.item || data) as {
+                          id: string;
+                          resultUrl: string;
+                          kind: string;
+                          status?: string;
+                        };
+                        if (item.kind !== "photo") {
+                          throw new Error("Нужен kind=photo");
+                        }
+                        if (
+                          item.status &&
+                          item.status !== "ready"
+                        ) {
+                          throw new Error(`Still status: ${item.status}`);
+                        }
+                        if (
+                          !item.resultUrl ||
+                          /placeholder/i.test(item.resultUrl)
+                        ) {
+                          throw new Error("У кадра нет файла");
+                        }
+                        setStillItemId(item.id);
+                        setStillUrl(item.resultUrl);
+                        setMsg("Still подключён из галереи");
+                      } catch (e) {
+                        setError(e instanceof Error ? e.message : "error");
+                      } finally {
+                        setBusy("");
+                      }
+                    })();
+                  }}
+                >
+                  Взять
+                </button>
+              </div>
+            </label>
           </div>
           <div className="rounded-lg border border-white/10 bg-black/40 p-2">
             <div className="mb-1 text-[10px] uppercase text-zinc-500">Video</div>
@@ -504,6 +574,11 @@ export function LoraI2vLabClient({ characters }: { characters: Char[] }) {
             ) : (
               <p className="text-[11px] text-zinc-600">ещё нет</p>
             )}
+            {videoItemId ? (
+              <p className="mt-1 truncate text-[10px] text-zinc-600">
+                id: {videoItemId}
+              </p>
+            ) : null}
           </div>
         </div>
 

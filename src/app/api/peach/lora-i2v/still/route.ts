@@ -34,7 +34,10 @@ export async function POST(req: NextRequest) {
   try {
     const body = schema.parse(await req.json());
     const ch = await prisma.character.findFirst({
-      where: { id: body.characterId, userId: user.id },
+      where: {
+        id: body.characterId,
+        OR: [{ userId: user.id }, { isStudioCast: true }],
+      },
     });
     if (!ch) {
       return NextResponse.json({ error: "Персонаж не найден" }, { status: 404 });
@@ -59,6 +62,7 @@ export async function POST(req: NextRequest) {
       characterId: ch.id,
       characterIds: [ch.id],
       useCharacterLora: true,
+      usePreset: false,
       composedPrompt: composed,
       negativePrompt: body.negativePrompt?.trim() || undefined,
       title: body.title?.trim() || `LoRA→I2V still · ${ch.name}`,
