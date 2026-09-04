@@ -596,6 +596,8 @@ export async function startQuickVideoRun(opts: {
   prompt?: string;
   /** Multi-shot lego plan */
   shotsPlan?: QuickVideoShotsPlan;
+  /** Full MiniMax H3 story prompt (Grok) — rebuild subject_definitions from slots */
+  storyH3?: boolean;
   characterIds?: string[];
   manualSlots?: ManualPictureSlotInput[];
   extraImageBuffers?: Buffer[];
@@ -690,25 +692,38 @@ export async function startQuickVideoRun(opts: {
   const promptStored = opts.shotsPlan
     ? serializeQuickVideoShotsPlan(opts.shotsPlan)
     : legacyPrompt;
-  const composed = opts.shotsPlan
-    ? composeQuickVideoMultiShotPrompt(
-        opts.shotsPlan,
-        assembled.imageSlots,
-        assembled.refVideoBuffer ? 1 : 0,
-        legoCtx,
-        { pictureRemap: assembled.pictureRemap },
-      )
-    : composeQuickVideoPrompt(
-        legacyPrompt,
-        assembled.imageSlots,
-        assembled.refVideoBuffer ? 1 : 0,
-        { pictureRemap: assembled.pictureRemap },
-      );
+  let composed: string;
+  if (opts.shotsPlan) {
+    composed = composeQuickVideoMultiShotPrompt(
+      opts.shotsPlan,
+      assembled.imageSlots,
+      assembled.refVideoBuffer ? 1 : 0,
+      legoCtx,
+      { pictureRemap: assembled.pictureRemap },
+    );
+  } else if (opts.storyH3) {
+    const { prepareStoryH3Prompt } = await import("@/lib/story-h3-prompt");
+    composed = prepareStoryH3Prompt(
+      legacyPrompt,
+      assembled.imageSlots,
+      assembled.refVideoBuffer ? 1 : 0,
+      { pictureRemap: assembled.pictureRemap },
+    );
+  } else {
+    composed = composeQuickVideoPrompt(
+      legacyPrompt,
+      assembled.imageSlots,
+      assembled.refVideoBuffer ? 1 : 0,
+      { pictureRemap: assembled.pictureRemap },
+    );
+  }
 
   const run = await prisma.quickVideoRun.create({
     data: {
       userId: opts.userId,
-      title: opts.title?.trim() || "Quick video",
+      title:
+        opts.title?.trim() ||
+        (opts.storyH3 ? "Story H3 video" : "Quick video"),
       prompt: promptStored,
       composedPrompt: composed,
       characterIdsJson: JSON.stringify(assembled.characterIds),
@@ -735,7 +750,8 @@ export async function startQuickVideoRun(opts: {
       height: size.height,
       metaJson: JSON.stringify({
         status: "pending",
-        jobAction: "quick_video",
+        jobAction: opts.storyH3 ? "story_h3_video" : "quick_video",
+        storyH3: Boolean(opts.storyH3),
         quickVideoRunId: run.id,
         characterIds: assembled.characterIds,
         customCharacters,
