@@ -1,8 +1,15 @@
 #!/usr/bin/env python3
-"""Forward 127.0.0.1:8188 to Metalnode Comfy. Windows OpenSSH -L dies with exit -1."""
+"""Forward 127.0.0.1:8188 to Metalnode Comfy. Windows OpenSSH -L dies with exit -1.
+
+Config:
+  1) Env (Railway): METALNODE_HOST, METALNODE_SSH_PORT, METALNODE_SSH_USER,
+     METALNODE_SSH_KEY_PATH (or METALNODE_SSH_KEY written to that path)
+  2) Fallback: infra/metalnode.local.json
+"""
 from __future__ import annotations
 
 import json
+import os
 import socket
 import sys
 import threading
@@ -15,7 +22,7 @@ import paramiko
 ROOT = Path(__file__).resolve().parents[1]
 CFG_PATH = ROOT / "infra" / "metalnode.local.json"
 LOCAL_HOST = "127.0.0.1"
-LOCAL_PORT = 8188
+LOCAL_PORT = int(os.environ.get("COMFY_LOCAL_PORT") or "8188")
 REMOTE_HOST = "127.0.0.1"
 REMOTE_PORT = 8188
 
@@ -25,6 +32,15 @@ def log(msg: str) -> None:
 
 
 def load_cfg() -> dict:
+    host = (os.environ.get("METALNODE_HOST") or "").strip()
+    key_path = (os.environ.get("METALNODE_SSH_KEY_PATH") or "").strip()
+    if host and key_path:
+        return {
+            "host": host,
+            "sshPort": int(os.environ.get("METALNODE_SSH_PORT") or "22034"),
+            "sshUser": (os.environ.get("METALNODE_SSH_USER") or "root").strip(),
+            "sshKeyPath": key_path,
+        }
     return json.loads(CFG_PATH.read_text(encoding="utf-8"))
 
 
@@ -136,10 +152,13 @@ def serve_once(cfg: dict) -> None:
 
 
 def main() -> int:
-    if not CFG_PATH.exists():
-        log(f"missing {CFG_PATH}")
+    try:
+        cfg = load_cfg()
+    except Exception as e:
+        log(f"config error: {e}")
+        if not CFG_PATH.exists():
+            log(f"missing {CFG_PATH}")
         return 1
-    cfg = load_cfg()
     if not Path(cfg["sshKeyPath"]).exists():
         log(f"missing key {cfg['sshKeyPath']}")
         return 1

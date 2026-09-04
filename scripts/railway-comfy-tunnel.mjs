@@ -1,21 +1,24 @@
 /**
- * SSH tunnel to Metalnode Comfy for Railway production.
- * Same idea as npm run tunnel — forwards localhost:8188 to GPU Comfy.
+ * SSH / Paramiko tunnel to Metalnode Comfy for Railway production.
+ * Forwards localhost:8188 → GPU Comfy.
  *
  * Env:
  *   METALNODE_SSH_KEY   — private key (multiline or \n escaped)
  *   METALNODE_HOST      — default 77.94.203.13
- *   METALNODE_SSH_PORT  — default 22024
+ *   METALNODE_SSH_PORT  — default 22034
  *   METALNODE_SSH_USER  — default root
  *   COMFY_URL           — default http://127.0.0.1:8188
  */
 import fs from "node:fs";
 import http from "node:http";
+import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const KEY_PATH = process.env.METALNODE_SSH_KEY_PATH || "/tmp/metalnode_ssh_key";
 const HOST = process.env.METALNODE_HOST || "77.94.203.13";
-const SSH_PORT = String(process.env.METALNODE_SSH_PORT || "22024");
+const SSH_PORT = String(process.env.METALNODE_SSH_PORT || "22034");
 const SSH_USER = process.env.METALNODE_SSH_USER || "root";
 const LOCAL_PORT = String(process.env.COMFY_LOCAL_PORT || "8188");
 const COMFY_BASE = (process.env.COMFY_URL || `http://127.0.0.1:${LOCAL_PORT}`).replace(
@@ -23,6 +26,7 @@ const COMFY_BASE = (process.env.COMFY_URL || `http://127.0.0.1:${LOCAL_PORT}`).r
   "",
 );
 const KEEPALIVE = "while true; do echo k; sleep 2; done";
+const PARAMIKO_SCRIPT = path.join(ROOT, "scripts", "paramiko-comfy-tunnel.py");
 
 /** @type {import("node:child_process").ChildProcess | null} */
 let tunnelProc = null;
@@ -52,10 +56,96 @@ function pingComfy(timeoutMs = 4000) {
 function writeKey(raw) {
   const key = raw.includes("\\n") ? raw.replace(/\\n/g, "\n") : raw;
   fs.writeFileSync(KEY_PATH, key.endsWith("\n") ? key : `${key}\n`, { mode: 0o600 });
+  process.env.METALNODE_SSH_KEY_PATH = KEY_PATH;
+}
+
+function findPython() {
+  for (const name of ["python3", "python"]) {
+    const r = spawnSync(name, ["-c", "import paramiko"], {
+      encoding: "utf8",
+      windowsHide: true,
+    });
+    if (r.status === 0) return name;
+  }
+  // Try install paramiko into user site if python exists without the package.
+  for (const name of ["python3", "python"]) {
+    const hasPy = spawnSync(name, ["-V"], { encoding: "utf8", windowsHide: true });
+    if (hasPy.status !== 0) continue;
+    log(`installing paramiko via ${name} -m pip…`);
+    const pip = spawnSync(
+      name,
+      ["-m", "pip", "install", "--user", "-q", "paramiko"],
+      { encoding: "utf8", windowsHide: true, timeout: 120_000 },
+    );
+    if (pip.status === 0) {
+      const check = spawnSync(name, ["-c", "import paramiko"], {
+        encoding: "utf8",
+        windowsHide: true,
+      });
+      if (check.status === 0) return name;
+    } else {
+      log(`pip install failed: ${(pip.stderr || pip.stdout || "").slice(0, 240)}`);
+    }
+  }
+  return null;
+}
+
+function findSsh() {
+  for (const name of ["ssh", "/usr/bin/ssh", "/bin/ssh"]) {
+    const r = spawnSync(name, ["-V"], { encoding: "utf8", windowsHide: true });
+    // ssh -V writes to stderr; status may be 0
+    if (r.status === 0 || /OpenSSH/i.test(String(r.stderr || r.stdout || ""))) {
+      return name;
+    }
+  }
+  return null;
+}
+
+function attachTunnelHandlers(proc, label) {
+  proc.stdout?.on("data", () => {});
+  proc.stderr?.on("data", (buf) => {
+    const line = String(buf).trim();
+    if (line) log(`${label}: ${line}`);
+  });
+  proc.on("error", (err) => {
+    log(`${label} spawn error: ${err instanceof Error ? err.message : String(err)}`);
+    tunnelProc = null;
+  });
+  proc.on("exit", (code) => {
+    log(`${label} exited ${code ?? "?"}`);
+    tunnelProc = null;
+  });
 }
 
 function startTunnel() {
-  if (tunnelProc && !tunnelProc.killed) return tunnelProc;
+  if (tunnelProc && !tunnelProc.killed && tunnelProc.exitCode == null) {
+    return tunnelProc;
+  }
+
+  const py = findPython();
+  if (py) {
+    log(`starting paramiko tunnel (${py})`);
+    tunnelProc = spawn(py, [PARAMIKO_SCRIPT], {
+      stdio: ["ignore", "pipe", "pipe"],
+      detached: false,
+      env: {
+        ...process.env,
+        METALNODE_HOST: HOST,
+        METALNODE_SSH_PORT: SSH_PORT,
+        METALNODE_SSH_USER: SSH_USER,
+        METALNODE_SSH_KEY_PATH: KEY_PATH,
+        COMFY_LOCAL_PORT: LOCAL_PORT,
+      },
+    });
+    attachTunnelHandlers(tunnelProc, "paramiko");
+    return tunnelProc;
+  }
+
+  const sshBin = findSsh();
+  if (!sshBin) {
+    log("no python/paramiko and no ssh binary — cannot open tunnel");
+    return null;
+  }
 
   const args = [
     "-i",
@@ -78,30 +168,19 @@ function startTunnel() {
     KEEPALIVE,
   ];
 
-  tunnelProc = spawn("ssh", args, {
+  log(`starting OpenSSH tunnel (${sshBin})`);
+  tunnelProc = spawn(sshBin, args, {
     stdio: ["ignore", "pipe", "pipe"],
     detached: false,
   });
-
-  tunnelProc.stdout?.on("data", () => {});
-  tunnelProc.stderr?.on("data", (buf) => {
-    const line = String(buf).trim();
-    if (line) log(`ssh: ${line}`);
-  });
-  tunnelProc.on("exit", (code) => {
-    log(`ssh exited ${code ?? "?"}`);
-    tunnelProc = null;
-  });
-
+  attachTunnelHandlers(tunnelProc, "ssh");
   return tunnelProc;
 }
 
-function sshBaseArgs() {
-  const key = KEY_PATH;
-  if (!key) return [];
+function sshBaseArgs(sshBin) {
   return [
     "-i",
-    key,
+    KEY_PATH,
     "-o",
     "StrictHostKeyChecking=no",
     "-o",
@@ -117,8 +196,12 @@ function sshBaseArgs() {
 }
 
 async function ensureRemoteComfyUp() {
-  // In practice, comfyUp=false means ComfyUI on GPU host is down.
-  // This tries to start it once via SSH, then we establish the local tunnel.
+  const sshBin = findSsh();
+  if (!sshBin) {
+    log("skip remote comfy start — no ssh binary (GPU should already be up)");
+    return false;
+  }
+
   const remote = `
 set +e
 if curl -sf -m 3 http://127.0.0.1:8188/system_stats >/dev/null; then
@@ -127,13 +210,10 @@ if curl -sf -m 3 http://127.0.0.1:8188/system_stats >/dev/null; then
 fi
 
 echo COMFY_DOWN — starting
-cd /work/ComfyUI 2>/dev/null || cd /work 2>/dev/null || true
-
-NOHUP_CMD="/work/ai/venv/bin/python main.py --listen --port 8188 --enable-manager"
-if [ -f /work/ai/venv/bin/python ]; then
-  nohup $NOHUP_CMD >> /work/ComfyUI/user/comfyui_8188.log 2>&1 &
-else
-  nohup python3 main.py --listen --port 8188 --enable-manager >> /work/ComfyUI/user/comfyui_8188.log 2>&1 &
+if [ -x /work/bin/start-comfy.sh ]; then
+  /work/bin/start-comfy.sh >/tmp/start-comfy.out 2>&1 &
+elif [ -f /usr/local/bin/comfy-watchdog.sh ]; then
+  bash /usr/local/bin/comfy-watchdog.sh >/tmp/start-comfy.out 2>&1 &
 fi
 
 for i in $(seq 1 25); do
@@ -148,7 +228,7 @@ echo COMFY_FAIL
 exit 1
 `;
 
-  const r = spawnSync("ssh", [...sshBaseArgs(), remote], {
+  const r = spawnSync(sshBin, [...sshBaseArgs(sshBin), remote], {
     encoding: "utf8",
     timeout: 120_000,
     stdio: ["ignore", "pipe", "pipe"],
@@ -172,8 +252,6 @@ export async function ensureComfyTunnel() {
     return { ok: true, reason: "already_up" };
   }
 
-  // If tunnel-local health fails, also try to bring ComfyUI up on GPU host.
-  // This prevents comfyUp from staying false after a remote restart.
   const key = process.env.METALNODE_SSH_KEY?.trim();
   if (!key) {
     throw new Error(
@@ -195,23 +273,25 @@ export async function ensureComfyTunnel() {
     }
   }
 
-  log(`starting SSH tunnel -> ${HOST}:${SSH_PORT} (local :${LOCAL_PORT})`);
-  startTunnel();
+  log(`starting tunnel -> ${HOST}:${SSH_PORT} (local :${LOCAL_PORT})`);
+  const proc = startTunnel();
+  if (!proc) {
+    return { ok: false, reason: "no_tunnel_backend" };
+  }
 
-  // Fail soft and fast so web/bot can boot; starter retries in background.
-  for (let i = 0; i < 12; i++) {
+  for (let i = 0; i < 20; i++) {
     await new Promise((r) => setTimeout(r, 1000));
     if (await pingComfy()) {
       log("COMFY_OK");
       return { ok: true, reason: "tunnel" };
     }
     if (!tunnelProc || tunnelProc.killed || tunnelProc.exitCode != null) {
-      log("ssh process died early — abort wait");
+      log("tunnel process died early — abort wait");
       break;
     }
   }
 
-  log(`Comfy not reachable at ${COMFY_BASE} after SSH tunnel`);
+  log(`Comfy not reachable at ${COMFY_BASE} after tunnel`);
   return { ok: false, reason: "unreachable" };
 }
 
