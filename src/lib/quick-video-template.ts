@@ -161,8 +161,44 @@ function escapeRegExp(s: string): string {
 }
 
 function identityPersonCountFromRun(characterIds: string[]): number {
+  // Custom Story models use custom:* ids — still one person for the consumer cast.
   const n = characterIds.filter(Boolean).length;
   return Math.max(1, Math.min(4, n || 1));
+}
+
+/** Build detail from a just-created row (always visible to author). */
+function detailFromCreatedRow(
+  row: {
+    id: string;
+    userId: string;
+    title: string;
+    notes: string;
+    category: string;
+    isJuice: boolean;
+    priceCredits: number;
+    identityPersonCount: number;
+    hasLocationSlot: boolean;
+    previewVideoUrl: string;
+    previewPhotoUrl: string;
+    orientation: string;
+    durationSec: number;
+    tgPublished?: boolean;
+    tgDisplayTitle?: string;
+    shotsJson: string;
+    slotBlueprintJson: string;
+    defaultLocationUrl: string;
+    refVideoUrl: string;
+  },
+  viewerUserId: string,
+): QuickVideoTemplateDetail {
+  const pub = toPublic(row, viewerUserId, false);
+  return {
+    ...pub,
+    shotsJson: row.shotsJson,
+    slotBlueprint: parseBlueprint(row.slotBlueprintJson),
+    defaultLocationUrl: row.defaultLocationUrl,
+    refVideoUrl: row.refVideoUrl,
+  };
 }
 
 export function userOwnsTemplate(opts: {
@@ -255,8 +291,12 @@ export async function getQuickVideoTemplateDetail(
   const row = await prisma.quickVideoTemplate.findFirst({
     where: {
       id: templateId,
-      // Same split as photo: TG catalog uses tgPublished; Peach uses published.
-      OR: [{ published: true }, { tgPublished: true }],
+      OR: [
+        { published: true },
+        { tgPublished: true },
+        // Author drafts (e.g. TG-only transfer before tgPublished flip)
+        { userId },
+      ],
     },
   });
   if (!row) return null;
@@ -309,7 +349,22 @@ export async function createQuickVideoTemplateFromRun(opts: {
     "@/lib/story-h3-prompt"
   );
   const qvPlan = parseQuickVideoShotsPlan(run.prompt);
-  const isStory = !qvPlan && isStoryH3RunPrompt(run.prompt);
+  let isStory = !qvPlan && isStoryH3RunPrompt(run.prompt);
+  if (!qvPlan && !isStory && run.galleryItemId) {
+    try {
+      const item = await prisma.galleryItem.findUnique({
+        where: { id: run.galleryItemId },
+        select: { metaJson: true },
+      });
+      const meta = JSON.parse(item?.metaJson || "{}") as {
+        storyH3?: boolean;
+        jobAction?: string;
+      };
+      isStory = meta.storyH3 === true || meta.jobAction === "story_h3_video";
+    } catch {
+      /* ignore */
+    }
+  }
   if (!qvPlan && !isStory) {
     throw new Error("В run нет плана шотов");
   }
@@ -393,11 +448,14 @@ export async function createQuickVideoTemplateFromRun(opts: {
         "",
       orientation: run.orientation,
       durationSec: run.durationSec,
-      previewIdentityKey: characterIds[0] || "",
+      previewIdentityKey: filterDbCharacterIds(characterIds)[0] || "",
     },
   });
 
-  return getQuickVideoTemplateDetail(opts.userId, tpl.id);
+  return (
+    (await getQuickVideoTemplateDetail(opts.userId, tpl.id)) ||
+    detailFromCreatedRow(tpl, opts.userId)
+  );
 }
 
 export async function purchaseQuickVideoTemplate(

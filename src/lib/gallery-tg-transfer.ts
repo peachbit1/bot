@@ -73,13 +73,15 @@ export async function transferGalleryItem(opts: {
       userId: opts.userId,
       sourceRunId: runId,
       title,
-      notes: item.prompt || "",
+      notes: "",
       category: "peach",
       isJuice: false,
       priceCredits: 0,
       published: peachPublished,
     });
-    if (!tpl) throw new Error("Не удалось создать видео-шаблон");
+    if (!tpl?.id) {
+      throw new Error("Не удалось создать видео-шаблон");
+    }
     await publishQuickVideoTemplateToTg(tpl.id, { displayTitle });
     return { kind: "video" as const, templateId: tpl.id, mode: opts.mode };
   }
