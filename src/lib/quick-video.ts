@@ -168,11 +168,32 @@ export async function assembleQuickVideoRefs(opts: {
     .sort((a, b) => a.pictureIndex - b.pictureIndex)
     .slice(0, MAX_QUICK_VIDEO_PICTURES);
 
+  const hasManualIdentity = manuals.some((s) => s.role === "identity");
+  const dbIds = filterDbCharacterIds(characterIds);
+
+  if (dbIds.length && !hasManualIdentity) {
+    const identity = await resolveCharacterIdentityRefs(opts.userId, dbIds);
+    for (const ref of identity) {
+      if (imageBuffers.length >= MAX_TOTAL_IMAGE_REFS) break;
+      const neu = imageBuffers.length + 1;
+      pictureRemap.set(neu, neu);
+      imageBuffers.push(ref.bytes);
+      imageExtensions.push(extFromName(ref.photoName, "png"));
+      imageSlots.push({
+        kind: "identity",
+        role: "identity",
+        characterName: ref.characterName,
+        pictureIndex: neu,
+      });
+    }
+  }
+
   if (manuals.length) {
     for (const slot of manuals) {
       if (imageBuffers.length >= MAX_TOTAL_IMAGE_REFS) break;
       const neu = imageBuffers.length + 1;
-      pictureRemap.set(slot.pictureIndex, neu);
+      const uiIndex = slot.pictureIndex || neu;
+      pictureRemap.set(uiIndex, neu);
       imageBuffers.push(slot.bytes);
       imageExtensions.push(slot.ext || "png");
       imageSlots.push({
@@ -180,37 +201,16 @@ export async function assembleQuickVideoRefs(opts: {
         role: slot.role,
         characterName: slot.characterName,
         label: slot.label,
-        pictureIndex: slot.pictureIndex,
-      });
-    }
-  } else {
-    const identity = await resolveCharacterIdentityRefs(
-      opts.userId,
-      filterDbCharacterIds(characterIds),
-    );
-    const extras = (opts.extraImageBuffers || []).filter((b) => b?.length);
-    const extraLabels = opts.extraLabels || [];
-
-    for (const ref of identity) {
-      if (imageBuffers.length >= MAX_TOTAL_IMAGE_REFS) break;
-      const neu = imageBuffers.length + 1;
-      const uiIndex = neu;
-      pictureRemap.set(uiIndex, neu);
-      imageBuffers.push(ref.bytes);
-      imageExtensions.push(extFromName(ref.photoName, "png"));
-      imageSlots.push({
-        kind: "identity",
-        role: "identity",
-        characterName: ref.characterName,
         pictureIndex: uiIndex,
       });
     }
-
+  } else {
+    const extras = (opts.extraImageBuffers || []).filter((b) => b?.length);
+    const extraLabels = opts.extraLabels || [];
     for (let i = 0; i < extras.length; i++) {
       if (imageBuffers.length >= MAX_TOTAL_IMAGE_REFS) break;
       const neu = imageBuffers.length + 1;
-      const uiIndex = neu;
-      pictureRemap.set(uiIndex, neu);
+      pictureRemap.set(neu, neu);
       imageBuffers.push(extras[i]!);
       imageExtensions.push(opts.extraExtensions?.[i] || "png");
       imageSlots.push({
@@ -227,6 +227,12 @@ export async function assembleQuickVideoRefs(opts: {
       "Нужен хотя бы один референс: заполни слот <Picture 1> или выбери персонажа",
     );
   }
+
+  const withBody = await attachBodyShapeHints(
+    opts.userId,
+    characterIds,
+    imageSlots,
+  );
 
   const ts = Date.now();
   const refImageUrls: string[] = [];
@@ -260,7 +266,7 @@ export async function assembleQuickVideoRefs(opts: {
   return {
     imageBuffers,
     imageExtensions,
-    imageSlots,
+    imageSlots: withBody,
     pictureRemap,
     refVideoBuffer,
     refVideoName,
@@ -268,6 +274,51 @@ export async function assembleQuickVideoRefs(opts: {
     refImageUrls,
     characterIds,
   };
+}
+
+async function attachBodyShapeHints(
+  userId: string,
+  characterIds: string[],
+  imageSlots: QuickVideoImageSlot[],
+): Promise<QuickVideoImageSlot[]> {
+  const dbIds = filterDbCharacterIds(characterIds);
+  if (!dbIds.length) return imageSlots;
+
+  const chars = await prisma.character.findMany({
+    where: { id: { in: dbIds }, userId },
+    select: { id: true, name: true, gender: true, lookbookJson: true },
+  });
+  if (!chars.length) return imageSlots;
+
+  const { bodyShapeAppearanceForPrompt, parseLookbook } = await import(
+    "@/lib/lookbook"
+  );
+
+  const byName = new Map<string, string>();
+  const byOrder: string[] = [];
+  for (const ch of chars) {
+    const g = ch.gender === "male" ? "male" : "female";
+    const hint = bodyShapeAppearanceForPrompt(
+      parseLookbook(ch.lookbookJson, g),
+      g,
+    ).trim();
+    if (!hint) continue;
+    byName.set(ch.name.trim().toLowerCase(), hint);
+    byOrder.push(hint);
+  }
+  if (!byOrder.length) return imageSlots;
+
+  let identityIdx = 0;
+  return imageSlots.map((slot) => {
+    const role = slot.role || (slot.kind === "identity" ? "identity" : "other");
+    if (role !== "identity") return slot;
+    const nameKey = (slot.characterName || "").trim().toLowerCase();
+    const fromName = nameKey ? byName.get(nameKey) : undefined;
+    const hint = fromName || byOrder[Math.min(identityIdx, byOrder.length - 1)];
+    identityIdx += 1;
+    if (!hint) return slot;
+    return { ...slot, bodyShapeHint: hint };
+  });
 }
 
 export async function listQuickVideoRuns(userId: string) {

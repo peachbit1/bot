@@ -66,6 +66,8 @@ export type QuickVideoImageSlot = {
   label?: string;
   /** 1-based Picture index as shown in UI / prompt. */
   pictureIndex?: number;
+  /** Lookbook body/bust/hips clause for Ref2V identity (face stays from photo). */
+  bodyShapeHint?: string;
 };
 
 export const SLOT_ROLE_OPTIONS: Array<{
@@ -273,7 +275,11 @@ export function composeQuickVideoPrompt(
       if (role === "identity") {
         const who =
           slot.characterName?.trim() || slot.label?.trim() || `Subject ${n}`;
-        return `<Picture ${n}> is ${who}'s identity reference (face, body, hair, skin).`;
+        const bodyHint = slot.bodyShapeHint?.trim();
+        const bodyExtra = bodyHint
+          ? ` Body proportions from user settings: ${bodyHint}.`
+          : "";
+        return `<Picture ${n}> is ${who}'s identity reference (face, hair, skin).${bodyExtra}`;
       }
       if (role === "location") {
         const label = slot.label?.trim();
@@ -314,7 +320,11 @@ function buildSubjectDefinitionsBlock(
     if (role === "identity") {
       const who =
         slot.characterName?.trim() || slot.label?.trim() || `Subject ${n}`;
-      return `<Picture ${n}> is ${who}'s identity reference (face, body, hair, skin).`;
+      const bodyHint = slot.bodyShapeHint?.trim();
+      const bodyExtra = bodyHint
+        ? ` Body proportions from user settings: ${bodyHint}.`
+        : "";
+      return `<Picture ${n}> is ${who}'s identity reference (face, hair, skin).${bodyExtra}`;
     }
     if (role === "location") {
       const label = slot.label?.trim();

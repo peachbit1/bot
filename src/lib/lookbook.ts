@@ -195,6 +195,21 @@ const FEMALE_BUST: LookbookField = {
   ],
 };
 
+const FEMALE_HIPS: LookbookField = {
+  id: "hips",
+  label: "Попа / бёдра",
+  allowCustom: true,
+  options: [
+    { id: "flat", label: "Плоская", en: "flat buttocks" },
+    { id: "small", label: "Небольшая", en: "small round buttocks" },
+    { id: "medium", label: "Средняя", en: "medium round buttocks" },
+    { id: "full", label: "Полная", en: "full round buttocks" },
+    { id: "large", label: "Большая", en: "large firm buttocks" },
+    { id: "very_large", label: "Очень большая", en: "very large round buttocks" },
+    { id: "huge", label: "Огромная", en: "huge thick buttocks wide hips" },
+  ],
+};
+
 const FEMALE_GENITAL_HAIR: LookbookField = {
   id: "genital_hair",
   label: "Лобок / вагина",
@@ -305,6 +320,7 @@ export const FEMALE_LOOKBOOK_FIELDS: LookbookField[] = [
   },
   FEMALE_BODY,
   FEMALE_BUST,
+  FEMALE_HIPS,
   FEMALE_GENITAL_HAIR,
   SHARED_SKIN,
   {
@@ -441,6 +457,7 @@ export function suggestedLookbook(gender: Gender, preset?: "olh" | "bald_muscula
     lips: "natural",
     body: "petite_slim",
     bust: "medium",
+    hips: "medium",
     genital_hair: "shaved",
     skin: "light",
     vibe: "natural",
@@ -479,11 +496,29 @@ export function fieldValueToEnglish(field: LookbookField, raw: string | undefine
   return raw.trim();
 }
 
-const INTIMATE_LOOKBOOK_FIELDS = new Set(["bust", "genital_hair", "penis_size"]);
+const INTIMATE_LOOKBOOK_FIELDS = new Set([
+  "bust",
+  "hips",
+  "genital_hair",
+  "penis_size",
+]);
+
+/** Body shape fields injected into Ref2V / Story H3 identity (face stays from photos). */
+export const VIDEO_BODY_LOOKBOOK_FIELD_IDS: Record<Gender, Set<string>> = {
+  female: new Set(["body", "bust", "hips"]),
+  male: new Set(["body", "chest"]),
+};
 
 /** Back-view identity pack: body + hair only (no face traits — they pull camera to frontal). */
 export const BACK_VIEW_LOOKBOOK_FIELD_IDS: Record<Gender, Set<string>> = {
-  female: new Set(["hair_length", "hair_color", "hair_style", "body", "skin"]),
+  female: new Set([
+    "hair_length",
+    "hair_color",
+    "hair_style",
+    "body",
+    "hips",
+    "skin",
+  ]),
   male: new Set(["hair_length", "hair_color", "body", "skin"]),
 };
 
@@ -536,6 +571,24 @@ export function characterAppearanceForPrompt(
     onlyFieldIds: opts?.onlyFieldIds,
     forceFieldIds: opts?.forceFieldIds,
   });
+}
+
+/**
+ * Short body-shape clause for video Ref2V (no "adult woman" prefix).
+ * Face/hair stay from photos; this only steers proportions.
+ */
+export function bodyShapeAppearanceForPrompt(
+  values: LookbookValues,
+  gender: Gender = "female",
+): string {
+  const ids = VIDEO_BODY_LOOKBOOK_FIELD_IDS[gender];
+  const parts: string[] = [];
+  for (const field of fieldsForGender(gender)) {
+    if (!ids.has(field.id)) continue;
+    const en = fieldValueToEnglish(field, values[field.id]);
+    if (en) parts.push(en);
+  }
+  return parts.join(", ");
 }
 
 /** Select value for UI: known option id, or "__custom__" when free-text. */

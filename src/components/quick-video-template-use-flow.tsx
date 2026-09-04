@@ -9,6 +9,7 @@ import {
   type QuickVideoTemplateDetail,
 } from "@/lib/quick-video-template";
 import { requestVideoTemplateApply } from "@/lib/generation-restore";
+import { parseStoryH3Template } from "@/lib/story-h3-prompt";
 
 type Char = { id: string; name: string };
 
@@ -43,7 +44,14 @@ export function QuickVideoTemplateUseFlow({
         const res = await fetch(`/api/peach/quick-video/templates/${templateId}`);
         const data = await res.json();
         if (!res.ok) throw new Error(String(data.error || "ошибка"));
-        if (!cancelled) setDetail(data.template as QuickVideoTemplateDetail);
+        const tpl = data.template as QuickVideoTemplateDetail;
+        if (parseStoryH3Template(tpl.shotsJson || "")) {
+          if (!cancelled) {
+            router.replace(`/peach/story-video?storyTemplate=${templateId}`);
+          }
+          return;
+        }
+        if (!cancelled) setDetail(tpl);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : "error");
       } finally {
@@ -53,7 +61,7 @@ export function QuickVideoTemplateUseFlow({
     return () => {
       cancelled = true;
     };
-  }, [templateId]);
+  }, [templateId, router]);
 
   async function purchaseAndContinue() {
     if (!templateId) return;

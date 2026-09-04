@@ -3,8 +3,10 @@ import type { PeachPhotoTemplateApplyPayload } from "@/lib/peach-photo-template-
 import type { QuickVideoTemplateApplyPayload } from "@/lib/quick-video-template-shared";
 
 const PHOTO_KEY = "peach-restore-photo";
+const STORY_VIDEO_KEY = "peach-restore-story-video";
 
 export const PEACH_VIDEO_RESTORE_EVENT = "peach-video-restore";
+export const PEACH_STORY_VIDEO_RESTORE_EVENT = "peach-story-video-restore";
 export const PEACH_VIDEO_TEMPLATE_APPLY_EVENT = "peach-video-template-apply";
 export const PEACH_PHOTO_TEMPLATE_APPLY_EVENT = "peach-photo-template-apply";
 
@@ -49,6 +51,25 @@ export type VideoRestorePayload = {
   refSlots?: QuickVideoImageSlot[];
 };
 
+export type StoryVideoRestorePayload = {
+  runId?: string;
+  title?: string;
+  prompt?: string;
+  characterIds?: string[];
+  orientation?: string;
+  durationSec?: number;
+  refImageUrls?: string[];
+  refVideoUrl?: string;
+  refSlots?: QuickVideoImageSlot[];
+};
+
+export function isStoryH3Meta(meta?: Record<string, unknown> | null): boolean {
+  if (!meta) return false;
+  if (meta.storyH3 === true) return true;
+  if (meta.jobAction === "story_h3_video") return true;
+  return false;
+}
+
 export function savePhotoRestore(payload: PhotoRestorePayload) {
   sessionStorage.setItem(PHOTO_KEY, JSON.stringify(payload));
 }
@@ -59,6 +80,21 @@ export function loadPhotoRestore(): PhotoRestorePayload | null {
     if (!raw) return null;
     sessionStorage.removeItem(PHOTO_KEY);
     return JSON.parse(raw) as PhotoRestorePayload;
+  } catch {
+    return null;
+  }
+}
+
+export function saveStoryVideoRestore(payload: StoryVideoRestorePayload) {
+  sessionStorage.setItem(STORY_VIDEO_KEY, JSON.stringify(payload));
+}
+
+export function loadStoryVideoRestore(): StoryVideoRestorePayload | null {
+  try {
+    const raw = sessionStorage.getItem(STORY_VIDEO_KEY);
+    if (!raw) return null;
+    sessionStorage.removeItem(STORY_VIDEO_KEY);
+    return JSON.parse(raw) as StoryVideoRestorePayload;
   } catch {
     return null;
   }
@@ -97,11 +133,53 @@ export function buildVideoRestorePayload(opts: {
   };
 }
 
+export function buildStoryVideoRestorePayload(opts: {
+  title?: string;
+  prompt?: string;
+  meta?: Record<string, unknown>;
+}): StoryVideoRestorePayload {
+  const meta = opts.meta || {};
+  const runId =
+    typeof meta.quickVideoRunId === "string" ? meta.quickVideoRunId : undefined;
+  const shotsJson =
+    typeof meta.shotsJson === "string" ? meta.shotsJson : undefined;
+  // Story runs store raw H3 in prompt / shotsJson (not __qvShots).
+  const prompt =
+    (shotsJson && !shotsJson.trim().startsWith('{"__qvShots"')
+      ? shotsJson
+      : undefined) ||
+    opts.prompt ||
+    undefined;
+
+  return {
+    runId,
+    title: opts.title,
+    prompt,
+    characterIds: meta.characterIds as string[] | undefined,
+    orientation: meta.orientation as string | undefined,
+    durationSec:
+      typeof meta.durationSec === "number" ? meta.durationSec : undefined,
+    refImageUrls: meta.refImageUrls as string[] | undefined,
+    refVideoUrl:
+      typeof meta.refVideoUrl === "string" ? meta.refVideoUrl : undefined,
+    refSlots: meta.refSlots as QuickVideoImageSlot[] | undefined,
+  };
+}
+
 /** Immediate restore while Quick Video editor is already mounted (no sessionStorage). */
 export function requestVideoRestore(payload: VideoRestorePayload) {
   if (typeof window === "undefined") return;
   window.dispatchEvent(
     new CustomEvent<VideoRestorePayload>(PEACH_VIDEO_RESTORE_EVENT, {
+      detail: payload,
+    }),
+  );
+}
+
+export function requestStoryVideoRestore(payload: StoryVideoRestorePayload) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(
+    new CustomEvent<StoryVideoRestorePayload>(PEACH_STORY_VIDEO_RESTORE_EVENT, {
       detail: payload,
     }),
   );

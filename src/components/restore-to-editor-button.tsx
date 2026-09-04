@@ -3,9 +3,13 @@
 import { useRouter } from "next/navigation";
 import type { TodayItem } from "@/components/today-generations-strip";
 import {
+  buildStoryVideoRestorePayload,
   buildVideoRestorePayload,
+  isStoryH3Meta,
+  requestStoryVideoRestore,
   requestVideoRestore,
   savePhotoRestore,
+  saveStoryVideoRestore,
 } from "@/lib/generation-restore";
 
 export function RestoreToEditorButton({
@@ -28,6 +32,18 @@ export function RestoreToEditorButton({
         orientationId: String(meta.orientationId || "9_16"),
       });
       router.push("/peach/photo");
+      return;
+    }
+
+    if (isStoryH3Meta(meta)) {
+      const payload = buildStoryVideoRestorePayload({
+        title: item.title || "",
+        prompt: item.prompt || item.title || "",
+        meta,
+      });
+      saveStoryVideoRestore(payload);
+      requestStoryVideoRestore(payload);
+      router.push("/peach/story-video");
       return;
     }
 

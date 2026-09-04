@@ -23,6 +23,59 @@ const SECTION_KEYS = [
   "non_diegetic_music",
 ] as const;
 
+export type StoryH3TemplateStored = {
+  __storyH3: 1;
+  prompt: string;
+  totalDurationSec: number;
+};
+
+export function serializeStoryH3Template(opts: {
+  prompt: string;
+  totalDurationSec: number;
+}): string {
+  return JSON.stringify({
+    __storyH3: 1,
+    prompt: opts.prompt.trim(),
+    totalDurationSec: Math.min(
+      12,
+      Math.max(4, Math.floor(opts.totalDurationSec) || 8),
+    ),
+  } satisfies StoryH3TemplateStored);
+}
+
+export function parseStoryH3Template(
+  raw: string,
+): StoryH3TemplateStored | null {
+  const text = raw.trim();
+  if (!text.startsWith('{"__storyH3"')) return null;
+  try {
+    const j = JSON.parse(text) as Partial<StoryH3TemplateStored>;
+    if (j.__storyH3 !== 1 || typeof j.prompt !== "string") return null;
+    const prompt = j.prompt.trim();
+    if (prompt.length < 40) return null;
+    return {
+      __storyH3: 1,
+      prompt,
+      totalDurationSec: Math.min(
+        12,
+        Math.max(4, Math.floor(Number(j.totalDurationSec)) || 8),
+      ),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** True when run.prompt is a Story H3 dump (not LEGO shots JSON). */
+export function isStoryH3RunPrompt(prompt: string): boolean {
+  const text = prompt.trim();
+  if (!text) return false;
+  if (parseStoryH3Template(text)) return true;
+  if (text.startsWith('{"__qvShots"')) return false;
+  if (text.startsWith("{")) return false;
+  return storyH3LooksStructured(text) || text.length >= 80;
+}
+
 function splitH3Sections(raw: string): Record<string, string> {
   const text = raw.replace(/\r\n/g, "\n").trim();
   const out: Record<string, string> = {};
@@ -46,6 +99,12 @@ function splitH3Sections(raw: string): Record<string, string> {
   return out;
 }
 
+function bodyClause(slot: QuickVideoImageSlot): string {
+  const hint = slot.bodyShapeHint?.trim();
+  if (!hint) return "";
+  return ` Body proportions from user settings (apply consistently; do not invent different proportions): ${hint}.`;
+}
+
 function buildSlotDefinitions(
   imageSlots: QuickVideoImageSlot[],
   remap?: Map<number, number>,
@@ -56,7 +115,7 @@ function buildSlotDefinitions(
     if (role === "identity") {
       const who =
         slot.characterName?.trim() || slot.label?.trim() || `Subject ${n}`;
-      return `<Picture ${n}> is ${who}'s identity reference (face, body, hair, skin). Preserve recognizable facial identity, body proportions, hair, and skin from this picture. Do not invent a different appearance.`;
+      return `<Picture ${n}> is ${who}'s identity reference (face, hair, skin). Preserve recognizable facial identity, hair, and skin from this picture.${bodyClause(slot)} Do not invent a different face.`;
     }
     if (role === "location") {
       const label = slot.label?.trim();
@@ -67,12 +126,21 @@ function buildSlotDefinitions(
   });
 }
 
-function patchRetentionForIdentity(retention: string): string {
+function patchRetentionForIdentity(
+  retention: string,
+  bodyHints: string[],
+): string {
   const base = retention.trim();
+  const bodyExtra = bodyHints.length
+    ? ` Body shape lock: ${bodyHints.join("; ")}.`
+    : "";
   const identityLine =
-    "<Picture 1> / identity subject (throughout): fully_preserved — facial identity, hairstyle, body proportions, age cues, and skin from the identity reference pictures remain recognizable and stable.";
+    `<Picture 1> / identity subject (throughout): fully_preserved — facial identity, hairstyle, age cues, and skin from the identity reference pictures remain recognizable and stable.${bodyExtra}`;
   if (!base) return identityLine;
   if (/fully_preserved/i.test(base) && /identity|Picture\s*1|Subject\s*1/i.test(base)) {
+    if (bodyHints.length && !/Body shape lock/i.test(base)) {
+      return `${base}\nBody shape lock: ${bodyHints.join("; ")}.`;
+    }
     return base;
   }
   return `${identityLine}\n${base}`;
@@ -94,6 +162,14 @@ export function prepareStoryH3Prompt(
 
   const sections = splitH3Sections(raw);
   const defs = buildSlotDefinitions(imageSlots, opts?.pictureRemap);
+  const bodyHints = [
+    ...new Set(
+      imageSlots
+        .filter((s) => slotRoleOf(s) === "identity")
+        .map((s) => s.bodyShapeHint?.trim())
+        .filter(Boolean) as string[],
+    ),
+  ];
 
   const parts: string[] = [];
 
@@ -115,14 +191,12 @@ export function prepareStoryH3Prompt(
   parts.push(`summary:\n${summary}`);
 
   parts.push(
-    `retention_analysis:\n${patchRetentionForIdentity(sections.retention_analysis || "")}`,
+    `retention_analysis:\n${patchRetentionForIdentity(sections.retention_analysis || "", bodyHints)}`,
   );
 
   const detailed =
     sections.detailed_description?.trim() ||
-    (sections.subject_definitions || sections.summary
-      ? ""
-      : raw);
+    (sections.subject_definitions || sections.summary ? "" : raw);
   if (detailed) {
     parts.push(`detailed_description:\n${detailed}`);
   }

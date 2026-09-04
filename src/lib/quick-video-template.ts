@@ -18,6 +18,8 @@ export type TemplateSlotBlueprint = {
   label?: string;
   /** Baked into template (location default, anatomy, pose, …). */
   bakedRefUrl?: string;
+  /** Original 1-based Picture index from the source run (Story H3 / Ref2V). */
+  pictureIndex?: number;
 };
 
 export type PublicQuickVideoTemplate = {
@@ -75,11 +77,13 @@ function buildBlueprintFromRun(
     const slot = refSlots[i]!;
     const role = slotRoleOf(slot);
     const url = refImageUrls[i] || "";
+    const pictureIndex = slot.pictureIndex ?? i + 1;
     if (role === "identity") {
       // Never bake author name/face into the template — consumer supplies cast.
       blueprint.push({
         role: "identity",
         label: "Subject",
+        pictureIndex,
       });
       continue;
     }
@@ -87,6 +91,7 @@ function buildBlueprintFromRun(
       role,
       label: slot.label,
       bakedRefUrl: url || undefined,
+      pictureIndex,
     });
   }
   return blueprint;
@@ -299,7 +304,13 @@ export async function createQuickVideoTemplateFromRun(opts: {
   if (run.status !== "ready") {
     throw new Error("Сохраняй шаблон только после успешной генерации");
   }
-  if (!parseQuickVideoShotsPlan(run.prompt)) {
+
+  const { isStoryH3RunPrompt, serializeStoryH3Template } = await import(
+    "@/lib/story-h3-prompt"
+  );
+  const qvPlan = parseQuickVideoShotsPlan(run.prompt);
+  const isStory = !qvPlan && isStoryH3RunPrompt(run.prompt);
+  if (!qvPlan && !isStory) {
     throw new Error("В run нет плана шотов");
   }
 
@@ -330,7 +341,12 @@ export async function createQuickVideoTemplateFromRun(opts: {
       })
     : [];
   const authorNames = authorNamesFromRun(authorChars, refSlots);
-  const shotsJson = sanitizeShotsJsonForTemplate(run.prompt, authorNames);
+  const shotsJson = isStory
+    ? serializeStoryH3Template({
+        prompt: run.prompt,
+        totalDurationSec: run.durationSec,
+      })
+    : sanitizeShotsJsonForTemplate(run.prompt, authorNames);
 
   const blueprint = buildBlueprintFromRun(refSlots, refImageUrls);
   const locationSlot = blueprint.find((s) => s.role === "location");

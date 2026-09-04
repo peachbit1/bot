@@ -1,10 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { TodayGenerationsStrip } from "@/components/today-generations-strip";
 import { OrientationSelect } from "@/components/orientation-select";
 import type { VideoOrientationId } from "@/lib/video-orientation";
 import type { QuickVideoSlotRole } from "@/lib/quick-video-prompt";
+import {
+  loadStoryVideoRestore,
+  PEACH_STORY_VIDEO_RESTORE_EVENT,
+  type StoryVideoRestorePayload,
+} from "@/lib/generation-restore";
+import { parseStoryH3Template } from "@/lib/story-h3-prompt";
+import { CharacterBodySettingsPanel } from "@/components/character-body-settings-panel";
 
 type Char = { id: string; name: string };
 
@@ -37,6 +44,16 @@ async function readJson(res: Response) {
     return JSON.parse(raw) as Record<string, unknown>;
   } catch {
     throw new Error(`Сервер вернул не JSON (${res.status})`);
+  }
+}
+
+async function blobFromUrl(url: string): Promise<Blob | null> {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    return await res.blob();
+  } catch {
+    return null;
   }
 }
 
@@ -87,6 +104,7 @@ export function StoryVideoLabClient({ characters }: { characters: Char[] }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [warning, setWarning] = useState("");
+  const [restoreMsg, setRestoreMsg] = useState("");
   const [stripRefresh, setStripRefresh] = useState(0);
   const [briefCopied, setBriefCopied] = useState(false);
 
@@ -96,10 +114,196 @@ export function StoryVideoLabClient({ characters }: { characters: Char[] }) {
     [promptLen, characterId, slots],
   );
 
+  const applyRestore = useCallback(
+    async (payload: StoryVideoRestorePayload) => {
+      let nextPrompt = payload.prompt || "";
+      let nextTitle = payload.title || "";
+      let nextOrientation = (payload.orientation || "9_16") as VideoOrientationId;
+      let nextDuration = payload.durationSec || 8;
+      let nextCharacterIds = payload.characterIds || [];
+      let refSlots = payload.refSlots || [];
+      let refImageUrls = payload.refImageUrls || [];
+      let refVideoUrl = payload.refVideoUrl || "";
+
+      if (payload.runId) {
+        try {
+          const d = await fetch("/api/peach/quick-video/runs").then((r) => r.json());
+          const run = ((d.runs as Array<Record<string, unknown>>) || []).find(
+            (x) => x.id === payload.runId,
+          );
+          if (run) {
+            nextTitle = String(run.title || nextTitle);
+            // run.prompt is raw H3 for story; composedPrompt is rebuilt
+            nextPrompt = String(run.prompt || nextPrompt);
+            nextOrientation = (String(run.orientation || nextOrientation) ||
+              "9_16") as VideoOrientationId;
+            nextDuration = Number(run.durationSec) || nextDuration;
+            nextCharacterIds = (run.characterIds as string[]) || nextCharacterIds;
+            refSlots = (run.refSlots as typeof refSlots) || refSlots;
+            refImageUrls = (run.refImageUrls as string[]) || refImageUrls;
+            refVideoUrl = String(run.refVideoUrl || refVideoUrl);
+          }
+        } catch {
+          /* keep payload */
+        }
+      }
+
+      // If prompt came as stored template wrapper
+      const wrapped = parseStoryH3Template(nextPrompt);
+      if (wrapped) {
+        nextPrompt = wrapped.prompt;
+        nextDuration = wrapped.totalDurationSec || nextDuration;
+      }
+
+      if (nextTitle) setTitle(nextTitle);
+      if (nextPrompt) setPrompt(nextPrompt);
+      setOrientation(nextOrientation);
+      setDurationSec(Math.min(12, Math.max(4, nextDuration)));
+      if (nextCharacterIds[0]) setCharacterId(nextCharacterIds[0]);
+
+      // Restore non-identity baked slots as files; identity comes from character pick.
+      if (refSlots.length && refImageUrls.length) {
+        const next = defaultSlots();
+        for (let i = 0; i < Math.min(refSlots.length, next.length); i++) {
+          const slot = refSlots[i]!;
+          const role = (slot.role ||
+            (slot.kind === "identity" ? "identity" : "other")) as QuickVideoSlotRole;
+          next[i] = {
+            file: null,
+            role,
+            label: slot.label || "",
+          };
+          if (role === "identity") continue;
+          const url = refImageUrls[i];
+          if (!url) continue;
+          const blob = await blobFromUrl(url);
+          if (!blob) continue;
+          next[i]!.file = new File([blob], `ref-${i + 1}.png`, {
+            type: blob.type || "image/png",
+          });
+        }
+        setSlots(next);
+      }
+
+      if (refVideoUrl) {
+        const blob = await blobFromUrl(refVideoUrl);
+        if (blob) {
+          setPoseVideo(
+            new File([blob], "pose.mp4", { type: blob.type || "video/mp4" }),
+          );
+        }
+      }
+
+      setRestoreMsg(
+        "Настройки Story H3 загружены — смени персонажа/модель и запусти снова",
+      );
+      setError("");
+      setWarning("");
+    },
+    [],
+  );
+
+  useEffect(() => {
+    const pending = loadStoryVideoRestore();
+    if (pending) {
+      void applyRestore(pending).catch(() =>
+        setError("Не удалось загрузить настройки Story H3"),
+      );
+    }
+
+    const onRestore = (event: Event) => {
+      const payload = (event as CustomEvent<StoryVideoRestorePayload>).detail;
+      if (!payload) return;
+      void applyRestore(payload).catch(() =>
+        setError("Не удалось загрузить настройки Story H3"),
+      );
+    };
+    window.addEventListener(PEACH_STORY_VIDEO_RESTORE_EVENT, onRestore);
+
+    // Apply story template from ?storyTemplate= / qvTemplate redirect
+    const params = new URLSearchParams(window.location.search);
+    const storyTemplateId =
+      params.get("storyTemplate") || params.get("qvTemplate");
+    if (storyTemplateId) {
+      void (async () => {
+        try {
+          const res = await fetch(
+            `/api/peach/quick-video/templates/${storyTemplateId}`,
+          );
+          const data = await readJson(res);
+          if (!res.ok) throw new Error(String(data.error || "ошибка"));
+          const tpl = data.template as {
+            title?: string;
+            shotsJson?: string;
+            orientation?: string;
+            durationSec?: number;
+            refVideoUrl?: string;
+            slotBlueprint?: Array<{
+              role: QuickVideoSlotRole;
+              label?: string;
+              bakedRefUrl?: string;
+              pictureIndex?: number;
+            }>;
+          };
+          const story = parseStoryH3Template(String(tpl.shotsJson || ""));
+          if (!story) {
+            setError("Это не Story H3 шаблон — открой его в Быстром видео");
+            return;
+          }
+          const next = defaultSlots();
+          for (const bp of tpl.slotBlueprint || []) {
+            if (bp.role === "identity") continue;
+            if (!bp.bakedRefUrl) continue;
+            const idx = Math.min(
+              5,
+              Math.max(0, (bp.pictureIndex || 4) - 1),
+            );
+            const blob = await blobFromUrl(bp.bakedRefUrl);
+            if (!blob) continue;
+            next[idx] = {
+              file: new File([blob], `slot-${idx + 1}.png`, {
+                type: blob.type || "image/png",
+              }),
+              role: bp.role,
+              label: bp.label || "",
+            };
+          }
+          setSlots(next);
+          setTitle(tpl.title || "Story H3");
+          setPrompt(story.prompt);
+          setOrientation((tpl.orientation || "9_16") as VideoOrientationId);
+          setDurationSec(story.totalDurationSec || tpl.durationSec || 8);
+          if (tpl.refVideoUrl) {
+            const blob = await blobFromUrl(tpl.refVideoUrl);
+            if (blob) {
+              setPoseVideo(
+                new File([blob], "pose.mp4", {
+                  type: blob.type || "video/mp4",
+                }),
+              );
+            }
+          }
+          setRestoreMsg("Story-шаблон загружен — выбери персонажа и генерируй");
+          const u = new URL(window.location.href);
+          u.searchParams.delete("storyTemplate");
+          u.searchParams.delete("qvTemplate");
+          window.history.replaceState({}, "", u.pathname + u.search);
+        } catch (e) {
+          setError(e instanceof Error ? e.message : "error");
+        }
+      })();
+    }
+
+    return () => {
+      window.removeEventListener(PEACH_STORY_VIDEO_RESTORE_EVENT, onRestore);
+    };
+  }, [applyRestore]);
+
   async function onGenerate() {
     setBusy(true);
     setError("");
     setWarning("");
+    setRestoreMsg("");
     try {
       const fd = new FormData();
       if (title.trim()) fd.set("title", title.trim());
@@ -219,21 +423,11 @@ export function StoryVideoLabClient({ characters }: { characters: Char[] }) {
         </div>
 
         <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-zinc-950/60 p-4">
-          <label className="text-xs text-zinc-400">
-            Персонаж (identity Photos 1–3 из датасета)
-            <select
-              value={characterId}
-              onChange={(e) => setCharacterId(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-zinc-100"
-            >
-              <option value="">— не выбран —</option>
-              {characters.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          <CharacterBodySettingsPanel
+            characters={characters}
+            characterId={characterId}
+            onCharacterIdChange={setCharacterId}
+          />
 
           <div>
             <div className="text-xs font-medium text-zinc-300">Доп. Picture-слоты</div>
@@ -289,6 +483,9 @@ export function StoryVideoLabClient({ characters }: { characters: Char[] }) {
             />
           </label>
 
+          {restoreMsg ? (
+            <p className="text-sm text-emerald-400/90">{restoreMsg}</p>
+          ) : null}
           {error ? <p className="text-sm text-red-400">{error}</p> : null}
           {warning ? <p className="text-sm text-amber-300/90">{warning}</p> : null}
 

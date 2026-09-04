@@ -133,7 +133,9 @@ export async function startTgVideoGeneration(opts: {
   }
 
   let shotsPlan = parseQuickVideoShotsPlan(detail.shotsJson);
-  if (!shotsPlan) throw new Error("Битый шаблон (shots)");
+  const { parseStoryH3Template } = await import("@/lib/story-h3-prompt");
+  const storyTpl = !shotsPlan ? parseStoryH3Template(detail.shotsJson) : null;
+  if (!shotsPlan && !storyTpl) throw new Error("Битый шаблон (shots)");
 
   const cast = await prisma.character.findFirst({
     where: { id: opts.characterId },
@@ -153,29 +155,43 @@ export async function startTgVideoGeneration(opts: {
     ...authorCasts.map((c) => c.name),
     ...detail.slotBlueprint.map((s) => s.label || ""),
   ];
-  const { bindQuickVideoShotsToCharacter } = await import(
-    "@/lib/quick-video-template"
-  );
-  const boundJson = bindQuickVideoShotsToCharacter(
-    detail.shotsJson,
-    cast?.name || "Subject",
-    foreignNames,
-  );
-  shotsPlan = parseQuickVideoShotsPlan(boundJson) || shotsPlan;
 
-  if (opts.speechLine?.trim()) {
-    shotsPlan = injectSpeech(shotsPlan, opts.speechLine);
+  if (shotsPlan) {
+    const { bindQuickVideoShotsToCharacter } = await import(
+      "@/lib/quick-video-template"
+    );
+    const boundJson = bindQuickVideoShotsToCharacter(
+      detail.shotsJson,
+      cast?.name || "Subject",
+      foreignNames,
+    );
+    shotsPlan = parseQuickVideoShotsPlan(boundJson) || shotsPlan;
+
+    if (opts.speechLine?.trim()) {
+      shotsPlan = injectSpeech(shotsPlan, opts.speechLine);
+    }
   }
 
   const manualSlots: ManualPictureSlotInput[] = [];
-  let pictureIndex = 1;
+  let fallbackPi =
+    Math.max(
+      1,
+      detail.identityPersonCount,
+      ...detail.slotBlueprint
+        .filter((s) => s.role === "identity")
+        .map((s) => s.pictureIndex || 0),
+    ) + 1;
   for (const slot of detail.slotBlueprint) {
     if (slot.role === "identity") continue;
     if (!slot.bakedRefUrl) continue;
     const bytes = localBytesFromResultUrl(slot.bakedRefUrl);
     if (!bytes?.length) continue;
+    const pictureIndex =
+      typeof slot.pictureIndex === "number" && slot.pictureIndex >= 1
+        ? slot.pictureIndex
+        : fallbackPi++;
     manualSlots.push({
-      pictureIndex: pictureIndex++,
+      pictureIndex,
       role: slot.role,
       label: slot.label,
       bytes,
@@ -207,12 +223,14 @@ export async function startTgVideoGeneration(opts: {
   const run = await startQuickVideoRun({
     userId: opts.userId,
     title: detail.title,
-    shotsPlan,
+    shotsPlan: shotsPlan || undefined,
+    prompt: storyTpl?.prompt,
+    storyH3: Boolean(storyTpl),
     characterIds: [opts.characterId],
     manualSlots: manualSlots.length ? manualSlots : undefined,
     poseVideoBuffer,
     orientation: detail.orientation,
-    durationSec: detail.durationSec,
+    durationSec: storyTpl?.totalDurationSec || detail.durationSec,
   });
 
   const linked = await prisma.quickVideoRun.findFirst({

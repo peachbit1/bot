@@ -7,6 +7,8 @@ export type TemplateSlotBlueprint = {
   label?: string;
   /** Baked into template (location default, anatomy, pose, …). */
   bakedRefUrl?: string;
+  /** Original 1-based Picture index from the source run (Story H3 / Ref2V). */
+  pictureIndex?: number;
 };
 
 export type PublicQuickVideoTemplate = {
