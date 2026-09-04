@@ -8,7 +8,7 @@ import {
 } from "@/lib/tg/tg-catalog";
 import { normalizeLocale, type TgLocale } from "@/lib/tg/i18n";
 import { seedPreviewForPhoto, seedPreviewForVideo } from "@/lib/tg/tg-catalog-seed";
-import { isSafeVideoTemplateThumb } from "@/lib/quick-video-template-preview";
+import { isSafeVideoTemplateThumb } from "@/lib/quick-video-preview-safe";
 
 function videoTitle(
   row: { title: string; titleEn?: string },

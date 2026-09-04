@@ -10,7 +10,7 @@ import {
 } from "@/lib/quick-video-prompt";
 import { filterDbCharacterIds } from "@/lib/quick-video-custom-character";
 import { sanitizeVideoLegoQuery } from "@/lib/template-scene";
-import { isSafeVideoTemplateThumb } from "@/lib/quick-video-template-preview";
+import { isSafeVideoTemplateThumb } from "@/lib/quick-video-preview-safe";
 
 export type TemplateCategory = "peach" | "bitch";
 

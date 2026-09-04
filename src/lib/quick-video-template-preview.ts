@@ -4,25 +4,15 @@ import { prisma } from "@/lib/db";
 import { extractFrameAtSec } from "@/lib/ffmpeg-stitch";
 import { localPathFromResultUrl, saveGalleryBinary } from "@/lib/local-store";
 import { galleryRoot } from "@/lib/paths";
+import {
+  TEMPLATE_PREVIEW_PREFIX,
+  isSafeVideoTemplateThumb,
+} from "@/lib/quick-video-preview-safe";
 
-/** Marker in saved thumb filenames — only these may be shown to TG users. */
-export const TEMPLATE_PREVIEW_PREFIX = "qv_tpl_thumb";
-
-/** True only for thumbs we extracted from the result video (never refs). */
-export function isSafeVideoTemplateThumb(url: string | null | undefined): boolean {
-  const u = (url || "").trim();
-  if (!u) return false;
-  // Fresh gallery thumbs from extractFrameAtSec
-  if (u.includes(TEMPLATE_PREVIEW_PREFIX)) return true;
-  // Catalog copies produced after scrub: qv-{id}-frame-thumb
-  if (/\/(?:api\/media\/)?tg-catalog\/qv-[^/]+-frame-thumb\./i.test(u)) {
-    return true;
-  }
-  if (/\/tg\/catalog\/qv-[^/]+-frame-thumb\./i.test(u)) return true;
-  // Stock seed assets only (not user reference stills)
-  if (/\/tg\/catalog\/video-\d+-thumb\./i.test(u)) return true;
-  return false;
-}
+export {
+  TEMPLATE_PREVIEW_PREFIX,
+  isSafeVideoTemplateThumb,
+} from "@/lib/quick-video-preview-safe";
 
 export function resolveVideoLocalPath(resultUrl: string): string | null {
   const fromApi = localPathFromResultUrl(resultUrl);
@@ -91,10 +81,7 @@ export async function ensureTemplatePreviewPhoto(
       : "";
   }
 
-  if (
-    !opts?.force &&
-    isSafeVideoTemplateThumb(row.previewPhotoUrl)
-  ) {
+  if (!opts?.force && isSafeVideoTemplateThumb(row.previewPhotoUrl)) {
     return row.previewPhotoUrl;
   }
 
@@ -103,7 +90,6 @@ export async function ensureTemplatePreviewPhoto(
     row.previewVideoUrl,
     opts?.atSec ?? 1,
   );
-  // Never keep an unsafe ref still if frame extract failed.
   const next = previewPhotoUrl || "";
   if (next !== row.previewPhotoUrl) {
     await prisma.quickVideoTemplate.update({

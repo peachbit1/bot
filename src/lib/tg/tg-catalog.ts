@@ -15,7 +15,7 @@ import {
 } from "@/lib/quick-video-template";
 import { TG_VIDEO_PEACHES } from "@/lib/tg-pricing";
 import { tgTemplateDisplayTitle } from "@/lib/tg/tg-publish";
-import { isSafeVideoTemplateThumb } from "@/lib/quick-video-template-preview";
+import { isSafeVideoTemplateThumb } from "@/lib/quick-video-preview-safe";
 import {
   TG_FEATURED_PHOTO_TITLES,
   TG_FEATURED_VIDEO_TITLES,
