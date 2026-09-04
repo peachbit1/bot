@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { TgShell, useTgMiniApp } from "@/lib/tg/miniapp/client";
+import { TgCharacterBodyEditor } from "@/lib/tg/miniapp/character-body-editor";
 
 type CharTab = "showcase" | "personal" | "favorites";
 
@@ -19,6 +20,8 @@ const UI = {
     photo: "Фото",
     video: "Видео",
     create: "+ Создать персонажа",
+    trainHint:
+      "Обучение LoRA: создай персонажа → 5+ фото в боте → старт тренировки. Статус «Обучение…» обновится здесь после готовности.",
     favAdd: "В избранное",
     favRemove: "Убрать из избранного",
   },
@@ -34,6 +37,8 @@ const UI = {
     photo: "Photo",
     video: "Video",
     create: "+ Create character",
+    trainHint:
+      "LoRA training: create a character → 5+ photos in the bot → start train. «Training…» updates here when ready.",
     favAdd: "Add to favorites",
     favRemove: "Remove from favorites",
   },
@@ -52,6 +57,7 @@ function CharacterCard({
   videoLabel,
   starAdd,
   starRemove,
+  bodySlot,
 }: {
   name: string;
   coverUrl?: string | null;
@@ -65,6 +71,7 @@ function CharacterCard({
   videoLabel: string;
   starAdd: string;
   starRemove: string;
+  bodySlot?: ReactNode;
 }) {
   return (
     <div className="tg-portrait-card tg-portrait-card--static">
@@ -101,6 +108,7 @@ function CharacterCard({
           🎥 {videoLabel}
         </button>
       </div>
+      {bodySlot}
     </div>
   );
 }
@@ -213,6 +221,7 @@ export default function TgCharactersPage() {
       {tab === "personal" && (
         <div className="tg-section">
           <p className="tg-muted tg-section-hint">{u.personalHint}</p>
+          <p className="tg-muted tg-section-hint">{u.trainHint}</p>
           <div className="tg-portrait-grid">
             {personal.length === 0 && training.length === 0 && (
               <p className="tg-muted tg-empty-grid">{u.emptyPersonal}</p>
@@ -237,6 +246,14 @@ export default function TgCharactersPage() {
                     `/tg/video?characterId=${encodeURIComponent(c.id)}`,
                   )
                 }
+                bodySlot={
+                  <TgCharacterBodyEditor
+                    characterId={c.id}
+                    characterName={c.name}
+                    locale={locale}
+                    apiFetch={apiFetch}
+                  />
+                }
               />
             ))}
             {training.map((c) => (
@@ -258,6 +275,14 @@ export default function TgCharactersPage() {
                   router.push(
                     `/tg/video?characterId=${encodeURIComponent(c.id)}`,
                   )
+                }
+                bodySlot={
+                  <TgCharacterBodyEditor
+                    characterId={c.id}
+                    characterName={c.name}
+                    locale={locale}
+                    apiFetch={apiFetch}
+                  />
                 }
               />
             ))}

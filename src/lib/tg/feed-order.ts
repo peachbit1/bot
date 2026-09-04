@@ -9,6 +9,42 @@ export const PHOTO_SCENE_CATEGORIES = [
 export type PhotoSceneCategoryId =
   (typeof PHOTO_SCENE_CATEGORIES)[number]["id"];
 
+const SCENE_ID_SET = new Set(
+  PHOTO_SCENE_CATEGORIES.map((c) => c.id as string),
+);
+
+/** Parse stored categories: "sex,display" or legacy single id. */
+export function parsePhotoSceneCategories(
+  raw?: string | null,
+): PhotoSceneCategoryId[] {
+  if (!raw?.trim()) return [];
+  const out: PhotoSceneCategoryId[] = [];
+  for (const part of raw.split(/[,|;]+/)) {
+    const id = part.trim().toLowerCase();
+    if (SCENE_ID_SET.has(id) && !out.includes(id as PhotoSceneCategoryId)) {
+      out.push(id as PhotoSceneCategoryId);
+    }
+  }
+  return out;
+}
+
+export function formatPhotoSceneCategories(ids: readonly string[]): string {
+  const clean = ids
+    .map((id) => id.trim().toLowerCase())
+    .filter((id) => SCENE_ID_SET.has(id));
+  return [...new Set(clean)].join(",");
+}
+
+export function photoMatchesSceneCategory(
+  raw: string | undefined | null,
+  category: string,
+): boolean {
+  if (!category) return true;
+  return parsePhotoSceneCategories(raw).includes(
+    category as PhotoSceneCategoryId,
+  );
+}
+
 export function guessPhotoSceneCategory(title: string): PhotoSceneCategoryId | "" {
   const t = title.toLowerCase();
   if (/униж|унижен|spit|slap|humili/i.test(t)) return "humiliation";
@@ -58,7 +94,13 @@ export function orderFeedMixed<T extends { kind: string; identityKey: string }>(
   return out;
 }
 
-/** Newest first, top → bottom. */
-export function orderFeedNewest<T extends { createdAt: number }>(items: T[]): T[] {
-  return [...items].sort((a, b) => b.createdAt - a.createdAt);
+/** Newest first, top → bottom (stable tie-break by id). */
+export function orderFeedNewest<
+  T extends { createdAt: number; id?: string },
+>(items: T[]): T[] {
+  return [...items].sort((a, b) => {
+    const d = b.createdAt - a.createdAt;
+    if (d !== 0) return d;
+    return String(b.id || "").localeCompare(String(a.id || ""));
+  });
 }

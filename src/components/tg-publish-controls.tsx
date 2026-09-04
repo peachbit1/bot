@@ -1,6 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import {
+  PHOTO_SCENE_CATEGORIES,
+  formatPhotoSceneCategories,
+  parsePhotoSceneCategories,
+} from "@/lib/tg/feed-order";
 
 type Props = {
   templateId: string;
@@ -8,6 +13,8 @@ type Props = {
   initialPublished?: boolean;
   initialDisplayTitle?: string;
   defaultTitle?: string;
+  /** Comma-separated or single scene category ids (photo only). */
+  initialSceneCategory?: string;
   onUpdated?: () => void;
 };
 
@@ -17,11 +24,15 @@ export function TgPublishControls({
   initialPublished = false,
   initialDisplayTitle = "",
   defaultTitle = "",
+  initialSceneCategory = "",
   onUpdated,
 }: Props) {
   const [published, setPublished] = useState(initialPublished);
   const [displayTitle, setDisplayTitle] = useState(
     initialDisplayTitle || defaultTitle,
+  );
+  const [categories, setCategories] = useState<string[]>(() =>
+    parsePhotoSceneCategories(initialSceneCategory),
   );
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
@@ -32,6 +43,12 @@ export function TgPublishControls({
       ? `/api/peach/quick-video/templates/${templateId}/tg`
       : `/api/peach/tg-photo/templates/${templateId}/tg`;
 
+  function toggleCategory(id: string) {
+    setCategories((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  }
+
   async function publish() {
     setBusy(true);
     setErr("");
@@ -40,7 +57,12 @@ export function TgPublishControls({
       const res = await fetch(base, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ displayTitle: displayTitle.trim() }),
+        body: JSON.stringify({
+          displayTitle: displayTitle.trim(),
+          ...(kind === "photo"
+            ? { sceneCategory: formatPhotoSceneCategories(categories) }
+            : {}),
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(String(data.error || "ошибка"));
@@ -72,7 +94,7 @@ export function TgPublishControls({
     }
   }
 
-  async function saveTitle() {
+  async function saveMeta() {
     setBusy(true);
     setErr("");
     setMsg("");
@@ -80,11 +102,20 @@ export function TgPublishControls({
       const res = await fetch(base, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ displayTitle: displayTitle.trim() }),
+        body: JSON.stringify({
+          displayTitle: displayTitle.trim(),
+          ...(kind === "photo"
+            ? { sceneCategory: formatPhotoSceneCategories(categories) }
+            : {}),
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(String(data.error || "ошибка"));
-      setMsg("Название в TG обновлено");
+      setMsg(
+        kind === "photo"
+          ? "Название и категории в TG обновлены"
+          : "Название в TG обновлено",
+      );
       onUpdated?.();
     } catch (e) {
       setErr(e instanceof Error ? e.message : "error");
@@ -110,6 +141,36 @@ export function TgPublishControls({
           placeholder={defaultTitle}
         />
       </label>
+      {kind === "photo" ? (
+        <div className="space-y-1.5">
+          <div className="text-[10px] text-zinc-500">
+            Категории фильтра (можно несколько)
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {PHOTO_SCENE_CATEGORIES.map((c) => {
+              const on = categories.includes(c.id);
+              return (
+                <label
+                  key={c.id}
+                  className={`inline-flex cursor-pointer items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] ${
+                    on
+                      ? "border-peach/50 bg-peach/15 text-peach"
+                      : "border-white/10 text-zinc-400"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    className="sr-only"
+                    checked={on}
+                    onChange={() => toggleCategory(c.id)}
+                  />
+                  {c.ru}
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
       <div className="flex flex-wrap gap-1.5">
         {!published ? (
           <button
@@ -128,10 +189,10 @@ export function TgPublishControls({
             <button
               type="button"
               disabled={busy}
-              onClick={() => void saveTitle()}
+              onClick={() => void saveMeta()}
               className="rounded-full border border-white/15 px-2 py-0.5 text-[10px]"
             >
-              Сохранить имя
+              Сохранить
             </button>
             <button
               type="button"

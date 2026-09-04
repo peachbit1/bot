@@ -15,6 +15,7 @@ type VideoTpl = {
   pricePeaches: number;
   hasSpeech?: boolean;
   createdAt?: string;
+  updatedAt?: string;
   identityKey?: string;
 };
 
@@ -25,6 +26,7 @@ type PhotoTpl = {
   pricePeaches: number;
   previewImageUrl: string;
   createdAt?: string;
+  updatedAt?: string;
   identityKey?: string;
 };
 
@@ -80,6 +82,12 @@ const UI = {
   },
 } as const;
 
+function feedSortMs(createdAt?: string, updatedAt?: string): number {
+  const c = Date.parse(createdAt || "") || 0;
+  const u = Date.parse(updatedAt || "") || 0;
+  return Math.max(c, u);
+}
+
 export default function TgFeedPage() {
   const router = useRouter();
   const { status, error, locale, apiFetch } = useTgMiniApp();
@@ -113,7 +121,7 @@ export default function TgFeedPage() {
           price: v.pricePeaches || 142,
           durationSec: v.durationSec,
           hasSpeech: v.hasSpeech,
-          createdAt: Date.parse(v.createdAt || "") || 0,
+          createdAt: feedSortMs(v.createdAt, v.updatedAt),
           identityKey: v.identityKey || v.id,
         });
       }
@@ -129,7 +137,7 @@ export default function TgFeedPage() {
           isVideo: false,
           price: p.pricePeaches,
           durationSec: 0,
-          createdAt: Date.parse(p.createdAt || "") || 0,
+          createdAt: feedSortMs(p.createdAt, p.updatedAt),
           identityKey: p.identityKey || p.id,
         });
       }
@@ -149,6 +157,12 @@ export default function TgFeedPage() {
     }
     setItems(newest ? orderFeedNewest(pool) : orderFeedMixed(pool));
   }, [pool, newest]);
+
+  useEffect(() => {
+    const root = reelRef.current;
+    if (!root) return;
+    root.scrollTo({ top: 0, behavior: "auto" });
+  }, [newest, items]);
 
   useEffect(() => {
     const root = reelRef.current;

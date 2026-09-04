@@ -78,9 +78,10 @@ export async function setTgSession(
   });
   if (!acc) return null;
 
-  const pending = patch.clearPending
-    ? {}
-    : { ...parsePending(acc.pendingJson), ...(patch.pending || {}) };
+  const pending = {
+    ...(patch.clearPending ? {} : parsePending(acc.pendingJson)),
+    ...(patch.pending || {}),
+  };
 
   return prisma.platformAccount.update({
     where: { id: acc.id },

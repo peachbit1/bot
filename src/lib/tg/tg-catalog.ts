@@ -155,6 +155,7 @@ async function listTgPublishedVideoRows(userId: string): Promise<PublicQuickVide
       orientation: r.orientation,
       durationSec: r.durationSec,
       createdAt: r.createdAt.toISOString(),
+      updatedAt: r.updatedAt.toISOString(),
       identityKey: r.previewIdentityKey || r.userId || r.id,
       owned,
       isAuthor,
@@ -190,6 +191,7 @@ async function listTgPublishedPhotoRows(locale: TgLocale) {
     previewImageUrl: r.previewImageUrl || r.sceneImageUrl,
     hasSpeech: r.hasSpeech,
     createdAt: r.createdAt.toISOString(),
+    updatedAt: r.updatedAt.toISOString(),
     identityKey: r.previewIdentityKey || r.id,
     sceneCategory: r.sceneCategory || "",
   }));

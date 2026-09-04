@@ -11,8 +11,11 @@ import {
 export const GEN_CB = {
   kindPhoto: "g:k:p",
   kindVideo: "g:k:v",
-  pick: (idx: number) => `g:pi:${idx}`,
-  page: (page: number) => `g:pg:${page}`,
+  /** Index pick — kind baked into callback so session can't swap photo/video. */
+  pick: (kind: "photo" | "video", idx: number) =>
+    `g:pi:${kind === "video" ? "v" : "p"}:${idx}`,
+  page: (kind: "photo" | "video", page: number) =>
+    `g:pg:${kind === "video" ? "v" : "p"}:${page}`,
   pickCast: (id: string) => `g:mc:${id}`,
   castPage: (page: number) => `g:cp:${page}`,
   confirm: "g:go",
@@ -21,6 +24,37 @@ export const GEN_CB = {
   againVideo: "g:av",
   toHub: "g:hub",
 } as const;
+
+export function parseGenPickCallback(data: string): {
+  kind: "photo" | "video" | null;
+  idx: number;
+} | null {
+  if (!data.startsWith("g:pi:")) return null;
+  const rest = data.slice("g:pi:".length);
+  if (rest.startsWith("v:") || rest.startsWith("p:")) {
+    return {
+      kind: rest.startsWith("v:") ? "video" : "photo",
+      idx: Number(rest.slice(2)) || 0,
+    };
+  }
+  // Legacy buttons without kind prefix
+  return { kind: null, idx: Number(rest) || 0 };
+}
+
+export function parseGenPageCallback(data: string): {
+  kind: "photo" | "video" | null;
+  page: number;
+} | null {
+  if (!data.startsWith("g:pg:")) return null;
+  const rest = data.slice("g:pg:".length);
+  if (rest.startsWith("v:") || rest.startsWith("p:")) {
+    return {
+      kind: rest.startsWith("v:") ? "video" : "photo",
+      page: Number(rest.slice(2)) || 0,
+    };
+  }
+  return { kind: null, page: Number(rest) || 0 };
+}
 
 export const VID_CB = {
   pickRef: (id: string) => `vid:ref:${id}`,
@@ -89,6 +123,7 @@ export function templatePickerKeyboard(
   templates: BotTemplateRow[],
   page: number,
   locale: TgLocale,
+  kind: "photo" | "video",
 ) {
   const totalPages = Math.max(1, Math.ceil(templates.length / PAGE_SIZE));
   const safePage = Math.min(Math.max(0, page), totalPages - 1);
@@ -110,13 +145,13 @@ export function templatePickerKeyboard(
     const a = slice[i]!;
     row.push({
       text: a.title.slice(0, 40),
-      callback_data: GEN_CB.pick(safePage * PAGE_SIZE + i),
+      callback_data: GEN_CB.pick(kind, safePage * PAGE_SIZE + i),
     });
     const b = slice[i + 1];
     if (b) {
       row.push({
         text: b.title.slice(0, 40),
-        callback_data: GEN_CB.pick(safePage * PAGE_SIZE + i + 1),
+        callback_data: GEN_CB.pick(kind, safePage * PAGE_SIZE + i + 1),
       });
     }
     rows.push(row);
@@ -124,8 +159,16 @@ export function templatePickerKeyboard(
 
   if (totalPages > 1) {
     const nav: Array<{ text: string; callback_data: string }> = [];
-    if (safePage > 0) nav.push({ text: t("gen_page_prev", locale), callback_data: GEN_CB.page(safePage - 1) });
-    if (safePage < totalPages - 1) nav.push({ text: t("gen_page_next", locale), callback_data: GEN_CB.page(safePage + 1) });
+    if (safePage > 0)
+      nav.push({
+        text: t("gen_page_prev", locale),
+        callback_data: GEN_CB.page(kind, safePage - 1),
+      });
+    if (safePage < totalPages - 1)
+      nav.push({
+        text: t("gen_page_next", locale),
+        callback_data: GEN_CB.page(kind, safePage + 1),
+      });
     if (nav.length) rows.push(nav);
   }
 
@@ -216,7 +259,12 @@ export async function sendTemplatePicker(
     return { templates: [], page: 0 };
   }
 
-  const { keyboard, page: safePage } = templatePickerKeyboard(templates, page, locale);
+  const { keyboard, page: safePage } = templatePickerKeyboard(
+    templates,
+    page,
+    locale,
+    kind,
+  );
   const kindLabel =
     kind === "photo" ? t("gen_kind_photo_label", locale) : t("gen_kind_video_label", locale);
 
@@ -232,7 +280,18 @@ export async function resolvePickIndex(
   kind: "photo" | "video",
   locale: TgLocale,
   idx: number,
+  cachedIds?: string[] | null,
 ): Promise<BotTemplateRow | null> {
+  if (cachedIds?.length) {
+    const id = cachedIds[idx];
+    if (id) {
+      const templates = await listBotInlineTemplates(userId, kind, locale);
+      const hit = templates.find((t) => t.id === id);
+      if (hit) return hit;
+      // Id from picker session — trust kind even if not in current featured list
+      return { id, title: id.slice(0, 12), kind };
+    }
+  }
   const templates = await listBotInlineTemplates(userId, kind, locale);
   return templates[idx] ?? null;
 }

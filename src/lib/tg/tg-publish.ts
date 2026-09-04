@@ -166,7 +166,7 @@ export async function updateQuickVideoTemplateTgMeta(
 
 export async function publishPhotoTemplateToTg(
   templateId: string,
-  opts?: { displayTitle?: string },
+  opts?: { displayTitle?: string; sceneCategory?: string },
 ) {
   const row = await prisma.photoTemplate.findUnique({ where: { id: templateId } });
   if (!row) throw new Error("Шаблон не найден");
@@ -193,6 +193,9 @@ export async function publishPhotoTemplateToTg(
       tgDisplayTitle: displayTitle,
       previewImageUrl: previewImageUrl || row.previewImageUrl,
       sceneImageUrl: sceneImageUrl || row.sceneImageUrl,
+      ...(opts?.sceneCategory !== undefined
+        ? { sceneCategory: opts.sceneCategory }
+        : {}),
     },
   });
 
@@ -209,14 +212,25 @@ export async function unpublishPhotoTemplateFromTg(templateId: string) {
 
 export async function updatePhotoTemplateTgMeta(
   templateId: string,
-  patch: { displayTitle?: string; sortOrder?: number },
+  patch: {
+    displayTitle?: string;
+    sortOrder?: number;
+    sceneCategory?: string;
+  },
 ) {
-  const data: { tgDisplayTitle?: string; sortOrder?: number } = {};
+  const data: {
+    tgDisplayTitle?: string;
+    sortOrder?: number;
+    sceneCategory?: string;
+  } = {};
   if (patch.displayTitle !== undefined) {
     data.tgDisplayTitle = patch.displayTitle.trim();
   }
   if (patch.sortOrder !== undefined) {
     data.sortOrder = patch.sortOrder;
+  }
+  if (patch.sceneCategory !== undefined) {
+    data.sceneCategory = patch.sceneCategory;
   }
   return prisma.photoTemplate.update({ where: { id: templateId }, data });
 }

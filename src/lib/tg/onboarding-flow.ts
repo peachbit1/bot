@@ -206,12 +206,10 @@ export async function onOnboardKindPicked(
   locale: TgLocale,
   kind: "photo" | "video",
 ) {
-  await setTgSession(platformUserId, {
-    chatState: "idle",
-    pending: { templateKind: kind, templatePage: 0 },
-  });
   const { templates } = await sendTemplatePicker(chatId, userId, locale, kind, 0);
   await setTgSession(platformUserId, {
+    chatState: "idle",
+    clearPending: true,
     pending: {
       templateKind: kind,
       templatePage: 0,

@@ -19,6 +19,7 @@ export type TgPhotoTemplateRow = {
   sortOrder: number;
   tgPublished: boolean;
   tgDisplayTitle: string;
+  sceneCategory: string;
 };
 
 const usablePhotoWhere = {
@@ -42,6 +43,7 @@ export async function listTgPhotoTemplatesForLab(): Promise<TgPhotoTemplateRow[]
     sortOrder: r.sortOrder,
     tgPublished: r.tgPublished,
     tgDisplayTitle: r.tgDisplayTitle,
+    sceneCategory: r.sceneCategory || "",
   }));
 }
 
@@ -64,6 +66,7 @@ export async function getTgPhotoTemplateForGeneration(
     sortOrder: row.sortOrder,
     tgPublished: row.tgPublished,
     tgDisplayTitle: row.tgDisplayTitle,
+    sceneCategory: row.sceneCategory || "",
   };
 }
 

@@ -28,6 +28,8 @@ import {
   GEN_CB,
   OB_CB,
   VID_CB,
+  parseGenPageCallback,
+  parseGenPickCallback,
   photoCastPickerKeyboard,
   resolvePickIndex,
   sendTemplatePicker,
@@ -766,7 +768,12 @@ async function handleGenerationCallback(
     const kind = data === GEN_CB.kindPhoto ? "photo" : "video";
     const { templates } = await sendTemplatePicker(chatId, userId, locale, kind, 0);
     await setTgSession(platformUserId, {
-      pending: { templateKind: kind, templatePage: 0, templateIds: templates.map((x) => x.id) },
+      clearPending: true,
+      pending: {
+        templateKind: kind,
+        templatePage: 0,
+        templateIds: templates.map((x) => x.id),
+      },
     });
     return true;
   }
@@ -778,19 +785,41 @@ async function handleGenerationCallback(
   }
 
   if (data.startsWith("g:pg:")) {
-    const page = Number(data.slice("g:pg:".length)) || 0;
-    const kind = pending.templateKind || "photo";
-    const { templates } = await sendTemplatePicker(chatId, userId, locale, kind, page);
+    const parsed = parseGenPageCallback(data);
+    const page = parsed?.page ?? 0;
+    const kind =
+      parsed?.kind || pending.templateKind || "photo";
+    const { templates } = await sendTemplatePicker(
+      chatId,
+      userId,
+      locale,
+      kind,
+      page,
+    );
     await setTgSession(platformUserId, {
-      pending: { ...pending, templatePage: page, templateIds: templates.map((x) => x.id) },
+      clearPending: true,
+      pending: {
+        templateKind: kind,
+        templatePage: page,
+        templateIds: templates.map((x) => x.id),
+      },
     });
     return true;
   }
 
   if (data.startsWith("g:pi:")) {
-    const idx = Number(data.slice("g:pi:".length));
-    const kind = pending.templateKind || "photo";
-    const row = await resolvePickIndex(userId, kind, locale, idx);
+    const parsed = parseGenPickCallback(data);
+    if (!parsed) return true;
+    const kind = parsed.kind || pending.templateKind || "photo";
+    const useCachedIds =
+      pending.templateKind === kind ? pending.templateIds : undefined;
+    const row = await resolvePickIndex(
+      userId,
+      kind,
+      locale,
+      parsed.idx,
+      useCachedIds,
+    );
     if (!row) {
       await tgSendMessage(chatId, tFormat("gen_error", locale, { msg: "template not found" }));
       return true;
@@ -923,17 +952,59 @@ async function handleGenerationCallback(
 
   if (data === GEN_CB.backTemplates) {
     const kind = pending.templateKind || "photo";
-    await sendTemplatePicker(chatId, userId, locale, kind, pending.templatePage || 0);
+    const { templates } = await sendTemplatePicker(
+      chatId,
+      userId,
+      locale,
+      kind,
+      pending.templatePage || 0,
+    );
+    await setTgSession(platformUserId, {
+      clearPending: true,
+      pending: {
+        templateKind: kind,
+        templatePage: pending.templatePage || 0,
+        templateIds: templates.map((x) => x.id),
+      },
+    });
     return true;
   }
 
   if (data === GEN_CB.againPhoto) {
-    await sendTemplatePicker(chatId, userId, locale, "photo", 0);
+    const { templates } = await sendTemplatePicker(
+      chatId,
+      userId,
+      locale,
+      "photo",
+      0,
+    );
+    await setTgSession(platformUserId, {
+      clearPending: true,
+      pending: {
+        templateKind: "photo",
+        templatePage: 0,
+        templateIds: templates.map((x) => x.id),
+      },
+    });
     return true;
   }
 
   if (data === GEN_CB.againVideo) {
-    await sendTemplatePicker(chatId, userId, locale, "video", 0);
+    const { templates } = await sendTemplatePicker(
+      chatId,
+      userId,
+      locale,
+      "video",
+      0,
+    );
+    await setTgSession(platformUserId, {
+      clearPending: true,
+      pending: {
+        templateKind: "video",
+        templatePage: 0,
+        templateIds: templates.map((x) => x.id),
+      },
+    });
     return true;
   }
 

@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { TgShell, useTgMiniApp } from "@/lib/tg/miniapp/client";
-import { PHOTO_SCENE_CATEGORIES } from "@/lib/tg/feed-order";
+import { PHOTO_SCENE_CATEGORIES, photoMatchesSceneCategory } from "@/lib/tg/feed-order";
 
 type PhotoTpl = {
   id: string;
@@ -78,8 +78,8 @@ function PhotoPageInner() {
     void load();
   }, [status, load]);
 
-  const visible = templates.filter(
-    (t) => !category || t.sceneCategory === category,
+  const visible = templates.filter((t) =>
+    photoMatchesSceneCategory(t.sceneCategory, category),
   );
   const selected = templates.find((t) => t.id === templateId);
   const lockedCharacter =

@@ -55,6 +55,18 @@
   margin-bottom: 0.15rem;
 }
 
+.tg-tabbar a .tg-tab-ico {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 1.35rem;
+  margin-bottom: 0.12rem;
+}
+
+.tg-tabbar a .tg-tab-ico svg {
+  display: block;
+}
+
 .tg-tabbar a.active {
   color: var(--tg-apricot);
   background: color-mix(in srgb, var(--tg-apricot) 14%, transparent);
@@ -670,6 +682,51 @@
   padding: 0.45rem 0.3rem;
   font-size: 0.68rem;
   font-weight: 700;
+}
+
+.tg-body-editor {
+  margin-top: 0.35rem;
+}
+
+.tg-body-editor > .tg-char-action {
+  width: 100%;
+}
+
+.tg-body-editor-panel {
+  margin-top: 0.35rem;
+  padding: 0.55rem;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--tg-surface) 88%, transparent);
+  border: 1px solid var(--tg-hairline);
+}
+
+.tg-body-fields {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.tg-body-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.65rem;
+  color: var(--tg-muted);
+}
+
+.tg-body-field select,
+.tg-body-field input {
+  border-radius: 8px;
+  border: 1px solid var(--tg-hairline);
+  background: var(--tg-bg);
+  color: var(--tg-fg);
+  padding: 0.35rem 0.45rem;
+  font-size: 0.72rem;
+}
+
+.tg-ok {
+  color: #6ee7a8;
+  font-size: 0.7rem;
+  margin: 0.35rem 0 0;
 }
 
 .tg-portrait-media {

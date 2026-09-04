@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { TgTabIcon } from "@/lib/tg/miniapp/tab-icons";
 
 export type TgMiniAppProfile = {
   balancePeaches: number;
@@ -222,27 +223,39 @@ export function TgTabBar({ locale }: { locale: "ru" | "en" }) {
   return (
     <nav className="tg-tabbar">
       <Link href="/tg" className={feedActive ? "active" : ""}>
-        <span>🎬</span>
+        <span className="tg-tab-ico">
+          <TgTabIcon id="feed" active={feedActive} />
+        </span>
         {u.feed}
       </Link>
       <Link href="/tg/gallery" className={galleryActive ? "active" : ""}>
-        <span>🖼</span>
+        <span className="tg-tab-ico">
+          <TgTabIcon id="gallery" active={galleryActive} />
+        </span>
         {u.gallery}
       </Link>
       <Link href="/tg/characters" className={charsActive ? "active" : ""}>
-        <span>⭐</span>
+        <span className="tg-tab-ico">
+          <TgTabIcon id="chars" active={charsActive} />
+        </span>
         {u.chars}
       </Link>
       <Link href="/tg/photo" className={photoActive ? "active" : ""}>
-        <span>📸</span>
+        <span className="tg-tab-ico">
+          <TgTabIcon id="photo" active={photoActive} />
+        </span>
         {u.photo}
       </Link>
       <Link href="/tg/video" className={videoActive ? "active" : ""}>
-        <span>🎥</span>
+        <span className="tg-tab-ico">
+          <TgTabIcon id="video" active={videoActive} />
+        </span>
         {u.video}
       </Link>
       <Link href="/tg/profile" className={profileActive ? "active" : ""}>
-        <span>👤</span>
+        <span className="tg-tab-ico">
+          <TgTabIcon id="profile" active={profileActive} />
+        </span>
         {u.profile}
       </Link>
     </nav>

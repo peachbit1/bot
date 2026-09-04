@@ -48,7 +48,7 @@ export async function GET() {
   };
 
   return NextResponse.json({
-    build: "tg-ready-v12-characters-fav",
+    build: "tg-ready-v13-bot-video-pose-fix",
     gpu,
     catalogFiles,
     features: {

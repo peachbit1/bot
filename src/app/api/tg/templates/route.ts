@@ -54,6 +54,10 @@ export async function GET(req: Request) {
       previewVideoUrl: previewVideo,
       previewPhotoUrl: previewPhoto,
       createdAt: (t as { createdAt?: string }).createdAt || new Date(0).toISOString(),
+      updatedAt:
+        (t as { updatedAt?: string }).updatedAt ||
+        (t as { createdAt?: string }).createdAt ||
+        new Date(0).toISOString(),
       identityKey: (t as { identityKey?: string }).identityKey || t.id,
     };
   });
@@ -65,6 +69,10 @@ export async function GET(req: Request) {
       seedPreviewForPhoto(p.title) ||
       "",
     createdAt: (p as { createdAt?: string }).createdAt || new Date(0).toISOString(),
+    updatedAt:
+      (p as { updatedAt?: string }).updatedAt ||
+      (p as { createdAt?: string }).createdAt ||
+      new Date(0).toISOString(),
     identityKey: (p as { identityKey?: string }).identityKey || p.id,
     sceneCategory: (p as { sceneCategory?: string }).sceneCategory || "",
   }));

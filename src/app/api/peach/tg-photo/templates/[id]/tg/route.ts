@@ -14,6 +14,7 @@ type Ctx = { params: Promise<{ id: string }> };
 const patchSchema = z.object({
   displayTitle: z.string().max(120).optional(),
   sortOrder: z.number().int().min(0).max(9999).optional(),
+  sceneCategory: z.string().max(120).optional(),
 });
 
 export async function POST(req: NextRequest, ctx: Ctx) {
@@ -25,6 +26,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     const body = patchSchema.parse(await req.json().catch(() => ({})));
     const template = await publishPhotoTemplateToTg(id, {
       displayTitle: body.displayTitle,
+      sceneCategory: body.sceneCategory,
     });
     return NextResponse.json({ ok: true, template });
   } catch (e) {

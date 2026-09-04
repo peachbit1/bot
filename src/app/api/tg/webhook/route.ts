@@ -5,6 +5,11 @@ import {
   flushTgOutbox,
 } from "@/lib/tg/bot-update";
 import { ensureTgBootstrap } from "@/lib/tg/tg-bootstrap";
+import { pollTgLoraTrainings } from "@/lib/tg/lora-train-poller";
+
+/** Throttle LoRA completion polls — webhook traffic is frequent. */
+let lastLoraPollAt = 0;
+const LORA_POLL_EVERY_MS = 45_000;
 
 /** Telegram webhook (production). Same handlers as `npm run tg:bot`. */
 export async function POST(req: Request) {
@@ -34,6 +39,14 @@ export async function POST(req: Request) {
       await handleTgMessage(update.message);
     }
     await flushTgOutbox();
+
+    const now = Date.now();
+    if (now - lastLoraPollAt >= LORA_POLL_EVERY_MS) {
+      lastLoraPollAt = now;
+      void pollTgLoraTrainings().catch((e) =>
+        console.error("[tg/webhook] lora poll", e),
+      );
+    }
   } catch (e) {
     console.error("[tg/webhook]", e);
   }

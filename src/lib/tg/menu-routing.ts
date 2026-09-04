@@ -56,8 +56,37 @@ export async function routeMenuText(
   }
   if (isMenuText(text, "menu_earn")) {
     await setTgSession(platformUserId, { chatState: "idle" });
-    const { mainMenuExtra } = await import("@/lib/tg/menu");
-    await tgSendMessage(chatId, t("earn_text", locale), mainMenuExtra(locale));
+    const { getPartnerDashboard, partnerStartLink } = await import(
+      "@/lib/tg/partner-program"
+    );
+    const { tgMiniAppUrl } = await import("@/lib/tg/miniapp-url");
+    const { TG_AFFILIATE_ATTRIBUTION_NOTE } = await import("@/lib/tg/rules");
+    const dash = await getPartnerDashboard(userId);
+    const mainUrl = partnerStartLink(dash.botUsername, dash.profile.code);
+    const body = [
+      tFormat("earn_dash", locale, {
+        referrals: String(dash.referrals),
+        purchases: String(dash.purchases),
+        gross: String(dash.purchaseGrossPeaches),
+        earned: String(dash.commissionPeaches),
+        balance: String(dash.profile.balancePeaches),
+        link: mainUrl,
+      }),
+      "",
+      TG_AFFILIATE_ATTRIBUTION_NOTE[locale],
+    ].join("\n");
+    await tgSendMessage(chatId, body, {
+      reply_markup: {
+        inline_keyboard: [
+          [
+            {
+              text: t("earn_open_partner_btn", locale),
+              web_app: { url: tgMiniAppUrl("/tg/partner") },
+            },
+          ],
+        ],
+      },
+    });
     return true;
   }
   if (isMenuText(text, "menu_help")) {

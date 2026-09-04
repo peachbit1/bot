@@ -20,6 +20,7 @@ type TgTemplate = {
   previewImageUrl: string;
   tgPublished?: boolean;
   tgDisplayTitle?: string;
+  sceneCategory?: string;
 };
 
 async function readJson(res: Response) {
@@ -392,6 +393,7 @@ export function TgPhotoLabClient({ characters }: { characters: Char[] }) {
                           initialPublished={t.tgPublished}
                           initialDisplayTitle={t.tgDisplayTitle || t.title}
                           defaultTitle={t.title}
+                          initialSceneCategory={t.sceneCategory || ""}
                           onUpdated={() => void loadTemplates()}
                         />
                       </div>
