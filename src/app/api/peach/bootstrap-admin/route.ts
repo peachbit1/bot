@@ -292,6 +292,62 @@ export async function POST(req: NextRequest) {
     });
   }
 
+  if (action === "retry_last_story_h3" || action === "list_recent_qv") {
+    const runs = await prisma.quickVideoRun.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 12,
+      select: {
+        id: true,
+        userId: true,
+        title: true,
+        status: true,
+        error: true,
+        createdAt: true,
+        composedPrompt: true,
+        galleryItemId: true,
+      },
+    });
+    const mapped = runs.map((r) => {
+      const story =
+        (r.title || "").toLowerCase().includes("story") ||
+        (r.composedPrompt || "").includes("retention_analysis") ||
+        (r.composedPrompt || "").includes("detailed_description:");
+      return {
+        id: r.id,
+        userId: r.userId,
+        title: r.title,
+        status: r.status,
+        error: (r.error || "").slice(0, 200),
+        createdAt: r.createdAt,
+        story,
+        galleryItemId: r.galleryItemId,
+      };
+    });
+
+    if (action === "list_recent_qv") {
+      return NextResponse.json({ ok: true, action, runs: mapped });
+    }
+
+    const target =
+      mapped.find((r) => r.story && (r.status === "error" || r.status === "busy")) ||
+      mapped.find((r) => r.story) ||
+      mapped.find((r) => r.status === "error" || r.status === "busy");
+
+    if (!target) {
+      return NextResponse.json({ error: "no story/error run found", runs: mapped }, { status: 404 });
+    }
+
+    const { retryQuickVideoRun } = await import("@/lib/quick-video");
+    const run = await retryQuickVideoRun(target.userId, target.id);
+    return NextResponse.json({
+      ok: true,
+      action: "retry_last_story_h3",
+      retried: { id: target.id, title: target.title, prevStatus: target.status },
+      run,
+      recent: mapped.slice(0, 5),
+    });
+  }
+
   if (action === "restore_tg") {
     const tgId = String(body.telegramUserId || "978491621");
     const email = `tg_${tgId}@peachbitch.local`;
