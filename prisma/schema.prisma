@@ -66,6 +66,7 @@ model User {
   quickVideoTemplatePurchases QuickVideoTemplatePurchase[]
   peachPhotoTemplates PeachPhotoTemplate[]
   peachPhotoTemplatePurchases PeachPhotoTemplatePurchase[]
+  loraI2vTemplates      LoraI2vTemplate[]
   testGalleryFolders TestGalleryFolder[]
   tgCastFavorites   TgCastFavorite[]
 }
@@ -803,6 +804,45 @@ model PeachPhotoTemplatePurchase {
 
   @@unique([userId, templateId])
   @@index([templateId])
+}
+
+/// LoRA still (Krea) → Minimax I2V recipe. Users need lora_ready characters.
+model LoraI2vTemplate {
+  id               String   @id @default(cuid())
+  userId           String
+  title            String
+  notes            String   @default("")
+  titleEn          String   @default("")
+  notesEn          String   @default("")
+  /// Krea T2I prompt (no author trigger — scrubbed on save)
+  stillPrompt      String   @default("")
+  negativePrompt   String   @default("")
+  /// Minimax I2V motion prompt
+  i2vPrompt        String   @default("")
+  orientation      String   @default("9_16")
+  durationSec      Int      @default(6)
+  pricePeaches     Int      @default(180)
+  published        Boolean  @default(false)
+  tgPublished      Boolean  @default(false)
+  tgDisplayTitle   String   @default("")
+  tgSortOrder      Int      @default(0)
+  /// sex|display|… comma-separated (same as photo filter)
+  sceneCategory    String   @default("")
+  previewImageUrl  String   @default("")
+  previewVideoUrl  String   @default("")
+  sourceStillId    String   @default("")
+  sourceVideoId    String   @default("")
+  /// Author identity for feed dedupe (not used as user identity)
+  previewIdentityKey String @default("")
+  requiresLora     Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([published, updatedAt])
+  @@index([tgPublished, tgSortOrder])
 }
 
 // ─── PeachBitch Telegram ───────────────────────────────────────────────────

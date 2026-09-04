@@ -9,11 +9,11 @@ import {
 
 type Props = {
   templateId: string;
-  kind: "video" | "photo";
+  kind: "video" | "photo" | "lora_i2v";
   initialPublished?: boolean;
   initialDisplayTitle?: string;
   defaultTitle?: string;
-  /** Comma-separated or single scene category ids (photo only). */
+  /** Comma-separated or single scene category ids (photo / lora_i2v). */
   initialSceneCategory?: string;
   onUpdated?: () => void;
 };
@@ -41,7 +41,9 @@ export function TgPublishControls({
   const base =
     kind === "video"
       ? `/api/peach/quick-video/templates/${templateId}/tg`
-      : `/api/peach/tg-photo/templates/${templateId}/tg`;
+      : kind === "lora_i2v"
+        ? `/api/peach/lora-i2v/templates/${templateId}/tg`
+        : `/api/peach/tg-photo/templates/${templateId}/tg`;
 
   function toggleCategory(id: string) {
     setCategories((prev) =>
@@ -59,7 +61,7 @@ export function TgPublishControls({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           displayTitle: displayTitle.trim(),
-          ...(kind === "photo"
+          ...(kind === "photo" || kind === "lora_i2v"
             ? { sceneCategory: formatPhotoSceneCategories(categories) }
             : {}),
         }),
@@ -104,7 +106,7 @@ export function TgPublishControls({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           displayTitle: displayTitle.trim(),
-          ...(kind === "photo"
+          ...(kind === "photo" || kind === "lora_i2v"
             ? { sceneCategory: formatPhotoSceneCategories(categories) }
             : {}),
         }),
@@ -112,7 +114,7 @@ export function TgPublishControls({
       const data = await res.json();
       if (!res.ok) throw new Error(String(data.error || "ошибка"));
       setMsg(
-        kind === "photo"
+        kind === "photo" || kind === "lora_i2v"
           ? "Название и категории в TG обновлены"
           : "Название в TG обновлено",
       );
@@ -141,7 +143,7 @@ export function TgPublishControls({
           placeholder={defaultTitle}
         />
       </label>
-      {kind === "photo" ? (
+      {kind === "photo" || kind === "lora_i2v" ? (
         <div className="space-y-1.5">
           <div className="text-[10px] text-zinc-500">
             Категории фильтра (можно несколько)

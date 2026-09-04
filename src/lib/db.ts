@@ -14,6 +14,7 @@ const REQUIRED_DELEGATES = [
   "quickVideoTemplatePurchase",
   "peachPhotoTemplate",
   "peachPhotoTemplatePurchase",
+  "loraI2vTemplate",
 ] as const;
 
 function hasDelegates(client: PrismaClient | undefined): boolean {
