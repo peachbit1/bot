@@ -5,7 +5,7 @@
  * Env:
  *   METALNODE_SSH_KEY   — private key (multiline or \n escaped)
  *   METALNODE_HOST      — default 77.94.203.13
- *   METALNODE_SSH_PORT  — default 22024
+ *   METALNODE_SSH_PORT  — default 22031
  *   METALNODE_SSH_USER  — default root
  *   COMFY_URL           — default http://127.0.0.1:8188
  */
@@ -18,7 +18,7 @@ import { fileURLToPath } from "node:url";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const KEY_PATH = process.env.METALNODE_SSH_KEY_PATH || "/tmp/metalnode_ssh_key";
 const HOST = process.env.METALNODE_HOST || "77.94.203.13";
-const SSH_PORT = String(process.env.METALNODE_SSH_PORT || "22024");
+const SSH_PORT = String(process.env.METALNODE_SSH_PORT || "22031");
 const SSH_USER = process.env.METALNODE_SSH_USER || "root";
 const LOCAL_PORT = String(process.env.COMFY_LOCAL_PORT || "8188");
 const COMFY_BASE = (process.env.COMFY_URL || `http://127.0.0.1:${LOCAL_PORT}`).replace(

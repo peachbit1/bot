@@ -52,7 +52,7 @@ export async function GET() {
   };
 
   return NextResponse.json({
-    build: "tg-ready-v20-speech-slots",
+    build: "tg-ready-v21-metalnode-22031",
     gpu,
     catalogFiles,
     features: {

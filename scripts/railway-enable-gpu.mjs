@@ -59,7 +59,7 @@ await gql(
         COMFY_FORCE_MOCK: "0",
         COMFY_URL: "http://127.0.0.1:8188",
         METALNODE_HOST: process.env.METALNODE_HOST || "77.94.203.13",
-        METALNODE_SSH_PORT: process.env.METALNODE_SSH_PORT || "22024",
+        METALNODE_SSH_PORT: process.env.METALNODE_SSH_PORT || "22031",
         METALNODE_SSH_USER: "root",
         METALNODE_SSH_KEY: sshKey,
         DATABASE_URL: "file:/app/data/prod.db",
