@@ -808,6 +808,9 @@ export async function startQuickVideoRun(opts: {
     );
   }
 
+  const { finalizePromptSpeechForModel } = await import("@/lib/speech-slots");
+  composed = finalizePromptSpeechForModel(composed);
+
   const run = await prisma.quickVideoRun.create({
     data: {
       userId: opts.userId,

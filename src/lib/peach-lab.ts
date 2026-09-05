@@ -921,6 +921,8 @@ export async function runI2VFromStill(opts: {
   const length = minimaxLengthFromSec(durationSec);
   const size = minimaxSize(opts.width, opts.height);
   const useOverride = opts.lorasOverride !== undefined && opts.lorasOverride !== null;
+  const { finalizePromptSpeechForModel } = await import("@/lib/speech-slots");
+  const promptIn = finalizePromptSpeechForModel(opts.prompt.trim());
   const anatomy = useOverride
     ? {
         loras: [] as MinimaxLoraSpec[],
@@ -929,10 +931,10 @@ export async function runI2VFromStill(opts: {
         useCumshot: false,
         engineSuffix: "",
       }
-    : resolveMinimaxLoras(opts.prompt, ...(opts.extraHints || []));
+    : resolveMinimaxLoras(promptIn, ...(opts.extraHints || []));
   let prompt = useOverride
-    ? opts.prompt.trim()
-    : applyAnatomyTriggers(opts.prompt.trim(), anatomy);
+    ? promptIn
+    : applyAnatomyTriggers(promptIn, anatomy);
   if (anatomy.useCumshot) prompt = ensureCumshotTrigger(prompt);
   if (opts.extraTriggers?.length) {
     prompt = injectTriggers(prompt, opts.extraTriggers);
@@ -1064,6 +1066,8 @@ export async function runRef2VClip(opts: {
   const length = minimaxLengthFromSec(durationSec);
   const size = minimaxSize(opts.width, opts.height);
   const useOverride = opts.lorasOverride !== undefined && opts.lorasOverride !== null;
+  const { finalizePromptSpeechForModel } = await import("@/lib/speech-slots");
+  const promptIn = finalizePromptSpeechForModel(opts.prompt.trim());
   const anatomy = useOverride
     ? {
         loras: [] as MinimaxLoraSpec[],
@@ -1072,10 +1076,10 @@ export async function runRef2VClip(opts: {
         useCumshot: false,
         engineSuffix: "",
       }
-    : resolveMinimaxLoras(opts.prompt, ...(opts.extraHints || []));
+    : resolveMinimaxLoras(promptIn, ...(opts.extraHints || []));
   let prompt = useOverride
-    ? opts.prompt.trim()
-    : applyAnatomyTriggers(opts.prompt.trim(), anatomy);
+    ? promptIn
+    : applyAnatomyTriggers(promptIn, anatomy);
   if (anatomy.useCumshot) prompt = ensureCumshotTrigger(prompt);
   if (opts.extraTriggers?.length) {
     prompt = injectTriggers(prompt, opts.extraTriggers);

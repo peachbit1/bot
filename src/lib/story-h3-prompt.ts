@@ -13,6 +13,7 @@ import {
   type QuickVideoImageSlot,
   type QuickVideoSlotRole,
 } from "@/lib/quick-video-prompt";
+import { finalizePromptSpeechForModel } from "@/lib/speech-slots";
 
 const SECTION_KEYS = [
   "subject_definitions",
@@ -240,7 +241,7 @@ export function prepareStoryH3Prompt(
     parts.push("non_diegetic_music:\nN/A");
   }
 
-  return parts.join("\n\n").trim();
+  return finalizePromptSpeechForModel(parts.join("\n\n").trim());
 }
 
 export function storyH3LooksStructured(prompt: string): boolean {

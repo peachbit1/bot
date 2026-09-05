@@ -21,7 +21,8 @@ export type SpeechSlotFill = {
 };
 
 const SLOT_RE = /\{\{\s*(s\d+)\s*\}\}/gi;
-const BLOCK_HEADER_RE = /(?:^|\n)\s*SPEECH_SLOTS\s*:\s*\n/i;
+/** Allow `N/A SPEECH_SLOTS:` glued to previous section text. */
+const BLOCK_HEADER_RE = /SPEECH_SLOTS\s*:\s*(?:\r?\n|$)/i;
 const SPEAKERS = new Set<SpeechSpeaker>(["her", "him", "voiceover", "other"]);
 
 function normSpeaker(raw: string): SpeechSpeaker {
@@ -250,6 +251,7 @@ export function applySpeechFills(
   let body = stripSpeechSlotsBlock(source);
 
   const spokenParts: string[] = [];
+  const resolved: Array<{ id: string; text: string; lang: string }> = [];
   for (const slot of slots) {
     const fill = fillById.get(slot.id.toLowerCase());
     const text = (fill?.text ?? slot.text).trim().slice(0, slot.maxChars ?? 120);
@@ -258,6 +260,7 @@ export function applySpeechFills(
     if (text) {
       body = body.replace(re, `"${text.replace(/"/g, "'")}"`);
       spokenParts.push(`[${slot.speaker}/${lang}] "${text.replace(/"/g, "'")}"`);
+      resolved.push({ id: slot.id, text, lang });
     } else {
       body = body.replace(re, "(no spoken words — breath only)");
     }
@@ -265,10 +268,79 @@ export function applySpeechFills(
 
   body = body.replace(SLOT_RE, "(no spoken words)");
 
+  // Soften duplicate speech paraphrases in summary when exact lines already exist.
+  body = scrubSummarySpeechParaphrase(body, resolved);
+
   if (spokenParts.length) {
-    body = `${body.trim()}\n\nSpoken dialogue (perform clearly, match mouths when visible): ${spokenParts.join("; ")}.`;
+    body = `${body.trim()}
+
+SPEECH_PERFORMANCE_RULES:
+- Speak ONLY these lines, in this order, with clear phonemes in the stated language.
+- Between lines: no invented words, no foreign/gibberish babble, no humming speech — only breath, footsteps, laughter, ambience.
+- Do not invent extra dialogue not listed below.
+
+Spoken dialogue (perform clearly, match mouths when visible): ${spokenParts.join("; ")}.`;
   }
   return body.trim();
+}
+
+/**
+ * Before any GPU / MiniMax call: resolve SPEECH_SLOTS + {{sN}} with defaults
+ * (or provided fills). Safe no-op when there is no speech markup.
+ */
+export function finalizePromptSpeechForModel(
+  source: string,
+  fills?: SpeechSlotFill[],
+): string {
+  if (!source?.trim()) return source || "";
+  const slots = extractSpeechSlots(source);
+  if (!slots.length && !/\{\{\s*s\d+\s*\}\}/i.test(source) && !/SPEECH_SLOTS/i.test(source)) {
+    return source;
+  }
+  if (!slots.length) {
+    // Orphan placeholders / broken block — strip safely
+    return stripSpeechSlotsBlock(source).replace(SLOT_RE, "(no spoken words)").trim();
+  }
+  const normalized = normalizeFills(slots, fills);
+  return applySpeechFills(source, slots, normalized);
+}
+
+/** Remove English/action paraphrases of spoken lines from summary when slots exist. */
+function scrubSummarySpeechParaphrase(
+  body: string,
+  resolved: Array<{ id: string; text: string; lang: string }>,
+): string {
+  if (!resolved.length) return body;
+  const re =
+    /(^|\n)summary:\s*\n([\s\S]*?)(?=\n(?:retention_analysis|detailed_description|overall_soundscape|non_diegetic_music|SPEECH_PERFORMANCE_RULES|Spoken dialogue)\s*:|$)/i;
+  const m = body.match(re);
+  if (!m || m.index === undefined) return body;
+  let summary = m[2] || "";
+  // Drop exact quoted copies of slot lines from summary (keep action).
+  for (const r of resolved) {
+    if (!r.text.trim()) continue;
+    const q = escapeRegExp(r.text.replace(/"/g, "'"));
+    summary = summary.replace(new RegExp(`[«"']${q}[»"']`, "gi"), "(shout/line)");
+  }
+  // Soften common dialogue paraphrases that cause double speech.
+  summary = summary
+    .replace(
+      /\basks?\s+(?:him\s+|her\s+)?(?:nervously\s+)?(?:in\s+\w+\s+)?if\s+she\s+can\s+[^.…]{0,120}/gi,
+      "speaks her line to him",
+    )
+    .replace(
+      /\bhe\s+laughs\s+and\s+(?:agrees|answers|replies)[^.…]{0,80}/gi,
+      "he laughs and answers",
+    )
+    .replace(
+      /\bhears?\s+a\s+distant\s+shout\s+[«"'][^»"']+[»"']/gi,
+      "hears a distant shout",
+    );
+  return (
+    body.slice(0, m.index) +
+    `${m[1]}summary:\n${summary.trim()}` +
+    body.slice(m.index + m[0].length)
+  );
 }
 
 /** Apply fills across quick-video shots plan JSON string. */
