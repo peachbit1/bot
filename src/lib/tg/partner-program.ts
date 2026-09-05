@@ -6,6 +6,22 @@ import { randomBytes } from "crypto";
 
 const LINK_SEP = "__";
 
+/**
+ * TEMP demo overlay for partner Mini App / bot «Заработать».
+ * Display-only — does not write to DB or allow real withdrawals of fake balance.
+ * Remove when real stats are ready.
+ */
+const DEMO_PARTNER_TG_IDS = new Set(["8762393340"]);
+const DEMO_PARTNER_STATS = {
+  referrals: 88,
+  purchases: 9,
+  purchaseGrossPeaches: 6441,
+  commissionPeaches: 3220,
+  balancePeaches: 3220,
+  totalEarnedPeaches: 3220,
+  commissionPct: 50,
+} as const;
+
 export function parsePartnerRefPayload(payload: string | undefined): {
   code?: string;
   linkSlug?: string;
@@ -210,7 +226,7 @@ export async function getPartnerDashboard(userId: string) {
 
   const botUsername = process.env.TELEGRAM_BOT_USERNAME || "peachbibot";
 
-  return {
+  const dash = {
     profile,
     links,
     referrals,
@@ -223,6 +239,28 @@ export async function getPartnerDashboard(userId: string) {
     botUsername,
     mainLink,
   };
+
+  const tgAcc = await prisma.platformAccount.findFirst({
+    where: { userId, platform: "telegram" },
+    select: { platformUserId: true },
+  });
+  if (tgAcc && DEMO_PARTNER_TG_IDS.has(String(tgAcc.platformUserId))) {
+    return {
+      ...dash,
+      referrals: DEMO_PARTNER_STATS.referrals,
+      purchases: DEMO_PARTNER_STATS.purchases,
+      purchaseGrossPeaches: DEMO_PARTNER_STATS.purchaseGrossPeaches,
+      commissionPeaches: DEMO_PARTNER_STATS.commissionPeaches,
+      profile: {
+        ...profile,
+        balancePeaches: DEMO_PARTNER_STATS.balancePeaches,
+        totalEarnedPeaches: DEMO_PARTNER_STATS.totalEarnedPeaches,
+        commissionPct: DEMO_PARTNER_STATS.commissionPct,
+      },
+    };
+  }
+
+  return dash;
 }
 
 export async function createPartnerLink(
