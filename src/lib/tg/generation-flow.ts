@@ -58,6 +58,8 @@ export function parseGenPageCallback(data: string): {
 
 export const VID_CB = {
   pickRef: (id: string) => `vid:ref:${id}`,
+  pickLora: (id: string) => `vid:lora:${id}`,
+  trainLora: "vid:train",
   uploadNew: "vid:new",
   photosDone: "vid:done",
   saveYes: (id: string) => `vid:save:${id}`,
@@ -84,6 +86,7 @@ export type BotTemplateRow = {
   id: string;
   title: string;
   kind: "photo" | "video";
+  requiresLora?: boolean;
 };
 
 function botTemplateFilter(): string[] | null {
@@ -113,11 +116,13 @@ export async function listBotInlineTemplates(
       id: r.id,
       title: r.title,
       kind: "video" as const,
+      requiresLora: true,
     })),
     ...rows.map((r) => ({
       id: r.id,
       title: r.title,
       kind: "video" as const,
+      requiresLora: false,
     })),
   ];
   if (!filter) return mapped;
@@ -155,14 +160,20 @@ export function templatePickerKeyboard(
       web_app?: { url: string };
     }> = [];
     const a = slice[i]!;
+    const aLabel = a.requiresLora
+      ? `✨ ${a.title}`.slice(0, 40)
+      : a.title.slice(0, 40);
     row.push({
-      text: a.title.slice(0, 40),
+      text: aLabel,
       callback_data: GEN_CB.pick(kind, safePage * PAGE_SIZE + i),
     });
     const b = slice[i + 1];
     if (b) {
+      const bLabel = b.requiresLora
+        ? `✨ ${b.title}`.slice(0, 40)
+        : b.title.slice(0, 40);
       row.push({
-        text: b.title.slice(0, 40),
+        text: bLabel,
         callback_data: GEN_CB.pick(kind, safePage * PAGE_SIZE + i + 1),
       });
     }

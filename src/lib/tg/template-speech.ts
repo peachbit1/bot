@@ -8,6 +8,7 @@ import {
   legacySpeechSlot,
   speakerLabel,
   speechSlotsFromJson,
+  deriveSpeechMaxChars,
   type SpeechSlot,
   templateHasSpeech,
 } from "@/lib/speech-slots";
@@ -79,7 +80,7 @@ export function speechSlotsPublicDto(slots: SpeechSlot[], locale: "ru" | "en") {
     speaker: s.speaker,
     lang: s.lang,
     text: s.text,
-    maxChars: s.maxChars ?? 120,
+    maxChars: s.maxChars ?? deriveSpeechMaxChars(s.text),
     label:
       s.label ||
       `${speakerLabel(s.speaker, locale)}${slots.length > 1 ? ` ${i + 1}` : ""}`,

@@ -163,38 +163,50 @@ const FEMALE_BODY: LookbookField = {
   label: "Фигура (рост + тип)",
   allowCustom: true,
   options: [
-    { id: "short_slim", label: "Маленький рост · худая", en: "short petite slim build" },
+    {
+      id: "short_slim",
+      label: "Маленький рост · худая",
+      en: "petite stature, delicate narrow frame, slim shoulders, tiny waist, slender hips, thin arms and short slim legs, overall thin silhouette, clearly not curvy, not thick, not plus-size",
+    },
     {
       id: "short_athletic",
       label: "Маленький рост · спортивная",
-      en: "short petite athletic toned build",
+      en: "petite stature, compact athletic build, moderately broad shoulders, firm slim waist, toned arms and short powerful legs, lean muscle definition without bulk, fit tight silhouette",
     },
     {
       id: "short_soft",
       label: "Маленький рост · пухлая",
-      en: "short petite soft plump build",
+      en: "petite stature, soft rounded frame, gently full midsection and hips, soft arms and short plump legs, cushioned silhouette with mild volume, not skinny and not extreme bulk",
     },
-    { id: "avg_slim", label: "Средний рост · худая", en: "average height slim build" },
+    {
+      id: "avg_slim",
+      label: "Средний рост · худая",
+      en: "average stature, lean elongated frame, narrow shoulders, slim waist, slim hips, long thin limbs, lightweight straight silhouette, explicitly not curvy, not thick, not plus-size",
+    },
     {
       id: "avg_athletic",
       label: "Средний рост · спортивная",
-      en: "average height athletic toned build",
+      en: "average stature, balanced athletic physique, defined shoulders, toned midsection, firm hips, muscular yet lean arms and legs, sporty tight silhouette without bodybuilder bulk",
     },
     {
       id: "avg_soft",
       label: "Средний рост · пухлая",
-      en: "average height soft plump build",
+      en: "average stature, soft fuller build, rounded shoulders, soft midsection, fuller hips and thighs, gently plump arms and legs, smooth padded silhouette with natural soft volume",
     },
-    { id: "tall_slim", label: "Высокий рост · худая", en: "tall slim build" },
+    {
+      id: "tall_slim",
+      label: "Высокий рост · худая",
+      en: "tall stature, long willowy frame, narrow shoulders, very slim waist, slim hips, elongated thin arms and long slender legs, elegant linear silhouette, not curvy, not thick, not plus-size",
+    },
     {
       id: "tall_athletic",
       label: "Высокий рост · спортивная",
-      en: "tall athletic toned build",
+      en: "tall stature, long athletic frame, broad toned shoulders, tight waist, firm hips, long muscular arms and powerful long legs, lean sporty silhouette with clear muscle tone, no heavy bulk",
     },
     {
       id: "tall_soft",
       label: "Высокий рост · пухлая",
-      en: "tall soft plump build",
+      en: "tall stature, long soft frame, gently rounded shoulders, soft midsection, fuller hips, long plump arms and soft long legs, tall padded silhouette with mild natural volume throughout",
     },
   ],
 };
@@ -253,18 +265,66 @@ const MALE_BODY: LookbookField = {
   label: "Телосложение",
   allowCustom: true,
   options: [
-    { id: "very_thin", label: "Очень худой", en: "very thin skinny adult man" },
-    { id: "skinny", label: "Худой", en: "skinny slim adult man" },
-    { id: "slim", label: "Стройный", en: "slim adult man" },
-    { id: "athletic", label: "Атлетичный", en: "athletic toned man" },
-    { id: "muscular", label: "Мускулистый", en: "muscular adult man" },
-    { id: "bodybuilder", label: "Бодибилдер", en: "bodybuilder heavily muscled man" },
-    { id: "bulky", label: "Массивный", en: "bulky muscular adult man" },
-    { id: "average", label: "Обычный", en: "average build adult man" },
-    { id: "dad", label: "Плотный / dadbod", en: "stocky dadbod adult man" },
-    { id: "chubby", label: "Пухлый", en: "chubby soft adult man" },
-    { id: "fat", label: "Толстый", en: "fat heavy adult man" },
-    { id: "obese", label: "Очень толстый", en: "very fat obese adult man" },
+    {
+      id: "very_thin",
+      label: "Очень худой",
+      en: "extremely thin male frame, bony narrow shoulders, sunken midsection, very slim hips, stick-like arms and legs, fragile underweight silhouette with almost no muscle or soft tissue",
+    },
+    {
+      id: "skinny",
+      label: "Худой",
+      en: "skinny male build, narrow shoulders, flat chest and waist, slim hips, thin arms and lean legs, light underdeveloped silhouette, little muscle mass, clearly thin overall",
+    },
+    {
+      id: "slim",
+      label: "Стройный",
+      en: "slim male physique, modest shoulders, flat toned midsection, narrow hips, lean arms and legs, clean lightweight silhouette with light natural definition, not bulky and not soft",
+    },
+    {
+      id: "athletic",
+      label: "Атлетичный",
+      en: "athletic male build, well-proportioned shoulders, firm midsection, balanced hips, toned arms and strong legs, sporty fit silhouette with visible muscle tone without heavy bodybuilder bulk",
+    },
+    {
+      id: "muscular",
+      label: "Мускулистый",
+      en: "muscular male frame, broad powerful shoulders, thick chest, defined waist, solid hips, heavily muscled arms and strong thick legs, dense athletic silhouette with clear muscle mass",
+    },
+    {
+      id: "bodybuilder",
+      label: "Бодибилдер",
+      en: "bodybuilder male physique, extremely wide shoulders, massive chest, deeply carved waist, huge arms and thick sculpted legs, exaggerated muscle bulk and extreme hypertrophy silhouette",
+    },
+    {
+      id: "bulky",
+      label: "Массивный",
+      en: "bulky male build, very broad heavy shoulders, thick torso, wide midsection, solid hips, massive arms and thick powerful legs, heavy solid silhouette with size over sharp definition",
+    },
+    {
+      id: "average",
+      label: "Обычный",
+      en: "average male physique, regular shoulder width, ordinary midsection, standard hips, normal arms and legs, unremarkable everyday proportions, neither lean athletic nor soft heavy",
+    },
+    {
+      id: "dad",
+      label: "Плотный / dadbod",
+      en: "dad-bod male frame, soft rounded shoulders, noticeable soft belly, fuller midsection, average hips, mildly soft arms and legs, casual lived-in silhouette with gentle middle-age softness",
+    },
+    {
+      id: "chubby",
+      label: "Пухлый",
+      en: "chubby male build, rounded soft shoulders, plump midsection, fuller hips, soft thick arms and legs, padded silhouette with clear soft volume, heavier than average but not extreme",
+    },
+    {
+      id: "fat",
+      label: "Толстый",
+      en: "fat male physique, wide soft shoulders, large heavy belly, broad soft midsection, thick hips, heavy soft arms and thick legs, very full heavy silhouette with substantial body fat",
+    },
+    {
+      id: "obese",
+      label: "Очень толстый",
+      en: "obese male frame, very broad soft shoulders, massive overhanging midsection, very wide hips, thick heavy arms and massive legs, extreme large silhouette dominated by heavy soft volume",
+    },
   ],
 };
 
@@ -409,10 +469,26 @@ export const MALE_LOOKBOOK_FIELDS: LookbookField[] = [
     label: "Грудь / торс",
     allowCustom: true,
     options: [
-      { id: "smooth", label: "Гладкая", en: "smooth chest" },
-      { id: "hairy", label: "Волосатая", en: "hairy chest" },
-      { id: "defined", label: "Рельеф", en: "defined chest muscles" },
-      { id: "soft", label: "Мягкая", en: "soft chest" },
+      {
+        id: "smooth",
+        label: "Гладкая",
+        en: "smooth bare male chest, clean skin surface without visible chest hair, even flat or lightly contoured torso front",
+      },
+      {
+        id: "hairy",
+        label: "Волосатая",
+        en: "hairy male chest, visible natural chest hair covering the torso front, textured furred appearance on the chest area",
+      },
+      {
+        id: "defined",
+        label: "Рельеф",
+        en: "defined male chest, clear pectoral muscle shape and separation, firm contoured torso front with athletic chest definition",
+      },
+      {
+        id: "soft",
+        label: "Мягкая",
+        en: "soft male chest, gently rounded padded pectoral area, smooth soft volume without sharp muscle cuts or hardness",
+      },
     ],
   },
   MALE_PENIS,
@@ -607,6 +683,8 @@ export function bodyShapeAppearanceForPrompt(
   const parts: string[] = [];
   for (const field of fieldsForGender(gender)) {
     if (!ids.has(field.id)) continue;
+    // Respect per-field prompt toggle (_prompt_<id> = "0" → skip).
+    if (!isLookbookFieldInPrompt(values, field.id)) continue;
     const en = fieldValueToEnglish(field, values[field.id]);
     if (en) parts.push(en);
   }

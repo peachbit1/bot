@@ -240,6 +240,22 @@
   background: #000;
 }
 
+.tg-best-badge {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 3;
+  padding: 0.28rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #1a1208;
+  background: linear-gradient(135deg, #ffe6a8, #f5c76a 55%, #e8a93a);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+
 .tg-reel-media {
   width: 100%;
   height: 100%;
@@ -703,6 +719,55 @@
 .tg-body-fields {
   display: grid;
   gap: 0.4rem;
+}
+
+.tg-body-fields.is-disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.tg-body-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0.35rem 0 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--tg-fg);
+}
+
+.tg-body-toggle input[type="checkbox"] {
+  appearance: none;
+  width: 2.4rem;
+  height: 1.35rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--tg-muted) 35%, transparent);
+  border: 1px solid var(--tg-hairline);
+  position: relative;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s ease;
+}
+
+.tg-body-toggle input[type="checkbox"]::after {
+  content: "";
+  position: absolute;
+  top: 0.12rem;
+  left: 0.12rem;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.15s ease;
+}
+
+.tg-body-toggle input[type="checkbox"]:checked {
+  background: linear-gradient(135deg, #f5c76a, #e8a93a);
+}
+
+.tg-body-toggle input[type="checkbox"]:checked::after {
+  transform: translateX(1.05rem);
 }
 
 .tg-body-field {

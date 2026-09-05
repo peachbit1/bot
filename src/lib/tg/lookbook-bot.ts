@@ -3,7 +3,9 @@ import {
   CUSTOM_PREFIX,
   FEMALE_LOOKBOOK_FIELDS,
   fieldsForGender,
+  isLookbookFieldInPrompt,
   parseLookbook,
+  setLookbookFieldInPrompt,
   toCustomValue,
   type LookbookField,
   type LookbookValues,
@@ -22,6 +24,8 @@ export const LB_CB = {
   opt: (charId: string, fieldId: string, optId: string) =>
     `lb:v:${charId}:${fieldId}:${optId}`,
   custom: (charId: string, fieldId: string) => `lb:c:${charId}:${fieldId}`,
+  /** Toggle whether body field is injected into prompts */
+  bodyPrompt: (charId: string, on: 0 | 1) => `lb:bp:${charId}:${on}`,
   backChar: (charId: string) => `lb:b:${charId}`,
 } as const;
 
@@ -54,7 +58,8 @@ function optionLabel(
   }
   const opt = field.options.find((o) => o.id === value);
   if (!opt) return value;
-  return locale === "en" ? opt.en : opt.label;
+  // Short UI label only — en prompts are long clauses for Comfy, not buttons.
+  return opt.label;
 }
 
 async function loadLookbook(characterId: string, userId: string) {
@@ -88,12 +93,33 @@ export async function sendLookbookMenu(
   }
 
   const fields = tgLookbookFields();
-  const rows = fields.map((f) => [
-    {
-      text: `${fieldLabel(f, locale)}: ${optionLabel(f, data.values[f.id], locale)}`.slice(0, 60),
-      callback_data: LB_CB.field(characterId, f.id),
-    },
-  ]);
+  const bodyOn = isLookbookFieldInPrompt(data.values, "body");
+  const rows: Array<Array<{ text: string; callback_data: string }>> = [
+    [
+      {
+        text: bodyOn
+          ? locale === "en"
+            ? "✅ Body in prompt: ON"
+            : "✅ Тело в промпте: ВКЛ"
+          : locale === "en"
+            ? "⬜ Body in prompt: OFF"
+            : "⬜ Тело в промпте: ВЫКЛ",
+        callback_data: LB_CB.bodyPrompt(characterId, bodyOn ? 0 : 1),
+      },
+    ],
+  ];
+  for (const f of fields) {
+    const disabled = f.id === "body" && !bodyOn;
+    rows.push([
+      {
+        text: `${disabled ? "🔒 " : ""}${fieldLabel(f, locale)}: ${optionLabel(f, data.values[f.id], locale)}`.slice(
+          0,
+          60,
+        ),
+        callback_data: LB_CB.field(characterId, f.id),
+      },
+    ]);
+  }
   rows.push([{ text: t("lb_back_btn", locale), callback_data: LB_CB.backChar(characterId) }]);
 
   await tgSendMessage(
@@ -114,11 +140,22 @@ export async function sendLookbookFieldOptions(
   const field = tgLookbookFields().find((f) => f.id === fieldId);
   if (!data || !field) return;
 
+  if (fieldId === "body" && !isLookbookFieldInPrompt(data.values, "body")) {
+    await tgSendMessage(
+      chatId,
+      locale === "en"
+        ? "Body prompt is OFF. Turn it on first to change the figure preset."
+        : "Тело в промпте выключено. Сначала включи — потом можно менять фигуру.",
+    );
+    await sendLookbookMenu(chatId, userId, characterId, locale);
+    return;
+  }
+
   const rows: Array<Array<{ text: string; callback_data: string }>> = [];
   for (const opt of field.options) {
     rows.push([
       {
-        text: (locale === "en" ? opt.en : opt.label).slice(0, 40),
+        text: opt.label.slice(0, 40),
         callback_data: LB_CB.opt(characterId, fieldId, opt.id),
       },
     ]);
@@ -142,6 +179,33 @@ export async function sendLookbookFieldOptions(
     }),
     { reply_markup: { inline_keyboard: rows } },
   );
+}
+
+export async function toggleLookbookBodyPrompt(
+  chatId: number,
+  userId: string,
+  characterId: string,
+  enabled: boolean,
+  locale: TgLocale,
+) {
+  const data = await loadLookbook(characterId, userId);
+  if (!data) {
+    await tgSendMessage(chatId, t("char_not_found", locale));
+    return;
+  }
+  const next = setLookbookFieldInPrompt(data.values, "body", enabled);
+  await saveLookbook(characterId, next);
+  await tgSendMessage(
+    chatId,
+    enabled
+      ? locale === "en"
+        ? "Body text ON — figure preset goes into photo & video prompts."
+        : "Тело ВКЛ — описание фигуры уходит в промпт фото и видео."
+      : locale === "en"
+        ? "Body text OFF — proportions follow reference photos only."
+        : "Тело ВЫКЛ — пропорции только с референс-фото.",
+  );
+  await sendLookbookMenu(chatId, userId, characterId, locale);
 }
 
 export async function applyLookbookOption(

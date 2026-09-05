@@ -89,7 +89,8 @@ export function parseSpeechSlotsBlock(source: string): SpeechSlot[] {
     let lang = "en";
     let text = "";
     let label = "";
-    let maxChars = 120;
+    /** 0 = derive from text length after parse */
+    let maxCharsExplicit = 0;
 
     for (let i = 0; i < parts.length; i++) {
       const p = parts[i]!;
@@ -116,12 +117,15 @@ export function parseSpeechSlotsBlock(source: string): SpeechSlot[] {
         key === "limit"
       ) {
         const n = Number.parseInt(val, 10);
-        if (Number.isFinite(n) && n > 0) maxChars = Math.min(500, n);
+        if (Number.isFinite(n) && n > 0) maxCharsExplicit = Math.min(500, n);
       }
     }
     if (!id) id = `s${out.length + 1}`;
     if (seen.has(id)) continue;
     seen.add(id);
+    const maxChars = clampSpeechMaxChars(
+      maxCharsExplicit > 0 ? maxCharsExplicit : text.length || 40,
+    );
     out.push({
       id,
       speaker,
@@ -132,6 +136,20 @@ export function parseSpeechSlotsBlock(source: string): SpeechSlot[] {
     });
   }
   return out;
+}
+
+function clampSpeechMaxChars(n: number): number {
+  if (!Number.isFinite(n) || n < 1) return 40;
+  return Math.min(500, Math.max(1, Math.floor(n)));
+}
+
+/** Prefer author-tested length of default text as the edit limit. */
+export function deriveSpeechMaxChars(text: string, explicit?: number): number {
+  if (typeof explicit === "number" && explicit > 0) {
+    return clampSpeechMaxChars(explicit);
+  }
+  const len = text.trim().length;
+  return clampSpeechMaxChars(len > 0 ? len : 40);
 }
 
 /** Collect {{sN}} ids in appearance order. */
@@ -178,28 +196,39 @@ export function extractSpeechSlots(...sources: string[]): SpeechSlot[] {
 
   return orderedIds.map((id, i) => {
     const existing = byId.get(id);
-    if (existing) return existing;
+    if (existing) {
+      return {
+        ...existing,
+        maxChars: deriveSpeechMaxChars(existing.text, existing.maxChars),
+        text: existing.text.slice(
+          0,
+          deriveSpeechMaxChars(existing.text, existing.maxChars),
+        ),
+      };
+    }
     return {
       id,
       speaker: "her" as const,
       lang: "en",
       text: "",
       label: `Line ${i + 1}`,
-      maxChars: 120,
+      maxChars: 40,
     };
   });
 }
 
 /** Legacy single-line speech → one slot. */
 export function legacySpeechSlot(defaultText = ""): SpeechSlot[] {
+  const text = defaultText.trim();
+  const maxChars = deriveSpeechMaxChars(text);
   return [
     {
       id: "s1",
       speaker: "her",
       lang: "en",
-      text: defaultText.slice(0, 500),
+      text: text.slice(0, maxChars),
       label: "Speech",
-      maxChars: 120,
+      maxChars,
     },
   ];
 }
@@ -216,16 +245,18 @@ export function speechSlotsFromJson(raw: string | null | undefined): SpeechSlot[
           typeof row.id === "string" && /^s\d+$/i.test(row.id)
             ? row.id.toLowerCase()
             : `s${i + 1}`;
+        const text = String(row.text || "");
+        const maxChars = deriveSpeechMaxChars(
+          text,
+          typeof row.maxChars === "number" ? row.maxChars : undefined,
+        );
         return {
           id,
           speaker: normSpeaker(String(row.speaker || "her")),
           lang: normLang(typeof row.lang === "string" ? row.lang : "en"),
-          text: String(row.text || "").slice(0, 500),
+          text: text.slice(0, maxChars),
           label: typeof row.label === "string" ? row.label : undefined,
-          maxChars:
-            typeof row.maxChars === "number" && row.maxChars > 0
-              ? Math.min(500, row.maxChars)
-              : 120,
+          maxChars,
         } satisfies SpeechSlot;
       });
   } catch {
@@ -264,7 +295,7 @@ export function applySpeechFills(
   const resolved: Array<{ id: string; text: string; lang: string }> = [];
   for (const slot of slots) {
     const fill = fillById.get(slot.id.toLowerCase());
-    const text = (fill?.text ?? slot.text).trim().slice(0, slot.maxChars ?? 120);
+    const text = (fill?.text ?? slot.text).trim().slice(0, slot.maxChars ?? deriveSpeechMaxChars(slot.text));
     const lang = normLang(fill?.lang || slot.lang);
     const re = new RegExp(`\\{\\{\\s*${escapeRegExp(slot.id)}\\s*\\}\\}`, "gi");
     if (text) {
@@ -399,7 +430,7 @@ export function normalizeFills(
     const f = byId.get(s.id.toLowerCase());
     return {
       id: s.id,
-      text: (f?.text ?? s.text).trim().slice(0, s.maxChars ?? 120),
+      text: (f?.text ?? s.text).trim().slice(0, s.maxChars ?? deriveSpeechMaxChars(s.text)),
       lang: normLang(f?.lang || s.lang),
     };
   });

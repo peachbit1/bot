@@ -52,7 +52,7 @@ export async function GET() {
   };
 
   return NextResponse.json({
-    build: "tg-ready-v23-figure-presets",
+    build: "tg-ready-v24-best-quality",
     gpu,
     catalogFiles,
     features: {

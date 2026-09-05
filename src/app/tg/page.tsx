@@ -14,6 +14,8 @@ type VideoTpl = {
   durationSec: number;
   pricePeaches: number;
   hasSpeech?: boolean;
+  templateKind?: "quick_video" | "lora_i2v";
+  requiresLora?: boolean;
   createdAt?: string;
   updatedAt?: string;
   identityKey?: string;
@@ -41,6 +43,8 @@ type FeedItem =
       price: number;
       durationSec: number;
       hasSpeech?: boolean;
+      bestQuality?: boolean;
+      requiresLora?: boolean;
       createdAt: number;
       identityKey: string;
     }
@@ -68,6 +72,7 @@ const UI = {
     empty: "Шаблоны скоро появятся",
     speech: "🗣 речь",
     newest: "Новое",
+    bestQuality: "Best quality",
   },
   en: {
     title: "Feed",
@@ -79,6 +84,7 @@ const UI = {
     empty: "Templates coming soon",
     speech: "🗣 speech",
     newest: "New",
+    bestQuality: "Best quality",
   },
 } as const;
 
@@ -121,6 +127,10 @@ export default function TgFeedPage() {
           price: v.pricePeaches || 142,
           durationSec: v.durationSec,
           hasSpeech: v.hasSpeech,
+          bestQuality:
+            v.templateKind === "lora_i2v" || Boolean(v.requiresLora),
+          requiresLora:
+            v.templateKind === "lora_i2v" || Boolean(v.requiresLora),
           createdAt: feedSortMs(v.createdAt, v.updatedAt),
           identityKey: v.identityKey || v.id,
         });
@@ -228,6 +238,9 @@ export default function TgFeedPage() {
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={item.preview} alt="" className="tg-reel-media" />
               )}
+              {item.kind === "video" && item.bestQuality ? (
+                <span className="tg-best-badge">{u.bestQuality}</span>
+              ) : null}
             </div>
             <div className="tg-reel-dock">
               <strong>{item.title}</strong>

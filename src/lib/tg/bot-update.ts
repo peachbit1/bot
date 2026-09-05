@@ -61,6 +61,7 @@ import {
   sendLookbookFieldOptions,
   sendLookbookMenu,
   startLookbookCustom,
+  toggleLookbookBodyPrompt,
 } from "@/lib/tg/lookbook-bot";
 import { mainMenuExtra, sendMainMenuHub } from "@/lib/tg/menu";
 import { getTemplatePreviewUrl } from "@/lib/tg/template-preview";
@@ -267,6 +268,7 @@ async function loadTemplateMeta(
   title: string;
   hasSpeech: boolean;
   pricePeaches: number;
+  requiresLora: boolean;
   speechSlots: Array<{
     id: string;
     speaker: string;
@@ -288,6 +290,7 @@ async function loadTemplateMeta(
       title: row.title,
       hasSpeech: row.hasSpeech,
       pricePeaches: price,
+      requiresLora: false,
       speechSlots: row.hasSpeech
         ? [
             {
@@ -296,7 +299,7 @@ async function loadTemplateMeta(
               lang: "en",
               text: "",
               label: localeSafeSpeechLabel("her"),
-              maxChars: 120,
+              maxChars: 40,
             },
           ]
         : [],
@@ -322,6 +325,7 @@ async function loadTemplateMeta(
       title: loraI2v.tgDisplayTitle.trim() || loraI2v.title,
       hasSpeech: speech.hasSpeech,
       pricePeaches: price,
+      requiresLora: true,
       speechSlots: slots,
     };
   }
@@ -336,6 +340,7 @@ async function loadTemplateMeta(
     title: detail.title,
     hasSpeech: speech.hasSpeech,
     pricePeaches: price,
+    requiresLora: false,
     speechSlots: slots,
   };
 }
@@ -409,7 +414,11 @@ async function finishSpeechAndContinue(
   };
   await tgSendMessage(chatId, t("speech_done", locale));
   if (pending.templateKind === "video") {
-    await beginVideoUploadFlow(chatId, platformUserId, userId, locale, next);
+    if (pending.requiresLora) {
+      await beginLoraVideoCastFlow(chatId, platformUserId, userId, locale, next);
+    } else {
+      await beginVideoUploadFlow(chatId, platformUserId, userId, locale, next);
+    }
   } else {
     await beginGeneration(chatId, platformUserId, userId, locale, next);
   }
@@ -454,6 +463,7 @@ async function showTemplateConfirm(
   title: string,
   hasSpeech: boolean,
   speechSlots: TgPending["speechSlots"] = [],
+  requiresLora = false,
 ) {
   if (kind === "video") {
     const pricing = await templatePriceLabel({
@@ -463,10 +473,14 @@ async function showTemplateConfirm(
       locale,
       character: null,
     });
-    const caption = tFormat("gen_confirm_video_pose", locale, {
-      title,
-      price: pricing.label,
-    });
+    const caption = tFormat(
+      requiresLora ? "gen_confirm_video_best" : "gen_confirm_video_pose",
+      locale,
+      {
+        title,
+        price: pricing.label,
+      },
+    );
     const markup = {
       reply_markup: {
         inline_keyboard: [
@@ -486,6 +500,7 @@ async function showTemplateConfirm(
         templateKind: kind,
         title,
         hasSpeech: hasSpeech && kind === "video",
+        requiresLora,
         speechSlots: slots,
         speechFills: slots.map((s) => ({
           id: s.id,
@@ -651,6 +666,51 @@ async function refreshPhotoConfirmMessage(
   });
 }
 
+async function beginLoraVideoCastFlow(
+  chatId: number,
+  platformUserId: string,
+  userId: string,
+  locale: TgLocale,
+  pending: TgPending,
+) {
+  const models = await listPhotoConfirmModels(userId, locale);
+  await setTgSession(platformUserId, {
+    chatState: "idle",
+    pending: { ...pending, requiresLora: true },
+  });
+
+  if (!models.length) {
+    await tgSendMessage(chatId, t("video_lora_need_train", locale), {
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: t("video_lora_train_btn", locale), callback_data: VID_CB.trainLora }],
+          [
+            {
+              text: t("marketplace_btn", locale),
+              web_app: { url: tgMiniAppUrl("characters") },
+            },
+          ],
+          [{ text: t("gen_other_poses_btn", locale), callback_data: GEN_CB.backTemplates }],
+        ],
+      },
+    });
+    return;
+  }
+
+  const rows: Array<Array<{ text: string; callback_data: string }>> = models.map(
+    (m) => [{ text: `✨ ${m.name}`, callback_data: VID_CB.pickLora(m.id) }],
+  );
+  rows.push([
+    { text: t("video_lora_train_btn", locale), callback_data: VID_CB.trainLora },
+  ]);
+  rows.push([
+    { text: t("gen_other_poses_btn", locale), callback_data: GEN_CB.backTemplates },
+  ]);
+  await tgSendMessage(chatId, t("video_lora_pick_title", locale), {
+    reply_markup: { inline_keyboard: rows },
+  });
+}
+
 async function beginVideoUploadFlow(
   chatId: number,
   platformUserId: string,
@@ -705,7 +765,20 @@ async function beginGeneration(
       : await getActiveTgCharacter(userId, platformUserId);
 
   if (kind === "video") {
-    if (!character?.videoRefOnly) {
+    if (pending.requiresLora) {
+      const cast =
+        pending.studioCastId || pending.videoUploadCharacterId
+          ? await resolvePhotoConfirmCharacter(
+              userId,
+              pending.studioCastId || pending.videoUploadCharacterId,
+            )
+          : null;
+      character = cast || character;
+      if (!character || !characterUsesLoraPhoto(character)) {
+        await beginLoraVideoCastFlow(chatId, platformUserId, userId, locale, pending);
+        return;
+      }
+    } else if (!character?.videoRefOnly) {
       if (!character || isStudioCastCharacter(character)) {
         await beginVideoUploadFlow(chatId, platformUserId, userId, locale, pending);
         return;
@@ -875,6 +948,7 @@ async function handleWebAppData(
     meta.title,
     meta.hasSpeech,
     meta.speechSlots,
+    meta.requiresLora,
   );
 }
 
@@ -963,6 +1037,7 @@ async function handleGenerationCallback(
       meta.title,
       meta.hasSpeech,
       meta.speechSlots,
+      meta.requiresLora,
     );
     return true;
   }
@@ -1011,7 +1086,7 @@ async function handleGenerationCallback(
               lang: "en",
               text: "",
               label: locale === "en" ? "Speech" : "Речь",
-              maxChars: 120,
+              maxChars: 40,
             },
           ];
       const speechPending: TgPending = {
@@ -1027,7 +1102,17 @@ async function handleGenerationCallback(
       return true;
     }
     if (pending.templateKind === "video") {
-      await beginVideoUploadFlow(chatId, platformUserId, userId, locale, pending);
+      if (pending.requiresLora) {
+        await beginLoraVideoCastFlow(
+          chatId,
+          platformUserId,
+          userId,
+          locale,
+          pending,
+        );
+      } else {
+        await beginVideoUploadFlow(chatId, platformUserId, userId, locale, pending);
+      }
       return true;
     }
     if (pending.studioCastId) {
@@ -1077,6 +1162,28 @@ async function handleGenerationCallback(
       ...pending,
       videoUploadCharacterId: ref.id,
     });
+    return true;
+  }
+
+  if (data.startsWith("vid:lora:")) {
+    const castId = data.slice("vid:lora:".length);
+    const character = await resolvePhotoConfirmCharacter(userId, castId);
+    if (!character || !characterUsesLoraPhoto(character)) {
+      await beginLoraVideoCastFlow(chatId, platformUserId, userId, locale, pending);
+      return true;
+    }
+    await setActiveTgCharacter(platformUserId, character.id);
+    await beginGeneration(chatId, platformUserId, userId, locale, {
+      ...pending,
+      requiresLora: true,
+      studioCastId: character.id,
+      videoUploadCharacterId: character.id,
+    });
+    return true;
+  }
+
+  if (data === VID_CB.trainLora) {
+    await startOnboardCharacter(chatId, platformUserId, locale, userId);
     return true;
   }
 
@@ -1170,6 +1277,14 @@ async function handleLookbookCallback(
 ): Promise<boolean> {
   if (data.startsWith("lb:o:")) {
     await sendLookbookMenu(chatId, userId, data.slice("lb:o:".length), locale);
+    return true;
+  }
+  if (data.startsWith("lb:bp:")) {
+    const rest = data.slice("lb:bp:".length);
+    const sep = rest.lastIndexOf(":");
+    const charId = rest.slice(0, sep);
+    const on = rest.slice(sep + 1) === "1";
+    await toggleLookbookBodyPrompt(chatId, userId, charId, on, locale);
     return true;
   }
   if (data.startsWith("lb:f:")) {

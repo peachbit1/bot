@@ -318,6 +318,55 @@ Cost: {price}
 Next upload model photos (or pick a saved 🎬) — no LoRA needed.`,
   },
 
+  gen_confirm_video_best: {
+    ru: `✨ <b>Best quality</b>
+
+Поза: <b>{title}</b>
+Стоимость: {price}
+
+Этот формат работает <b>только с обученной моделью</b> (твоя LoRA или актриса студии). Обычное фото «с телефона» здесь не подойдёт — лицо держится за счёт обучения.`,
+    en: `✨ <b>Best quality</b>
+
+Pose: <b>{title}</b>
+Cost: {price}
+
+This format works <b>only with a trained model</b> (your LoRA or a studio actress). A plain phone selfie isn't enough — identity comes from training.`,
+  },
+
+  video_lora_pick_title: {
+    ru: `✨ Best quality — выбери обученную модель
+
+Без LoRA этот шаблон не запустится. Возьми свою готовую модель или актрису из подборки:`,
+    en: `✨ Best quality — pick a trained model
+
+This template won't run without LoRA. Choose your ready model or a studio actress:`,
+  },
+
+  video_lora_need_train: {
+    ru: `✨ <b>Best quality</b> — максимум реализма
+
+Этот шаблон крутится на обученной LoRA: лицо стабильнее, кожа и детали ближе к «как в кино».
+
+У тебя пока нет готовой модели.
+Обучи свою за ~1–2 часа (от 5 фото) — и этот уровень качества откроется навсегда. Или возьми актрису студии прямо сейчас.`,
+    en: `✨ <b>Best quality</b> — max realism
+
+This template runs on a trained LoRA: stabler face, skin and detail closer to cinema.
+
+You don't have a ready model yet.
+Train yours in ~1–2 hours (from 5 photos) — and unlock this quality forever. Or pick a studio actress right now.`,
+  },
+
+  video_lora_train_btn: {
+    ru: "🚀 Обучить свою модель",
+    en: "🚀 Train my model",
+  },
+
+  video_lora_studio_btn: {
+    ru: "🎭 Актрисы студии",
+    en: "🎭 Studio actresses",
+  },
+
   video_upload_prompt: {
     ru: `Отправь <b>1–5 фото</b> лица модели в этот чат (можно несколько подряд).
 

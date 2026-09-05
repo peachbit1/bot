@@ -5,7 +5,9 @@ import {
   VIDEO_BODY_LOOKBOOK_FIELD_IDS,
   bodyShapeAppearanceForPrompt,
   fieldsForGender,
+  isLookbookFieldInPrompt,
   lookbookSelectValue,
+  setLookbookFieldInPrompt,
   toCustomValue,
   customPayload,
   isCustomValue,
@@ -38,6 +40,7 @@ export function TgCharacterBodyEditor({
   const bodyFields = fieldsForGender("female").filter((f) =>
     VIDEO_BODY_LOOKBOOK_FIELD_IDS.female.has(f.id),
   );
+  const bodyInPrompt = isLookbookFieldInPrompt(lookbook, "body");
 
   const load = useCallback(async () => {
     setError("");
@@ -69,7 +72,15 @@ export function TgCharacterBodyEditor({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(String(data.error || "error"));
-      setMsg(locale === "en" ? "Saved — used in next gen" : "Сохранено — уйдёт в промпт");
+      setMsg(
+        locale === "en"
+          ? bodyInPrompt
+            ? "Saved — body goes into next gen"
+            : "Saved — body OFF (not in prompt)"
+          : bodyInPrompt
+            ? "Сохранено — тело уйдёт в промпт"
+            : "Сохранено — тело ВЫКЛ (не в промпте)",
+      );
       setTimeout(() => setMsg(""), 2500);
     } catch (e) {
       setError(e instanceof Error ? e.message : "error");
@@ -100,10 +111,31 @@ export function TgCharacterBodyEditor({
           <p className="tg-muted" style={{ fontSize: "0.7rem", margin: "0.4rem 0" }}>
             {characterName}:{" "}
             {locale === "en"
-              ? "figure preset goes into photo & video prompts (no bust/hips wording)"
-              : "пресет фигуры уходит в промпт фото и видео (без слов про грудь/попу)"}
+              ? "toggle on = figure text in photo & video prompts; off = face from photos only"
+              : "вкл = описание фигуры в промпт фото/видео; выкл = только лицо с фото"}
           </p>
-          <div className="tg-body-fields">
+
+          <label className="tg-body-toggle">
+            <span>
+              {locale === "en" ? "Use body in prompt" : "Тело в промпте"}
+            </span>
+            <input
+              type="checkbox"
+              role="switch"
+              checked={bodyInPrompt}
+              disabled={busy}
+              onChange={(e) =>
+                setLookbook((prev) =>
+                  setLookbookFieldInPrompt(prev, "body", e.target.checked),
+                )
+              }
+            />
+          </label>
+
+          <div
+            className={`tg-body-fields${bodyInPrompt ? "" : " is-disabled"}`}
+            aria-disabled={!bodyInPrompt}
+          >
             {bodyFields.map((field) => {
               const stored = lookbook[field.id] || "";
               const selectVal = lookbookSelectValue(field, stored);
@@ -114,7 +146,7 @@ export function TgCharacterBodyEditor({
                   <span>{field.label}</span>
                   <select
                     value={selectVal}
-                    disabled={busy}
+                    disabled={busy || !bodyInPrompt}
                     onChange={(e) => {
                       const v = e.target.value;
                       setLookbook((prev) => ({
@@ -139,7 +171,7 @@ export function TgCharacterBodyEditor({
                     <input
                       placeholder="EN"
                       value={isCustomValue(stored) ? customPayload(stored) : ""}
-                      disabled={busy}
+                      disabled={busy || !bodyInPrompt}
                       onChange={(e) =>
                         setLookbook((prev) => ({
                           ...prev,
@@ -152,9 +184,16 @@ export function TgCharacterBodyEditor({
               );
             })}
           </div>
-          {preview ? (
+          {bodyInPrompt && preview ? (
             <p className="tg-muted" style={{ fontSize: "0.62rem", marginTop: "0.35rem" }}>
               → {preview}
+            </p>
+          ) : null}
+          {!bodyInPrompt ? (
+            <p className="tg-muted" style={{ fontSize: "0.62rem", marginTop: "0.35rem" }}>
+              {locale === "en"
+                ? "Body text disabled — proportions follow the reference photos."
+                : "Текст тела выключен — пропорции с референс-фото."}
             </p>
           ) : null}
           <button

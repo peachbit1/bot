@@ -38,6 +38,13 @@ const UI = {
     useSaved: "Или выбери сохранённую модель",
     pickLora: "2. Выбери модель с LoRA",
     needLora: "Нужна обученная LoRA",
+    bestQuality: "Best quality",
+    bestHint:
+      "Этот формат работает только с обученной моделью — твоя LoRA или актриса студии. Обычное фото «с телефона» не подойдёт.",
+    trainPitch:
+      "Хочешь своё лицо в Best quality? Обучи модель за ~1–2 часа (от 5 фото) — и этот уровень откроется навсегда.",
+    trainCta: "Обучить модель →",
+    openCasts: "Актрисы студии",
     speech: "3. Речь в видео",
     speechHint: "Можно оставить как в превью или поменять текст и язык.",
     keepDefaults: "Как в превью",
@@ -55,6 +62,13 @@ const UI = {
     useSaved: "Or pick a saved model",
     pickLora: "2. Pick a LoRA model",
     needLora: "Need a trained LoRA",
+    bestQuality: "Best quality",
+    bestHint:
+      "This format only works with a trained model — your LoRA or a studio actress. A plain phone selfie won't work.",
+    trainPitch:
+      "Want your face in Best quality? Train a model in ~1–2 hours (from 5 photos) — unlock this level forever.",
+    trainCta: "Train model →",
+    openCasts: "Studio actresses",
     speech: "3. Dialogue",
     speechHint: "Keep preview lines or edit text and language.",
     keepDefaults: "Use preview lines",
@@ -235,7 +249,7 @@ function VideoPageInner() {
     setErr("");
     const fills = speechSlots.map((s) => ({
       id: s.id,
-      text: (speechFills[s.id]?.text ?? s.text).trim().slice(0, s.maxChars || 120),
+      text: (speechFills[s.id]?.text ?? s.text).trim().slice(0, s.maxChars || 40),
       lang: speechFills[s.id]?.lang || s.lang || "en",
     }));
     const res = await apiFetch("/api/tg/generate/video", {
@@ -293,6 +307,9 @@ function VideoPageInner() {
             {templates.map((t) => (
               <div key={t.id} className="tg-portrait-card">
                 <div className="tg-portrait-media">
+                  {(t.templateKind === "lora_i2v" || t.requiresLora) && (
+                    <span className="tg-best-badge">{u.bestQuality}</span>
+                  )}
                   {t.previewVideoUrl ? (
                     <video
                       src={t.previewVideoUrl}
@@ -316,7 +333,9 @@ function VideoPageInner() {
                   <strong>{t.title}</strong>
                   <small>
                     {t.pricePeaches} 🍑
-                    {t.templateKind === "lora_i2v" ? " · LoRA" : ""}
+                    {t.templateKind === "lora_i2v" || t.requiresLora
+                      ? ` · ${u.bestQuality}`
+                      : ""}
                     {t.hasSpeech ? (locale === "ru" ? " · речь" : " · speech") : ""}
                   </small>
                 </div>
@@ -360,11 +379,35 @@ function VideoPageInner() {
 
           {isLoraI2v ? (
             <>
+              <p className="tg-muted tg-section-hint" style={{ marginTop: "0.75rem" }}>
+                <span className="tg-best-badge" style={{ position: "static", display: "inline-block", marginRight: "0.4rem" }}>
+                  {u.bestQuality}
+                </span>
+                {u.bestHint}
+              </p>
               <h2 style={{ fontSize: "1rem", margin: "1rem 0 0.5rem" }}>
                 {u.pickLora}
               </h2>
               {loraChars.length === 0 ? (
-                <p className="tg-muted">{u.needLora}</p>
+                <div className="tg-card-list">
+                  <p className="tg-muted">{u.trainPitch}</p>
+                  <button
+                    type="button"
+                    className="tg-primary-btn"
+                    style={{ width: "100%" }}
+                    onClick={() => router.push("/tg/characters")}
+                  >
+                    {u.trainCta}
+                  </button>
+                  <button
+                    type="button"
+                    className="tg-lang"
+                    style={{ width: "100%", marginTop: "0.4rem" }}
+                    onClick={() => router.push("/tg/characters")}
+                  >
+                    {u.openCasts}
+                  </button>
+                </div>
               ) : (
                 <div className="tg-card-list">
                   {loraChars.map((c) => (
@@ -379,10 +422,18 @@ function VideoPageInner() {
                     >
                       <div>
                         <strong>{c.name}</strong>
-                        <small>LoRA</small>
+                        <small>LoRA · {u.bestQuality}</small>
                       </div>
                     </button>
                   ))}
+                  <button
+                    type="button"
+                    className="tg-lang"
+                    style={{ width: "100%", marginTop: "0.35rem" }}
+                    onClick={() => router.push("/tg/characters")}
+                  >
+                    {u.trainCta}
+                  </button>
                 </div>
               )}
             </>

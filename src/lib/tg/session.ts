@@ -37,6 +37,8 @@ export type TgPending = {
     label?: string;
     maxChars?: number;
   }>;
+  /** Best quality (LoRA→I2V) — needs trained character */
+  requiresLora?: boolean;
   renameCharacterId?: string;
   onboardingCharacterId?: string;
   lookbookCharacterId?: string;
