@@ -499,8 +499,12 @@ export function LoraI2vLabClient({ characters }: { characters: Char[] }) {
             className="mt-1 min-h-[80px] w-full rounded-lg border border-white/10 bg-zinc-900 px-2 py-2 text-sm"
             value={i2vPrompt}
             onChange={(e) => setI2vPrompt(e.target.value)}
-            placeholder="slow camera push, she pulls her top up…"
+            placeholder="…says {{s1}}…&#10;&#10;SPEECH_SLOTS:&#10;s1 | speaker=her | lang=en | text=Don't stop"
           />
+          <span className="mt-1 block text-[11px] text-zinc-600">
+            Речь: плейсхолдеры {"{{s1}}"} + блок SPEECH_SLOTS в конце — пользователь сможет
+            менять реплики в боте / Mini App.
+          </span>
         </label>
 
         <div className="flex flex-wrap gap-2">

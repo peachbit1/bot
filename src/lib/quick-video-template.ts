@@ -421,6 +421,20 @@ export async function createQuickVideoTemplateFromRun(opts: {
       })
     : sanitizeShotsJsonForTemplate(run.prompt, authorNames);
 
+  const { extractSpeechSlots } = await import("@/lib/speech-slots");
+  const speechSlots = extractSpeechSlots(
+    isStory
+      ? shotsJson
+      : (() => {
+          try {
+            const plan = parseQuickVideoShotsPlan(shotsJson);
+            return (plan?.shots || []).map((s) => s.legoQuery || "").join("\n\n");
+          } catch {
+            return shotsJson;
+          }
+        })(),
+  );
+
   const blueprint = buildBlueprintFromRun(refSlots, refImageUrls);
   const locationSlot = blueprint.find((s) => s.role === "location");
   const priceCredits = opts.isJuice
@@ -450,6 +464,7 @@ export async function createQuickVideoTemplateFromRun(opts: {
       orientation: run.orientation,
       durationSec: run.durationSec,
       previewIdentityKey: filterDbCharacterIds(characterIds)[0] || "",
+      hasSpeech: speechSlots.length > 0,
     },
   });
 

@@ -565,9 +565,24 @@ Change language with the button below 👇`,
     en: "🗣 This template has speech. Type what your model should say:",
   },
 
+  speech_slot_prompt: {
+    ru: "🗣 Реплика {n}/{total} — {label} (язык: {lang})\n\nСейчас: «{text}»\n\nНапиши новый текст или нажми «Оставить».\nЧтобы сменить язык: /lang ru или /lang en",
+    en: "🗣 Line {n}/{total} — {label} (lang: {lang})\n\nCurrent: «{text}»\n\nType a new line or tap Keep.\nChange language: /lang ru or /lang en",
+  },
+
+  speech_keep: {
+    ru: "⏭ Оставить как есть",
+    en: "⏭ Keep as is",
+  },
+
+  speech_use_defaults: {
+    ru: "✅ Все реплики как в превью",
+    en: "✅ Use preview lines",
+  },
+
   speech_confirm: {
-    ru: "✅ Подтвердить и генерировать",
-    en: "✅ Confirm and generate",
+    ru: "✅ Подтвердить и дальше",
+    en: "✅ Confirm and continue",
   },
 
   need_photos: {
@@ -578,6 +593,11 @@ Change language with the button below 👇`,
   speech_preview: {
     ru: "Реплика: «{line}»\n\nПодтверди или напиши заново.",
     en: "Line: «{line}»\n\nConfirm or type again.",
+  },
+
+  speech_done: {
+    ru: "🗣 Речь сохранена. Дальше — фото модели.",
+    en: "🗣 Speech saved. Next — model photos.",
   },
 
   generating: {

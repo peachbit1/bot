@@ -24,6 +24,19 @@ export type TgPending = {
   title?: string;
   hasSpeech?: boolean;
   speechLine?: string;
+  /** Multi-slot dialogue fills while editing */
+  speechFills?: Array<{ id: string; text: string; lang?: string }>;
+  /** Index of slot currently being edited in bot */
+  speechSlotIndex?: number;
+  /** Snapshot of slots for the selected template */
+  speechSlots?: Array<{
+    id: string;
+    speaker: string;
+    lang: string;
+    text: string;
+    label?: string;
+    maxChars?: number;
+  }>;
   renameCharacterId?: string;
   onboardingCharacterId?: string;
   lookbookCharacterId?: string;

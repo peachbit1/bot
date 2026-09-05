@@ -4,6 +4,15 @@ import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { TgShell, useTgMiniApp } from "@/lib/tg/miniapp/client";
 
+type SpeechSlotDto = {
+  id: string;
+  speaker: string;
+  lang: string;
+  text: string;
+  label: string;
+  maxChars: number;
+};
+
 type VideoRef = { id: string; name: string; photoCount: number; ready: boolean };
 type VideoTpl = {
   id: string;
@@ -13,9 +22,13 @@ type VideoTpl = {
   previewPhotoUrl: string;
   templateKind?: "quick_video" | "lora_i2v";
   requiresLora?: boolean;
+  hasSpeech?: boolean;
+  speechSlots?: SpeechSlotDto[];
 };
 
 type LoraChar = { id: string; name: string; loraStatus?: string };
+
+const LANGS = ["en", "ru", "es", "de", "fr", "pt"] as const;
 
 const UI = {
   ru: {
@@ -25,11 +38,15 @@ const UI = {
     useSaved: "Или выбери сохранённую модель",
     pickLora: "2. Выбери модель с LoRA",
     needLora: "Нужна обученная LoRA",
+    speech: "3. Речь в видео",
+    speechHint: "Можно оставить как в превью или поменять текст и язык.",
+    keepDefaults: "Как в превью",
     generate: "Снять видео",
     choose: "Выбрать",
     back: "← К позам",
     needPhoto: "Нужно минимум 1 фото",
     starting: "Запускаю…",
+    line: "Реплика",
   },
   en: {
     title: "Make video",
@@ -38,11 +55,15 @@ const UI = {
     useSaved: "Or pick a saved model",
     pickLora: "2. Pick a LoRA model",
     needLora: "Need a trained LoRA",
+    speech: "3. Dialogue",
+    speechHint: "Keep preview lines or edit text and language.",
+    keepDefaults: "Use preview lines",
     generate: "Shoot video",
     choose: "Choose",
     back: "← Poses",
     needPhoto: "Need at least 1 photo",
     starting: "Starting…",
+    line: "Line",
   },
 } as const;
 
@@ -57,7 +78,7 @@ function VideoPageInner() {
   const presetId = params.get("templateId") || "";
   const presetCharacterId = params.get("characterId") || "";
 
-  const { status, error, profile, locale, apiFetch, refresh } = useTgMiniApp();
+  const { status, error, locale, apiFetch, refresh } = useTgMiniApp();
   const u = UI[locale];
 
   const [templates, setTemplates] = useState<VideoTpl[]>([]);
@@ -71,6 +92,9 @@ function VideoPageInner() {
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [speechFills, setSpeechFills] = useState<
+    Record<string, { text: string; lang: string }>
+  >({});
   const fileRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -129,6 +153,16 @@ function VideoPageInner() {
 
   const tpl = templates.find((t) => t.id === templateId) || null;
   const isLoraI2v = tpl?.templateKind === "lora_i2v" || !!tpl?.requiresLora;
+  const speechSlots = tpl?.speechSlots || [];
+
+  useEffect(() => {
+    if (!tpl) return;
+    const next: Record<string, { text: string; lang: string }> = {};
+    for (const s of tpl.speechSlots || []) {
+      next[s.id] = { text: s.text, lang: s.lang || "en" };
+    }
+    setSpeechFills(next);
+  }, [tpl?.id]);
 
   useEffect(() => {
     if (!tpl || !isLoraI2v) return;
@@ -180,6 +214,14 @@ function VideoPageInner() {
     }
   };
 
+  const resetSpeechDefaults = () => {
+    const next: Record<string, { text: string; lang: string }> = {};
+    for (const s of speechSlots) {
+      next[s.id] = { text: s.text, lang: s.lang || "en" };
+    }
+    setSpeechFills(next);
+  };
+
   const onGenerate = async () => {
     if (!templateId || !characterId) {
       setErr(isLoraI2v ? u.needLora : u.needPhoto);
@@ -191,10 +233,21 @@ function VideoPageInner() {
     }
     setBusy(true);
     setErr("");
+    const fills = speechSlots.map((s) => ({
+      id: s.id,
+      text: (speechFills[s.id]?.text ?? s.text).trim().slice(0, s.maxChars || 120),
+      lang: speechFills[s.id]?.lang || s.lang || "en",
+    }));
     const res = await apiFetch("/api/tg/generate/video", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ templateId, characterId, locale }),
+      body: JSON.stringify({
+        templateId,
+        characterId,
+        locale,
+        speechFills: fills,
+        speechLine: fills[0]?.text,
+      }),
     });
     setBusy(false);
     if (!res.ok) {
@@ -264,6 +317,7 @@ function VideoPageInner() {
                   <small>
                     {t.pricePeaches} 🍑
                     {t.templateKind === "lora_i2v" ? " · LoRA" : ""}
+                    {t.hasSpeech ? (locale === "ru" ? " · речь" : " · speech") : ""}
                   </small>
                 </div>
                 <button
@@ -381,6 +435,100 @@ function VideoPageInner() {
                 </>
               )}
             </>
+          )}
+
+          {speechSlots.length > 0 && (
+            <div style={{ marginTop: "1rem" }}>
+              <h2 style={{ fontSize: "1rem", margin: "0 0 0.35rem" }}>{u.speech}</h2>
+              <p className="tg-muted" style={{ margin: "0 0 0.75rem", fontSize: "0.85rem" }}>
+                {u.speechHint}
+              </p>
+              <button
+                type="button"
+                className="tg-lang"
+                style={{ marginBottom: "0.75rem" }}
+                onClick={resetSpeechDefaults}
+              >
+                {u.keepDefaults}
+              </button>
+              {speechSlots.map((s, i) => (
+                <div
+                  key={s.id}
+                  style={{
+                    marginBottom: "0.85rem",
+                    padding: "0.75rem",
+                    borderRadius: 12,
+                    background: "rgba(255,255,255,0.04)",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: "0.5rem",
+                      marginBottom: "0.4rem",
+                      fontSize: "0.85rem",
+                    }}
+                  >
+                    <strong>
+                      {s.label || `${u.line} ${i + 1}`}
+                    </strong>
+                    <select
+                      value={speechFills[s.id]?.lang || s.lang || "en"}
+                      onChange={(e) =>
+                        setSpeechFills((prev) => ({
+                          ...prev,
+                          [s.id]: {
+                            text: prev[s.id]?.text ?? s.text,
+                            lang: e.target.value,
+                          },
+                        }))
+                      }
+                      style={{
+                        borderRadius: 8,
+                        border: "1px solid rgba(255,255,255,0.15)",
+                        background: "transparent",
+                        color: "inherit",
+                        padding: "0.15rem 0.35rem",
+                      }}
+                    >
+                      {LANGS.map((lang) => (
+                        <option key={lang} value={lang}>
+                          {lang.toUpperCase()}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <textarea
+                    value={speechFills[s.id]?.text ?? s.text}
+                    maxLength={s.maxChars || 120}
+                    rows={2}
+                    onChange={(e) =>
+                      setSpeechFills((prev) => ({
+                        ...prev,
+                        [s.id]: {
+                          text: e.target.value,
+                          lang: prev[s.id]?.lang || s.lang || "en",
+                        },
+                      }))
+                    }
+                    style={{
+                      width: "100%",
+                      borderRadius: 10,
+                      border: "1px solid rgba(255,255,255,0.15)",
+                      background: "rgba(0,0,0,0.2)",
+                      color: "inherit",
+                      padding: "0.55rem 0.65rem",
+                      resize: "vertical",
+                      font: "inherit",
+                    }}
+                  />
+                  <small className="tg-muted">
+                    {(speechFills[s.id]?.text ?? s.text).length}/{s.maxChars || 120}
+                  </small>
+                </div>
+              ))}
+            </div>
           )}
 
           {err && <p className="tg-error">{err}</p>}

@@ -1,0 +1,328 @@
+/**
+ * Spoken dialogue slots for video templates.
+ * Authors mark lines with {{s1}}… and a SPEECH_SLOTS block (AI prompt contract).
+ */
+
+export type SpeechSpeaker = "her" | "him" | "voiceover" | "other";
+
+export type SpeechSlot = {
+  id: string;
+  speaker: SpeechSpeaker;
+  lang: string;
+  text: string;
+  label?: string;
+  maxChars?: number;
+};
+
+export type SpeechSlotFill = {
+  id: string;
+  text: string;
+  lang?: string;
+};
+
+const SLOT_RE = /\{\{\s*(s\d+)\s*\}\}/gi;
+const BLOCK_HEADER_RE = /(?:^|\n)\s*SPEECH_SLOTS\s*:\s*\n/i;
+const SPEAKERS = new Set<SpeechSpeaker>(["her", "him", "voiceover", "other"]);
+
+function normSpeaker(raw: string): SpeechSpeaker {
+  const s = raw.trim().toLowerCase();
+  if (s === "she" || s === "female" || s === "woman") return "her";
+  if (s === "he" || s === "male" || s === "man") return "him";
+  if (s === "vo" || s === "narrator" || s === "voice") return "voiceover";
+  if (SPEAKERS.has(s as SpeechSpeaker)) return s as SpeechSpeaker;
+  return "other";
+}
+
+function normLang(raw: string | undefined): string {
+  const l = (raw || "en").trim().toLowerCase().slice(0, 8);
+  return l || "en";
+}
+
+function collectSpeechSlotLines(source: string): { start: number; end: number; lines: string[] } | null {
+  const header = source.match(BLOCK_HEADER_RE);
+  if (!header || header.index === undefined) return null;
+  const start = header.index;
+  const bodyStart = header.index + header[0].length;
+  const rest = source.slice(bodyStart);
+  const lines: string[] = [];
+  let consumed = 0;
+  for (const line of rest.split(/\r?\n/)) {
+    const rawLen = line.length + 1;
+    const t = line.trim();
+    if (!t) {
+      if (lines.length) {
+        consumed += rawLen;
+        break;
+      }
+      consumed += rawLen;
+      continue;
+    }
+    if (/^[A-Z][A-Z0-9_ ]{2,}:\s*$/.test(t) && !/^s\d+/i.test(t)) break;
+    if (t.startsWith("#")) {
+      consumed += rawLen;
+      continue;
+    }
+    if (!/^s\d+/i.test(t) && !/speaker\s*=/i.test(t) && !/text\s*=/i.test(t)) {
+      if (lines.length) break;
+      consumed += rawLen;
+      continue;
+    }
+    lines.push(t);
+    consumed += rawLen;
+  }
+  return { start, end: bodyStart + consumed, lines };
+}
+
+/** Parse `SPEECH_SLOTS:` lines: `s1 | speaker=her | lang=en | text=Hello` */
+export function parseSpeechSlotsBlock(source: string): SpeechSlot[] {
+  const block = collectSpeechSlotLines(source);
+  if (!block?.lines.length) return [];
+
+  const out: SpeechSlot[] = [];
+  const seen = new Set<string>();
+  for (const line of block.lines) {
+    const parts = line.split("|").map((p) => p.trim());
+    if (!parts.length) continue;
+    let id = "";
+    let speaker: SpeechSpeaker = "her";
+    let lang = "en";
+    let text = "";
+    let label = "";
+
+    for (let i = 0; i < parts.length; i++) {
+      const p = parts[i]!;
+      if (i === 0 && /^s\d+$/i.test(p)) {
+        id = p.toLowerCase();
+        continue;
+      }
+      const eq = p.indexOf("=");
+      if (eq <= 0) {
+        if (!text && !p.includes("=")) text = p;
+        continue;
+      }
+      const key = p.slice(0, eq).trim().toLowerCase();
+      const val = p.slice(eq + 1).trim();
+      if (key === "id" && /^s\d+$/i.test(val)) id = val.toLowerCase();
+      else if (key === "speaker") speaker = normSpeaker(val);
+      else if (key === "lang" || key === "language") lang = normLang(val);
+      else if (key === "text" || key === "line" || key === "default") text = val;
+      else if (key === "label") label = val;
+    }
+    if (!id) id = `s${out.length + 1}`;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push({
+      id,
+      speaker,
+      lang,
+      text: text.slice(0, 500),
+      label: label || undefined,
+      maxChars: 120,
+    });
+  }
+  return out;
+}
+
+/** Collect {{sN}} ids in appearance order. */
+export function listPlaceholderIds(source: string): string[] {
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  SLOT_RE.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = SLOT_RE.exec(source))) {
+    const id = m[1]!.toLowerCase();
+    if (seen.has(id)) continue;
+    seen.add(id);
+    ids.push(id);
+  }
+  return ids;
+}
+
+/** Strip SPEECH_SLOTS block (keep body + placeholders). */
+export function stripSpeechSlotsBlock(source: string): string {
+  if (!source) return "";
+  const block = collectSpeechSlotLines(source);
+  if (!block) return source.trim();
+  return `${source.slice(0, block.start)}${source.slice(block.end)}`
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+/**
+ * Resolve slots from any prompt text (i2v / shots / story).
+ * Placeholders without a block line get empty defaults.
+ */
+export function extractSpeechSlots(...sources: string[]): SpeechSlot[] {
+  const joined = sources.filter(Boolean).join("\n\n");
+  if (!joined.trim()) return [];
+
+  const fromBlock = parseSpeechSlotsBlock(joined);
+  const byId = new Map(fromBlock.map((s) => [s.id, s]));
+  const placeholderIds = listPlaceholderIds(joined);
+
+  const orderedIds =
+    placeholderIds.length > 0 ? placeholderIds : fromBlock.map((s) => s.id);
+
+  if (!orderedIds.length) return [];
+
+  return orderedIds.map((id, i) => {
+    const existing = byId.get(id);
+    if (existing) return existing;
+    return {
+      id,
+      speaker: "her" as const,
+      lang: "en",
+      text: "",
+      label: `Line ${i + 1}`,
+      maxChars: 120,
+    };
+  });
+}
+
+/** Legacy single-line speech → one slot. */
+export function legacySpeechSlot(defaultText = ""): SpeechSlot[] {
+  return [
+    {
+      id: "s1",
+      speaker: "her",
+      lang: "en",
+      text: defaultText.slice(0, 500),
+      label: "Speech",
+      maxChars: 120,
+    },
+  ];
+}
+
+export function speechSlotsFromJson(raw: string | null | undefined): SpeechSlot[] {
+  if (!raw?.trim()) return [];
+  try {
+    const j = JSON.parse(raw) as unknown;
+    if (!Array.isArray(j)) return [];
+    return j
+      .filter((row): row is Record<string, unknown> => !!row && typeof row === "object")
+      .map((row, i) => {
+        const id =
+          typeof row.id === "string" && /^s\d+$/i.test(row.id)
+            ? row.id.toLowerCase()
+            : `s${i + 1}`;
+        return {
+          id,
+          speaker: normSpeaker(String(row.speaker || "her")),
+          lang: normLang(typeof row.lang === "string" ? row.lang : "en"),
+          text: String(row.text || "").slice(0, 500),
+          label: typeof row.label === "string" ? row.label : undefined,
+          maxChars:
+            typeof row.maxChars === "number" && row.maxChars > 0
+              ? Math.min(500, row.maxChars)
+              : 120,
+        } satisfies SpeechSlot;
+      });
+  } catch {
+    return [];
+  }
+}
+
+export function serializeSpeechSlots(slots: SpeechSlot[]): string {
+  return JSON.stringify(slots);
+}
+
+export function speakerLabel(speaker: SpeechSpeaker, locale: "ru" | "en"): string {
+  const map: Record<SpeechSpeaker, { ru: string; en: string }> = {
+    her: { ru: "Она", en: "Her" },
+    him: { ru: "Он", en: "Him" },
+    voiceover: { ru: "За кадром", en: "Voiceover" },
+    other: { ru: "Реплика", en: "Line" },
+  };
+  return map[speaker][locale];
+}
+
+function escapeRegExp(s: string) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** Replace {{sN}} and drop SPEECH_SLOTS; append a clear spoken block for the model. */
+export function applySpeechFills(
+  source: string,
+  slots: SpeechSlot[],
+  fills: SpeechSlotFill[],
+): string {
+  const fillById = new Map(fills.map((f) => [f.id.toLowerCase(), f] as const));
+  let body = stripSpeechSlotsBlock(source);
+
+  const spokenParts: string[] = [];
+  for (const slot of slots) {
+    const fill = fillById.get(slot.id.toLowerCase());
+    const text = (fill?.text ?? slot.text).trim().slice(0, slot.maxChars ?? 120);
+    const lang = normLang(fill?.lang || slot.lang);
+    const re = new RegExp(`\\{\\{\\s*${escapeRegExp(slot.id)}\\s*\\}\\}`, "gi");
+    if (text) {
+      body = body.replace(re, `"${text.replace(/"/g, "'")}"`);
+      spokenParts.push(`[${slot.speaker}/${lang}] "${text.replace(/"/g, "'")}"`);
+    } else {
+      body = body.replace(re, "(no spoken words — breath only)");
+    }
+  }
+
+  body = body.replace(SLOT_RE, "(no spoken words)");
+
+  if (spokenParts.length) {
+    body = `${body.trim()}\n\nSpoken dialogue (perform clearly, match mouths when visible): ${spokenParts.join("; ")}.`;
+  }
+  return body.trim();
+}
+
+/** Apply fills across quick-video shots plan JSON string. */
+export function applySpeechFillsToShotsJson(
+  shotsJson: string,
+  slots: SpeechSlot[],
+  fills: SpeechSlotFill[],
+): string {
+  if (!slots.length) return shotsJson;
+  try {
+    const plan = JSON.parse(shotsJson) as {
+      __qvShots?: boolean;
+      shots?: Array<{ legoQuery?: string; [k: string]: unknown }>;
+      [k: string]: unknown;
+    };
+    if (plan?.__qvShots && Array.isArray(plan.shots)) {
+      let spokenAttached = false;
+      const shots = plan.shots.map((shot) => {
+        const q = String(shot.legoQuery || "");
+        if (!q) return shot;
+        const hasPh =
+          listPlaceholderIds(q).length > 0 || /SPEECH_SLOTS/i.test(q);
+        if (hasPh || !spokenAttached) {
+          spokenAttached = true;
+          return { ...shot, legoQuery: applySpeechFills(q, slots, fills) };
+        }
+        return {
+          ...shot,
+          legoQuery: stripSpeechSlotsBlock(q).replace(SLOT_RE, ""),
+        };
+      });
+      return JSON.stringify({ ...plan, shots });
+    }
+  } catch {
+    /* fall through — treat as raw story prompt */
+  }
+  return applySpeechFills(shotsJson, slots, fills);
+}
+
+export function normalizeFills(
+  slots: SpeechSlot[],
+  raw: SpeechSlotFill[] | undefined,
+): SpeechSlotFill[] {
+  const byId = new Map((raw || []).map((f) => [f.id.toLowerCase(), f]));
+  return slots.map((s) => {
+    const f = byId.get(s.id.toLowerCase());
+    return {
+      id: s.id,
+      text: (f?.text ?? s.text).trim().slice(0, s.maxChars ?? 120),
+      lang: normLang(f?.lang || s.lang),
+    };
+  });
+}
+
+export function templateHasSpeech(slots: SpeechSlot[], hasSpeechFlag?: boolean) {
+  return slots.length > 0 || Boolean(hasSpeechFlag);
+}

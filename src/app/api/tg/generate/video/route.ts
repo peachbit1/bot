@@ -43,6 +43,8 @@ export async function POST(req: Request) {
     characterId?: string;
     createNew?: boolean;
     locale?: string;
+    speechLine?: string;
+    speechFills?: Array<{ id: string; text: string; lang?: string }>;
   };
 
   if (!body.templateId) {
@@ -122,6 +124,8 @@ export async function POST(req: Request) {
       platformUserId,
       templateId: body.templateId,
       characterId: characterId!,
+      speechLine: body.speechLine,
+      speechFills: body.speechFills,
     });
     return NextResponse.json({
       ok: true,

@@ -10,6 +10,11 @@ import { listTgPublishedLoraI2vTemplates } from "@/lib/lora-i2v-template";
 import { normalizeLocale, type TgLocale } from "@/lib/tg/i18n";
 import { seedPreviewForPhoto, seedPreviewForVideo } from "@/lib/tg/tg-catalog-seed";
 import { isSafeVideoTemplateThumb } from "@/lib/quick-video-preview-safe";
+import {
+  resolveVideoTemplateSpeech,
+  speechSlotsPublicDto,
+} from "@/lib/tg/template-speech";
+import { extractSpeechSlots } from "@/lib/speech-slots";
 
 function videoTitle(
   row: { title: string; titleEn?: string },
@@ -47,60 +52,77 @@ export async function GET(req: Request) {
       : listTgPublishedLoraI2vTemplates(locale),
   ]);
 
-  const video = videoRaw.map((t, i) => {
-    const row = t as typeof t & { titleEn?: string; hasSpeech?: boolean };
-    const seedPrev = seedPreviewForVideo(row.title, i);
-    const rawVideo = t.previewVideoUrl?.trim() || "";
-    const previewVideo =
-      (rawVideo && looksLikeVideoUrl(rawVideo) ? rawVideo : "") ||
-      seedPrev?.previewVideoUrl ||
-      "";
-    const rawPhoto = t.previewPhotoUrl?.trim() || "";
-    const previewPhoto = isSafeVideoTemplateThumb(rawPhoto)
-      ? rawPhoto
-      : isSafeVideoTemplateThumb(seedPrev?.previewPhotoUrl)
-        ? seedPrev!.previewPhotoUrl
-        : "";
-    return {
-      ...t,
-      title: videoTitle(row, locale),
-      pricePeaches: videoTemplatePricePeaches(t),
-      hasSpeech: Boolean(row.hasSpeech),
-      previewVideoUrl: previewVideo,
-      previewPhotoUrl: previewPhoto,
-      templateKind: "quick_video" as const,
-      requiresLora: false,
-      createdAt: (t as { createdAt?: string }).createdAt || new Date(0).toISOString(),
-      updatedAt:
-        (t as { updatedAt?: string }).updatedAt ||
-        (t as { createdAt?: string }).createdAt ||
-        new Date(0).toISOString(),
-      identityKey: (t as { identityKey?: string }).identityKey || t.id,
-    };
-  });
+  const video = await Promise.all(
+    videoRaw.map(async (t, i) => {
+      const row = t as typeof t & { titleEn?: string };
+      const seedPrev = seedPreviewForVideo(row.title, i);
+      const rawVideo = t.previewVideoUrl?.trim() || "";
+      const previewVideo =
+        (rawVideo && looksLikeVideoUrl(rawVideo) ? rawVideo : "") ||
+        seedPrev?.previewVideoUrl ||
+        "";
+      const rawPhoto = t.previewPhotoUrl?.trim() || "";
+      const previewPhoto = isSafeVideoTemplateThumb(rawPhoto)
+        ? rawPhoto
+        : isSafeVideoTemplateThumb(seedPrev?.previewPhotoUrl)
+          ? seedPrev!.previewPhotoUrl
+          : "";
+      const speech = await resolveVideoTemplateSpeech(t.id);
+      const slots = speechSlotsPublicDto(speech.slots, locale);
+      return {
+        ...t,
+        title: videoTitle(row, locale),
+        pricePeaches: videoTemplatePricePeaches(t),
+        hasSpeech: speech.hasSpeech,
+        speechSlots: slots,
+        previewVideoUrl: previewVideo,
+        previewPhotoUrl: previewPhoto,
+        templateKind: "quick_video" as const,
+        requiresLora: false,
+        createdAt:
+          (t as { createdAt?: string }).createdAt || new Date(0).toISOString(),
+        updatedAt:
+          (t as { updatedAt?: string }).updatedAt ||
+          (t as { createdAt?: string }).createdAt ||
+          new Date(0).toISOString(),
+        identityKey: (t as { identityKey?: string }).identityKey || t.id,
+      };
+    }),
+  );
 
-  const loraI2v = loraI2vRaw.map((t) => {
-    const rawVideo = t.previewVideoUrl?.trim() || "";
-    const previewVideo =
-      rawVideo && looksLikeVideoUrl(rawVideo) ? rawVideo : "";
-    // Recipe still/video are the product preview (not training identity refs).
-    const previewPhoto = t.previewImageUrl?.trim() || "";
-    return {
-      id: t.id,
-      title: t.title,
-      notes: t.notes,
-      pricePeaches: t.pricePeaches,
-      durationSec: t.durationSec,
-      previewVideoUrl: previewVideo,
-      previewPhotoUrl: previewPhoto,
-      hasSpeech: false,
-      templateKind: "lora_i2v" as const,
-      requiresLora: true,
-      createdAt: t.createdAt,
-      updatedAt: t.updatedAt,
-      identityKey: t.identityKey || t.id,
-    };
-  });
+  const loraI2v = await Promise.all(
+    loraI2vRaw.map(async (t) => {
+      const rawVideo = t.previewVideoUrl?.trim() || "";
+      const previewVideo =
+        rawVideo && looksLikeVideoUrl(rawVideo) ? rawVideo : "";
+      const previewPhoto = t.previewImageUrl?.trim() || "";
+      const full = await prisma.loraI2vTemplate.findFirst({
+        where: { id: t.id },
+        select: { i2vPrompt: true, stillPrompt: true },
+      });
+      const slotsRaw = extractSpeechSlots(
+        full?.i2vPrompt || "",
+        full?.stillPrompt || "",
+      );
+      const slots = speechSlotsPublicDto(slotsRaw, locale);
+      return {
+        id: t.id,
+        title: t.title,
+        notes: t.notes,
+        pricePeaches: t.pricePeaches,
+        durationSec: t.durationSec,
+        previewVideoUrl: previewVideo,
+        previewPhotoUrl: previewPhoto,
+        hasSpeech: slots.length > 0,
+        speechSlots: slots,
+        templateKind: "lora_i2v" as const,
+        requiresLora: true,
+        createdAt: t.createdAt,
+        updatedAt: t.updatedAt,
+        identityKey: t.identityKey || t.id,
+      };
+    }),
+  );
 
   const photoMapped = photo.map((p) => ({
     ...p,

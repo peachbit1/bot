@@ -41,6 +41,14 @@ import {
   consumeStudioDailyFree,
 } from "@/lib/tg/tg-promo";
 
+import {
+  applySpeechFills,
+  applySpeechFillsToShotsJson,
+  normalizeFills,
+  type SpeechSlotFill,
+} from "@/lib/speech-slots";
+import { resolveVideoTemplateSpeech } from "@/lib/tg/template-speech";
+
 function injectSpeech(plan: QuickVideoShotsPlan, line: string): QuickVideoShotsPlan {
   const text = line.trim().slice(0, 500);
   if (!text || !plan.shots.length) return plan;
@@ -96,11 +104,24 @@ export async function startTgLoraI2vGeneration(opts: {
   platformUserId: string;
   templateId: string;
   characterId: string;
+  speechLine?: string;
+  speechFills?: SpeechSlotFill[];
 }): Promise<TgGenerateResult> {
   const tpl = await prisma.loraI2vTemplate.findFirst({
     where: { id: opts.templateId, tgPublished: true },
   });
   if (!tpl) throw new Error("Шаблон не найден");
+
+  const { slots } = await resolveVideoTemplateSpeech(opts.templateId);
+  let fills = normalizeFills(slots, opts.speechFills);
+  if (!fills.length && opts.speechLine?.trim()) {
+    fills = [{ id: "s1", text: opts.speechLine.trim(), lang: "en" }];
+  }
+  const i2vPrompt = slots.length
+    ? applySpeechFills(tpl.i2vPrompt, slots, fills)
+    : opts.speechLine?.trim()
+      ? `${tpl.i2vPrompt}\n\nSpoken dialogue (perform clearly): "${opts.speechLine.trim().replace(/"/g, "'")}"`
+      : tpl.i2vPrompt;
 
   const character = await prisma.character.findFirst({
     where: {
@@ -152,7 +173,7 @@ export async function startTgLoraI2vGeneration(opts: {
       characterId: character.id,
       kind: "video",
       title,
-      prompt: tpl.i2vPrompt,
+      prompt: i2vPrompt,
       resultUrl: GALLERY_PLACEHOLDER_URL,
       metaJson: JSON.stringify({
         status: "pending",
@@ -221,12 +242,12 @@ export async function startTgLoraI2vGeneration(opts: {
 
       const clip = await runI2VFromStill({
         stillBytes: still.bytes,
-        prompt: tpl.i2vPrompt,
+        prompt: i2vPrompt,
         width: still.width,
         height: still.height,
         filenamePrefix: "peach/li2v",
         durationSec: tpl.durationSec || 6,
-        extraHints: [tpl.stillPrompt, tpl.i2vPrompt, still.prompt],
+        extraHints: [tpl.stillPrompt, i2vPrompt, still.prompt],
       });
       if (!clip.bytes?.length || clip.bytes.length < 100) {
         throw new Error("MiniMax вернул пустой клип");
@@ -244,7 +265,7 @@ export async function startTgLoraI2vGeneration(opts: {
           resultUrl: saved.publicUrl,
           width: still.width,
           height: still.height,
-          prompt: tpl.i2vPrompt,
+          prompt: i2vPrompt,
           metaJson: JSON.stringify({
             status: "ready",
             engine: clip.engine,
@@ -287,6 +308,7 @@ export async function startTgVideoGeneration(opts: {
   templateId: string;
   characterId: string;
   speechLine?: string;
+  speechFills?: SpeechSlotFill[];
 }): Promise<TgGenerateResult> {
   const loraI2v = await prisma.loraI2vTemplate.findFirst({
     where: { id: opts.templateId, tgPublished: true },
@@ -297,6 +319,8 @@ export async function startTgVideoGeneration(opts: {
       platformUserId: opts.platformUserId,
       templateId: opts.templateId,
       characterId: opts.characterId,
+      speechLine: opts.speechLine,
+      speechFills: opts.speechFills,
     });
   }
 
@@ -348,8 +372,16 @@ export async function startTgVideoGeneration(opts: {
 
   let shotsPlan = parseQuickVideoShotsPlan(detail.shotsJson);
   const { parseStoryH3Template } = await import("@/lib/story-h3-prompt");
-  const storyTpl = !shotsPlan ? parseStoryH3Template(detail.shotsJson) : null;
+  let storyTpl = !shotsPlan ? parseStoryH3Template(detail.shotsJson) : null;
   if (!shotsPlan && !storyTpl) throw new Error("Битый шаблон (shots)");
+
+  const { slots: speechSlots } = await resolveVideoTemplateSpeech(opts.templateId);
+  let speechFills = normalizeFills(speechSlots, opts.speechFills);
+  if (!speechFills.length && opts.speechLine?.trim()) {
+    speechFills = [
+      { id: speechSlots[0]?.id || "s1", text: opts.speechLine.trim(), lang: "en" },
+    ];
+  }
 
   const cast = await prisma.character.findFirst({
     where: { id: opts.characterId },
@@ -374,16 +406,35 @@ export async function startTgVideoGeneration(opts: {
     const { bindQuickVideoShotsToCharacter } = await import(
       "@/lib/quick-video-template"
     );
-    const boundJson = bindQuickVideoShotsToCharacter(
+    let boundJson = bindQuickVideoShotsToCharacter(
       detail.shotsJson,
       cast?.name || "Subject",
       foreignNames,
     );
+    if (speechSlots.length) {
+      boundJson = applySpeechFillsToShotsJson(
+        boundJson,
+        speechSlots,
+        speechFills,
+      );
+    }
     shotsPlan = parseQuickVideoShotsPlan(boundJson) || shotsPlan;
 
-    if (opts.speechLine?.trim()) {
+    if (!speechSlots.length && opts.speechLine?.trim()) {
       shotsPlan = injectSpeech(shotsPlan, opts.speechLine);
     }
+  } else if (storyTpl && speechSlots.length) {
+    const prompt = applySpeechFills(
+      storyTpl.prompt,
+      speechSlots,
+      speechFills,
+    );
+    storyTpl = { ...storyTpl, prompt };
+  } else if (storyTpl && opts.speechLine?.trim()) {
+    storyTpl = {
+      ...storyTpl,
+      prompt: `${storyTpl.prompt}\n\nSpoken dialogue (perform clearly): "${opts.speechLine.trim().replace(/"/g, "'")}"`,
+    };
   }
 
   const manualSlots: ManualPictureSlotInput[] = [];

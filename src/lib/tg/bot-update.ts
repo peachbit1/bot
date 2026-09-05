@@ -138,16 +138,6 @@ function localeFromUser(userLocale?: string | null): TgLocale {
   return normalizeLocale(userLocale);
 }
 
-function speechConfirmKeyboard(locale: TgLocale) {
-  return {
-    reply_markup: {
-      keyboard: [[{ text: t("speech_confirm", locale) }]],
-      resize_keyboard: true,
-      one_time_keyboard: true,
-    },
-  };
-}
-
 async function applyLocale(userId: string, locale: TgLocale) {
   await prisma.user.update({ where: { id: userId }, data: { locale } });
 }
@@ -273,7 +263,19 @@ async function loadTemplateMeta(
   userId: string,
   kind: "video" | "photo",
   templateId: string,
-): Promise<{ title: string; hasSpeech: boolean; pricePeaches: number } | null> {
+): Promise<{
+  title: string;
+  hasSpeech: boolean;
+  pricePeaches: number;
+  speechSlots: Array<{
+    id: string;
+    speaker: string;
+    lang: string;
+    text: string;
+    label?: string;
+    maxChars?: number;
+  }>;
+} | null> {
   if (kind === "photo") {
     const row = await getPhotoTemplate(templateId);
     if (!row) return null;
@@ -286,8 +288,26 @@ async function loadTemplateMeta(
       title: row.title,
       hasSpeech: row.hasSpeech,
       pricePeaches: price,
+      speechSlots: row.hasSpeech
+        ? [
+            {
+              id: "s1",
+              speaker: "her",
+              lang: "en",
+              text: "",
+              label: localeSafeSpeechLabel("her"),
+              maxChars: 120,
+            },
+          ]
+        : [],
     };
   }
+  const { resolveVideoTemplateSpeech, speechSlotsPublicDto } = await import(
+    "@/lib/tg/template-speech"
+  );
+  const speech = await resolveVideoTemplateSpeech(templateId);
+  const slots = speechSlotsPublicDto(speech.slots, "ru");
+
   const loraI2v = await prisma.loraI2vTemplate.findFirst({
     where: { id: templateId, tgPublished: true },
     select: { title: true, tgDisplayTitle: true, pricePeaches: true },
@@ -300,8 +320,9 @@ async function loadTemplateMeta(
     });
     return {
       title: loraI2v.tgDisplayTitle.trim() || loraI2v.title,
-      hasSpeech: false,
+      hasSpeech: speech.hasSpeech,
       pricePeaches: price,
+      speechSlots: slots,
     };
   }
   const detail = await getQuickVideoTemplateDetail(userId, templateId);
@@ -313,9 +334,85 @@ async function loadTemplateMeta(
   });
   return {
     title: detail.title,
-    hasSpeech: Boolean((detail as { hasSpeech?: boolean }).hasSpeech),
+    hasSpeech: speech.hasSpeech,
     pricePeaches: price,
+    speechSlots: slots,
   };
+}
+
+function localeSafeSpeechLabel(speaker: string) {
+  if (speaker === "him") return "Он";
+  if (speaker === "voiceover") return "За кадром";
+  return "Она";
+}
+
+function speechEditKeyboard(locale: TgLocale, multi: boolean) {
+  const rows: Array<Array<{ text: string }>> = [
+    [{ text: t("speech_keep", locale) }],
+  ];
+  if (multi) {
+    rows.push([{ text: t("speech_use_defaults", locale) }]);
+  }
+  rows.push([{ text: t("speech_confirm", locale) }]);
+  return {
+    reply_markup: {
+      keyboard: rows,
+      resize_keyboard: true,
+      one_time_keyboard: true,
+    },
+  };
+}
+
+async function promptSpeechSlot(
+  chatId: number,
+  platformUserId: string,
+  locale: TgLocale,
+  pending: TgPending,
+) {
+  const slots = pending.speechSlots || [];
+  const idx = pending.speechSlotIndex ?? 0;
+  const slot = slots[idx];
+  if (!slot) return;
+  const fills = pending.speechFills || [];
+  const fill = fills.find((f) => f.id === slot.id);
+  const text = (fill?.text ?? slot.text) || "—";
+  const lang = fill?.lang || slot.lang || "en";
+  await setTgSession(platformUserId, {
+    chatState: "awaiting_speech",
+    pending: { ...pending, speechSlotIndex: idx },
+  });
+  await tgSendMessage(
+    chatId,
+    tFormat("speech_slot_prompt", locale, {
+      n: String(idx + 1),
+      total: String(slots.length),
+      label: slot.label || slot.id,
+      lang,
+      text,
+    }),
+    speechEditKeyboard(locale, slots.length > 1),
+  );
+}
+
+async function finishSpeechAndContinue(
+  chatId: number,
+  platformUserId: string,
+  userId: string,
+  locale: TgLocale,
+  pending: TgPending,
+) {
+  const fills = pending.speechFills || [];
+  const next: TgPending = {
+    ...pending,
+    speechLine: fills[0]?.text || pending.speechLine,
+    speechFills: fills,
+  };
+  await tgSendMessage(chatId, t("speech_done", locale));
+  if (pending.templateKind === "video") {
+    await beginVideoUploadFlow(chatId, platformUserId, userId, locale, next);
+  } else {
+    await beginGeneration(chatId, platformUserId, userId, locale, next);
+  }
 }
 
 /** Studio catalog + user's LoRA-ready models for photo confirm buttons. */
@@ -356,6 +453,7 @@ async function showTemplateConfirm(
   templateId: string,
   title: string,
   hasSpeech: boolean,
+  speechSlots: TgPending["speechSlots"] = [],
 ) {
   if (kind === "video") {
     const pricing = await templatePriceLabel({
@@ -380,6 +478,7 @@ async function showTemplateConfirm(
     const previewUrl = await getTemplatePreviewUrl(userId, kind, templateId);
     const { tgSendPreviewMessage } = await import("@/lib/tg/media-assets");
     await tgSendPreviewMessage(chatId, previewUrl, caption, markup);
+    const slots = speechSlots || [];
     await setTgSession(platformUserId, {
       chatState: "idle",
       pending: {
@@ -387,6 +486,13 @@ async function showTemplateConfirm(
         templateKind: kind,
         title,
         hasSpeech: hasSpeech && kind === "video",
+        speechSlots: slots,
+        speechFills: slots.map((s) => ({
+          id: s.id,
+          text: s.text,
+          lang: s.lang,
+        })),
+        speechSlotIndex: 0,
         pricePeaches: pricing.price,
         discountApplied: pricing.discountApplied,
         freePhoto: pricing.freePhoto,
@@ -669,6 +775,7 @@ async function beginGeneration(
         templateId,
         characterId: character.id,
         speechLine: pending.speechLine,
+        speechFills: pending.speechFills,
       });
     }
     await setTgSession(platformUserId, { chatState: "idle", clearPending: true });
@@ -767,6 +874,7 @@ async function handleWebAppData(
     data.templateId,
     meta.title,
     meta.hasSpeech,
+    meta.speechSlots,
   );
 }
 
@@ -854,6 +962,7 @@ async function handleGenerationCallback(
       row.id,
       meta.title,
       meta.hasSpeech,
+      meta.speechSlots,
     );
     return true;
   }
@@ -893,8 +1002,28 @@ async function handleGenerationCallback(
 
   if (data === GEN_CB.confirm && pending.templateId) {
     if (pending.hasSpeech) {
-      await setTgSession(platformUserId, { chatState: "awaiting_speech", pending });
-      await tgSendMessage(chatId, t("speech_prompt", locale));
+      const slots = pending.speechSlots?.length
+        ? pending.speechSlots
+        : [
+            {
+              id: "s1",
+              speaker: "her",
+              lang: "en",
+              text: "",
+              label: locale === "en" ? "Speech" : "Речь",
+              maxChars: 120,
+            },
+          ];
+      const speechPending: TgPending = {
+        ...pending,
+        speechSlots: slots,
+        speechFills:
+          pending.speechFills?.length === slots.length
+            ? pending.speechFills
+            : slots.map((s) => ({ id: s.id, text: s.text, lang: s.lang })),
+        speechSlotIndex: 0,
+      };
+      await promptSpeechSlot(chatId, platformUserId, locale, speechPending);
       return true;
     }
     if (pending.templateKind === "video") {
@@ -1337,26 +1466,121 @@ export async function handleTgMessage(msg: TgUpdateMessage) {
   }
 
   if (chatState === "awaiting_speech" && pending.templateId) {
-    if (text === t("speech_confirm", locale)) {
-      if (!pending.speechLine?.trim()) {
-        await tgSendMessage(chatId, t("speech_prompt", locale));
-        return;
-      }
-      if (pending.templateKind === "video") {
-        await beginVideoUploadFlow(chatId, platformUserId, user.id, locale, pending);
-      } else {
-        await beginGeneration(chatId, platformUserId, user.id, locale, pending);
-      }
+    const slots = pending.speechSlots || [];
+    const idx = pending.speechSlotIndex ?? 0;
+    const slot = slots[idx];
+
+    if (text === t("speech_use_defaults", locale)) {
+      const fills = slots.map((s) => ({
+        id: s.id,
+        text: s.text,
+        lang: s.lang,
+      }));
+      await finishSpeechAndContinue(
+        chatId,
+        platformUserId,
+        user.id,
+        locale,
+        { ...pending, speechFills: fills, speechLine: fills[0]?.text },
+      );
       return;
     }
-    const line = text.slice(0, 500);
-    const next = { ...pending, speechLine: line };
-    await setTgSession(platformUserId, { chatState: "awaiting_speech", pending: next });
-    await tgSendMessage(
-      chatId,
-      tFormat("speech_preview", locale, { line }),
-      speechConfirmKeyboard(locale),
-    );
+
+    if (text === t("speech_confirm", locale) || text === t("speech_keep", locale)) {
+      // keep current fill for this slot and advance
+      if (!slot) {
+        await finishSpeechAndContinue(
+          chatId,
+          platformUserId,
+          user.id,
+          locale,
+          pending,
+        );
+        return;
+      }
+      const fills = [...(pending.speechFills || [])];
+      if (!fills.find((f) => f.id === slot.id)) {
+        fills.push({ id: slot.id, text: slot.text, lang: slot.lang });
+      }
+      const nextIdx = idx + 1;
+      if (nextIdx >= slots.length) {
+        await finishSpeechAndContinue(
+          chatId,
+          platformUserId,
+          user.id,
+          locale,
+          {
+            ...pending,
+            speechFills: fills,
+            speechLine: fills[0]?.text || pending.speechLine,
+          },
+        );
+        return;
+      }
+      await promptSpeechSlot(chatId, platformUserId, locale, {
+        ...pending,
+        speechFills: fills,
+        speechSlotIndex: nextIdx,
+      });
+      return;
+    }
+
+    const langMatch = text.match(/^\/lang\s+([a-z]{2})\s*$/i);
+    if (langMatch && slot) {
+      const lang = langMatch[1]!.toLowerCase();
+      const fills = [...(pending.speechFills || [])];
+      const i = fills.findIndex((f) => f.id === slot.id);
+      const nextFill = {
+        id: slot.id,
+        text: i >= 0 ? fills[i]!.text : slot.text,
+        lang,
+      };
+      if (i >= 0) fills[i] = nextFill;
+      else fills.push(nextFill);
+      await promptSpeechSlot(chatId, platformUserId, locale, {
+        ...pending,
+        speechFills: fills,
+        speechSlotIndex: idx,
+      });
+      return;
+    }
+
+    if (!slot) {
+      await tgSendMessage(chatId, t("speech_prompt", locale));
+      return;
+    }
+
+    const line = text.slice(0, slot.maxChars || 120);
+    const fills = [...(pending.speechFills || [])];
+    const i = fills.findIndex((f) => f.id === slot.id);
+    const nextFill = {
+      id: slot.id,
+      text: line,
+      lang: fills[i]?.lang || slot.lang || "en",
+    };
+    if (i >= 0) fills[i] = nextFill;
+    else fills.push(nextFill);
+
+    const nextIdx = idx + 1;
+    if (nextIdx >= slots.length) {
+      await finishSpeechAndContinue(
+        chatId,
+        platformUserId,
+        user.id,
+        locale,
+        {
+          ...pending,
+          speechFills: fills,
+          speechLine: fills[0]?.text || line,
+        },
+      );
+      return;
+    }
+    await promptSpeechSlot(chatId, platformUserId, locale, {
+      ...pending,
+      speechFills: fills,
+      speechSlotIndex: nextIdx,
+    });
     return;
   }
 
