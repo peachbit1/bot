@@ -89,6 +89,7 @@ export function parseSpeechSlotsBlock(source: string): SpeechSlot[] {
     let lang = "en";
     let text = "";
     let label = "";
+    let maxChars = 120;
 
     for (let i = 0; i < parts.length; i++) {
       const p = parts[i]!;
@@ -108,6 +109,15 @@ export function parseSpeechSlotsBlock(source: string): SpeechSlot[] {
       else if (key === "lang" || key === "language") lang = normLang(val);
       else if (key === "text" || key === "line" || key === "default") text = val;
       else if (key === "label") label = val;
+      else if (
+        key === "maxchars" ||
+        key === "max" ||
+        key === "maxlen" ||
+        key === "limit"
+      ) {
+        const n = Number.parseInt(val, 10);
+        if (Number.isFinite(n) && n > 0) maxChars = Math.min(500, n);
+      }
     }
     if (!id) id = `s${out.length + 1}`;
     if (seen.has(id)) continue;
@@ -116,9 +126,9 @@ export function parseSpeechSlotsBlock(source: string): SpeechSlot[] {
       id,
       speaker,
       lang,
-      text: text.slice(0, 500),
+      text: text.slice(0, maxChars),
       label: label || undefined,
-      maxChars: 120,
+      maxChars,
     });
   }
   return out;

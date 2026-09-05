@@ -17,7 +17,7 @@ import {
 type CharOption = { id: string; name: string };
 
 /**
- * Compact body / bust / hips editor for video labs.
+ * Compact figure-preset editor for video labs.
  * Saves into character.lookbookJson via PATCH /api/characters.
  */
 export function CharacterBodySettingsPanel({
@@ -105,7 +105,7 @@ export function CharacterBodySettingsPanel({
         </Link>
       </div>
       <p className="mt-1 text-[11px] text-zinc-600">
-        Тело / грудь / попа пишутся в промпт Story H3. Лицо — только с фото персонажа.
+        Пресет фигуры (рост + тип) уходит в Story/видео. Без слов про грудь/попу. Лицо — с фото.
       </p>
 
       {onCharacterIdChange ? (
@@ -129,7 +129,7 @@ export function CharacterBodySettingsPanel({
       {!characterId ? (
         <p className="mt-2 text-[11px] text-zinc-500">Выбери персонажа, чтобы править тело.</p>
       ) : (
-        <div className="mt-2 grid gap-2 sm:grid-cols-3">
+        <div className="mt-2 grid gap-2 sm:grid-cols-1">
           {bodyFields.map((field) => {
             const stored = lookbook[field.id] || "";
             const selectVal = lookbookSelectValue(field, stored);

@@ -13,8 +13,8 @@ import { t, tFormat } from "@/lib/tg/i18n";
 import { setTgSession } from "@/lib/tg/session";
 import { tgSendMessage } from "@/lib/tg/telegram-api";
 
-/** Body-related fields for TG MVP (body / bust / hips + intimate). */
-const TG_LOOKBOOK_FIELD_IDS = ["body", "bust", "hips", "genital_hair"] as const;
+/** Body-related fields for TG MVP (figure preset + intimate). */
+const TG_LOOKBOOK_FIELD_IDS = ["body", "genital_hair"] as const;
 
 export const LB_CB = {
   open: (charId: string) => `lb:o:${charId}`,
@@ -35,9 +35,7 @@ function tgLookbookFields(): LookbookField[] {
 function fieldLabel(field: LookbookField, locale: TgLocale): string {
   if (locale === "en") {
     const map: Record<string, string> = {
-      body: "Body type",
-      bust: "Bust size",
-      hips: "Butt / hips",
+      body: "Figure (height + build)",
       genital_hair: "Pubic area",
     };
     return map[field.id] || field.label;

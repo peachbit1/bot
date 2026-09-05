@@ -17,7 +17,7 @@ type ApiFetch = (
   init?: RequestInit,
 ) => Promise<Response>;
 
-/** Mini App body/bust/hips editor — saves via /api/tg/characters/lookbook. */
+/** Mini App figure-preset editor — saves via /api/tg/characters/lookbook. */
 export function TgCharacterBodyEditor({
   characterId,
   characterName,
@@ -100,8 +100,8 @@ export function TgCharacterBodyEditor({
           <p className="tg-muted" style={{ fontSize: "0.7rem", margin: "0.4rem 0" }}>
             {characterName}:{" "}
             {locale === "en"
-              ? "body / bust / hips go into photo & video prompts"
-              : "тело / грудь / попа уходят в промпт фото и видео"}
+              ? "figure preset goes into photo & video prompts (no bust/hips wording)"
+              : "пресет фигуры уходит в промпт фото и видео (без слов про грудь/попу)"}
           </p>
           <div className="tg-body-fields">
             {bodyFields.map((field) => {

@@ -104,7 +104,7 @@ Fields:
 ${fieldCatalog(opts.gender)}
 
 Return JSON like:
-{"hair_color":"custom:blonde hair with blue tips","body":"slim","bust":"medium","genital_hair":"shaved","details":"custom:light freckles on cheeks"}`;
+{"hair_color":"custom:blonde hair with blue tips","body":"avg_slim","genital_hair":"shaved","details":"custom:light freckles on cheeks"}`;
 
   let text: string;
   try {

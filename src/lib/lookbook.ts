@@ -160,55 +160,81 @@ const SHARED_SKIN: LookbookField = {
 
 const FEMALE_BODY: LookbookField = {
   id: "body",
-  label: "Телосложение",
+  label: "Фигура (рост + тип)",
   allowCustom: true,
   options: [
-    { id: "very_thin", label: "Очень худая", en: "very thin skinny body" },
-    { id: "skinny", label: "Худая", en: "skinny slim body" },
-    { id: "petite_slim", label: "Petite slim", en: "petite slim athletic body" },
-    { id: "slim", label: "Стройная", en: "slim body" },
-    { id: "athletic", label: "Атлетичная", en: "athletic toned body" },
-    { id: "fit_muscular", label: "Накачанная", en: "fit muscular feminine body" },
-    { id: "average", label: "Обычная", en: "average natural body" },
-    { id: "curvy", label: "Пышная / curvy", en: "curvy body wide hips" },
-    { id: "soft", label: "Мягкая", en: "soft feminine body" },
-    { id: "chubby", label: "Пухлая", en: "chubby soft body" },
-    { id: "thick", label: "Плотная thick", en: "thick curvy body" },
-    { id: "plus", label: "Plus-size", en: "plus-size full-figured body" },
-    { id: "obese", label: "Очень полная", en: "very fat obese body" },
+    { id: "short_slim", label: "Маленький рост · худая", en: "short petite slim build" },
+    {
+      id: "short_athletic",
+      label: "Маленький рост · спортивная",
+      en: "short petite athletic toned build",
+    },
+    {
+      id: "short_soft",
+      label: "Маленький рост · пухлая",
+      en: "short petite soft plump build",
+    },
+    { id: "avg_slim", label: "Средний рост · худая", en: "average height slim build" },
+    {
+      id: "avg_athletic",
+      label: "Средний рост · спортивная",
+      en: "average height athletic toned build",
+    },
+    {
+      id: "avg_soft",
+      label: "Средний рост · пухлая",
+      en: "average height soft plump build",
+    },
+    { id: "tall_slim", label: "Высокий рост · худая", en: "tall slim build" },
+    {
+      id: "tall_athletic",
+      label: "Высокий рост · спортивная",
+      en: "tall athletic toned build",
+    },
+    {
+      id: "tall_soft",
+      label: "Высокий рост · пухлая",
+      en: "tall soft plump build",
+    },
   ],
 };
 
-const FEMALE_BUST: LookbookField = {
-  id: "bust",
-  label: "Грудь",
-  allowCustom: true,
-  options: [
-    { id: "flat", label: "Плоская", en: "flat chest" },
-    { id: "very_small", label: "Очень маленькая", en: "very small breasts" },
-    { id: "small", label: "Небольшая", en: "small breasts" },
-    { id: "medium", label: "Средняя", en: "medium breasts" },
-    { id: "full", label: "Полная", en: "full round breasts" },
-    { id: "large", label: "Большая", en: "large breasts" },
-    { id: "very_large", label: "Очень большая", en: "very large breasts" },
-    { id: "huge", label: "Огромная", en: "huge heavy breasts" },
-  ],
+/** Legacy body ids → figure preset (no breast/butt wording). */
+const LEGACY_BODY_TO_PRESET: Record<string, string> = {
+  very_thin: "short_slim",
+  skinny: "short_slim",
+  petite_slim: "short_slim",
+  slim: "avg_slim",
+  athletic: "avg_athletic",
+  fit_muscular: "avg_athletic",
+  average: "avg_slim",
+  curvy: "avg_soft",
+  soft: "avg_soft",
+  chubby: "avg_soft",
+  thick: "avg_soft",
+  plus: "tall_soft",
+  obese: "tall_soft",
 };
 
-const FEMALE_HIPS: LookbookField = {
-  id: "hips",
-  label: "Попа / бёдра",
-  allowCustom: true,
-  options: [
-    { id: "flat", label: "Плоская", en: "flat buttocks" },
-    { id: "small", label: "Небольшая", en: "small round buttocks" },
-    { id: "medium", label: "Средняя", en: "medium round buttocks" },
-    { id: "full", label: "Полная", en: "full round buttocks" },
-    { id: "large", label: "Большая", en: "large firm buttocks" },
-    { id: "very_large", label: "Очень большая", en: "very large round buttocks" },
-    { id: "huge", label: "Огромная", en: "huge thick buttocks wide hips" },
-  ],
-};
+function migrateFemaleFigurePreset(values: LookbookValues): LookbookValues {
+  const next = { ...values };
+  const rawBody = String(next.body || "").trim();
+  if (rawBody && !isCustomValue(rawBody)) {
+    const known = FEMALE_BODY.options.some((o) => o.id === rawBody);
+    if (!known && LEGACY_BODY_TO_PRESET[rawBody]) {
+      next.body = LEGACY_BODY_TO_PRESET[rawBody]!;
+    } else if (!known) {
+      next.body = "avg_slim";
+    }
+  } else if (!rawBody) {
+    next.body = "avg_slim";
+  }
+  delete next.bust;
+  delete next.hips;
+  delete next[lookbookPromptKey("bust")];
+  delete next[lookbookPromptKey("hips")];
+  return next;
+}
 
 const FEMALE_GENITAL_HAIR: LookbookField = {
   id: "genital_hair",
@@ -319,8 +345,6 @@ export const FEMALE_LOOKBOOK_FIELDS: LookbookField[] = [
     ],
   },
   FEMALE_BODY,
-  FEMALE_BUST,
-  FEMALE_HIPS,
   FEMALE_GENITAL_HAIR,
   SHARED_SKIN,
   {
@@ -455,9 +479,7 @@ export function suggestedLookbook(gender: Gender, preset?: "olh" | "bald_muscula
     face_shape: "oval",
     eyes: "brown",
     lips: "natural",
-    body: "petite_slim",
-    bust: "medium",
-    hips: "medium",
+    body: "avg_slim",
     genital_hair: "shaved",
     skin: "light",
     vibe: "natural",
@@ -471,12 +493,15 @@ export function parseLookbook(
 ): LookbookValues {
   try {
     const raw = json ? (JSON.parse(json) as LookbookValues) : {};
-    const merged = { ...emptyLookbook(gender), ...raw };
+    let merged = { ...emptyLookbook(gender), ...raw };
     const hasPerField = Object.keys(raw).some((k) => k.startsWith(LOOKBOOK_PROMPT_PREFIX));
     if (!hasPerField && raw[LOOKBOOK_SUPPLEMENT_KEY] === "0") {
       for (const field of fieldsForGender(gender)) {
         merged[lookbookPromptKey(field.id)] = "0";
       }
+    }
+    if (gender === "female") {
+      merged = migrateFemaleFigurePreset(merged);
     }
     return merged;
   } catch {
@@ -497,15 +522,13 @@ export function fieldValueToEnglish(field: LookbookField, raw: string | undefine
 }
 
 const INTIMATE_LOOKBOOK_FIELDS = new Set([
-  "bust",
-  "hips",
   "genital_hair",
   "penis_size",
 ]);
 
 /** Body shape fields injected into Ref2V / Story H3 identity (face stays from photos). */
 export const VIDEO_BODY_LOOKBOOK_FIELD_IDS: Record<Gender, Set<string>> = {
-  female: new Set(["body", "bust", "hips"]),
+  female: new Set(["body"]),
   male: new Set(["body", "chest"]),
 };
 
@@ -516,7 +539,6 @@ export const BACK_VIEW_LOOKBOOK_FIELD_IDS: Record<Gender, Set<string>> = {
     "hair_color",
     "hair_style",
     "body",
-    "hips",
     "skin",
   ]),
   male: new Set(["hair_length", "hair_color", "body", "skin"]),

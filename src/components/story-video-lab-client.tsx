@@ -42,9 +42,7 @@ type ExtraSlot = {
 
 function defaultBodyLookbook(): LookbookValues {
   const v = emptyLookbook("female");
-  v.body = "slim";
-  v.bust = "medium";
-  v.hips = "medium";
+  v.body = "avg_slim";
   return v;
 }
 
